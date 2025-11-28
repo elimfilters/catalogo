@@ -220,7 +220,7 @@ async function validateFramCode(code) {
 module.exports = {
     validateFramCode,
     scrapeFramFilter: validateFramCode,
-    scrapeFram: validateFramCode  // Add this alias
+    scrapeFram: validateFramCode
 };
 ```
 
