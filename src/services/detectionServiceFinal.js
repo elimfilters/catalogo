@@ -93,8 +93,18 @@ async function detectFilter(rawInput, lang = 'en') {
         
         let family;
         
-        // Try code-based detection first (for FRAM codes)
+        // Detect family from code pattern first (for FRAM codes)
         const codeUpper = scraperResult.code.toUpperCase();
+        
+        // CRITICAL FIX: FRAM codes are ALWAYS LD, override duty if FRAM pattern detected
+        if (codeUpper.startsWith('CA') || codeUpper.startsWith('CF') || 
+            codeUpper.startsWith('CH') || codeUpper.startsWith('PH') || 
+            codeUpper.startsWith('TG') || codeUpper.startsWith('XG') || 
+            codeUpper.startsWith('HM') || codeUpper.startsWith('G') || 
+            codeUpper.startsWith('PS')) {
+            duty = 'LD';  // Force LD for all FRAM codes
+            console.log(`🔄 FRAM code detected - duty overridden to LD`);
+        }
         
         if (codeUpper.startsWith('CA')) {
             family = 'AIR';
