@@ -11,7 +11,6 @@ const { generateSKU } = require('../sku/generator');
 const { getMedia } = require('../utils/mediaMapper');
 const { noEquivalentFound } = require('../utils/messages');
 const { searchInSheet, appendToSheet } = require('./syncSheetsService');
-const { extractDonaldsonSpecs, extractFramSpecs } = require('./technicalSpecsScraper');
 
 // ============================================================================
 // MAIN DETECTION SERVICE
@@ -117,25 +116,7 @@ async function detectFilter(rawInput, lang = 'en') {
         console.log(`✅ SKU Generated: ${sku}`);
 
         // ---------------------------------------------------------------------
-        // PASO 3.5: EXTRACT FULL TECHNICAL SPECIFICATIONS
-        // ---------------------------------------------------------------------
-        console.log(`📊 Step 3.5: Extracting full technical specifications...`);
-        
-        let techSpecs = null;
-        try {
-            if (duty === 'HD') {
-                techSpecs = await extractDonaldsonSpecs(scraperResult.code);
-            } else {
-                techSpecs = await extractFramSpecs(scraperResult.code);
-            }
-            console.log(`✅ Technical specs extracted`);
-        } catch (specError) {
-            console.log(`⚠️  Technical specs extraction failed: ${specError.message}`);
-            // Continue without detailed specs
-        }
-
-        // ---------------------------------------------------------------------
-        // PASO 4: GUARDAR EN GOOGLE SHEET MASTER (CON SPECS COMPLETAS)
+        // PASO 4: GUARDAR EN GOOGLE SHEET MASTER
         // ---------------------------------------------------------------------
         console.log(`💾 Step 4: Saving to Google Sheet Master...`);
         
@@ -151,36 +132,27 @@ async function detectFilter(rawInput, lang = 'en') {
             source: scraperResult.source,
             cross_reference: scraperResult.cross || [],
             applications: scraperResult.applications || [],
-            equipment_applications: techSpecs?.equipment_applications || scraperResult.applications || [],
+            equipment_applications: scraperResult.applications || [],
             attributes: {
                 // Basic attributes from scraper
                 ...scraperResult.attributes,
                 
-                // Technical specs from detailed extraction
-                ...(techSpecs?.dimensions || {}),
-                ...(techSpecs?.performance || {}),
-                ...(techSpecs?.technical_details || {}),
-                
                 // Description
-                description: techSpecs?.description || scraperResult.family || family,
+                description: scraperResult.family || family,
                 type: scraperResult.family,
                 style: scraperResult.attributes?.style || 'Standard',
                 
-                // Standards and certifications
-                manufacturing_standards: techSpecs?.certifications.join(', ') || 'ISO 9001',
-                certification_standards: techSpecs?.standards.join(', ') || (duty === 'HD' ? 'ISO 5011' : 'SAE J806'),
-                iso_test_method: techSpecs?.standards[0] || (duty === 'HD' ? 'ISO 5011' : 'SAE J806'),
-                
-                // Engine applications
-                engine_applications: techSpecs?.engine_applications || [],
+                // Default standards
+                manufacturing_standards: duty === 'HD' ? 'ISO 9001, ISO/TS 16949' : 'ISO 9001',
+                certification_standards: duty === 'HD' ? 'ISO 5011, ISO 4548-12' : 'SAE J806',
+                iso_test_method: duty === 'HD' ? 'ISO 5011' : 'SAE J806',
                 
                 // Operating parameters
-                operating_temperature_min_c: techSpecs?.technical_details?.operating_temperature_min_c || '-40',
-                operating_temperature_max_c: techSpecs?.technical_details?.operating_temperature_max_c || '100',
-                fluid_compatibility: techSpecs?.technical_details?.fluid_compatibility || 'Universal',
-                disposal_method: techSpecs?.technical_details?.disposal_method || 'Recycle according to local regulations',
-                service_life_hours: techSpecs?.technical_details?.service_life_hours || '500',
-                change_interval_km: techSpecs?.technical_details?.change_interval_km || '',
+                operating_temperature_min_c: '-40',
+                operating_temperature_max_c: '100',
+                fluid_compatibility: 'Universal',
+                disposal_method: 'Recycle according to local regulations',
+                service_life_hours: '500',
                 manufactured_by: 'ELIMFILTERS'
             },
             last4: scraperResult.last4,
