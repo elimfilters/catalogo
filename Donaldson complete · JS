@@ -246,10 +246,10 @@ async function scrapeDonaldson(code) {
                     'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
                 }
             });
-            const body = response?.data;
-            if (typeof body === 'string' && body.toLowerCase().includes(normalized.toLowerCase())) {
+
+            if (response.data && response.data.toLowerCase().includes(normalized.toLowerCase())) {
                 let familyFromWeb = null;
-                const content = body.toLowerCase();
+                const content = response.data.toLowerCase();
                 
                 if (content.includes('lube') || content.includes('oil')) familyFromWeb = 'OIL';
                 else if (content.includes('air') && content.includes('filter')) familyFromWeb = 'AIRE';
