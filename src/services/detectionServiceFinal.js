@@ -27,14 +27,11 @@ async function detectFilter(rawInput, lang = 'en') {
         // ---------------------------------------------------------------------
         console.log(`🔍 Step 1: Validating code via scrapers...`);
         
-        const duty = detectDuty(query);
+        const codeUpper = query.toUpperCase();
 
-        if (!duty) {
-            console.log(`❌ No duty detected for: ${query}`);
-            return noEquivalentFound(query, lang);
-        }
-
-        console.log(`✅ Duty detected: ${duty}`);
+        // Initial duty detection by code pattern: FRAM series → LD, else HD
+        let duty = /^(CA|CF|CH|PH|TG|XG|HM|G|PS)\d/i.test(codeUpper) ? 'LD' : 'HD';
+        console.log(`✅ Duty detected: ${duty} (initial via code pattern)`);
 
         // Validar código con scrapers
         const scraperResult = await scraperBridge(query, duty);
@@ -90,36 +87,19 @@ async function detectFilter(rawInput, lang = 'en') {
         // PASO 3: GENERAR SKU ELIMFILTERS
         // ---------------------------------------------------------------------
         console.log(`🔧 Step 3: Generating new SKU...`);
-        
-       // CRITICAL FIX: FRAM codes are ALWAYS LD
-if (codeUpper.startsWith('CA') || codeUpper.startsWith('CF') || 
-    codeUpper.startsWith('CH') || codeUpper.startsWith('PH') || 
-    codeUpper.startsWith('TG') || codeUpper.startsWith('XG') || 
-    codeUpper.startsWith('HM') || codeUpper.startsWith('G') || 
-    codeUpper.startsWith('PS')) {
-    duty = 'LD';
-}
-        
-        // CRITICAL FIX: FRAM codes are ALWAYS LD, override duty if FRAM pattern detected
-        if (codeUpper.startsWith('CA') || codeUpper.startsWith('CF') || 
-            codeUpper.startsWith('CH') || codeUpper.startsWith('PH') || 
-            codeUpper.startsWith('TG') || codeUpper.startsWith('XG') || 
-            codeUpper.startsWith('HM') || codeUpper.startsWith('G') || 
-            codeUpper.startsWith('PS')) {
-            duty = 'LD';  // Force LD for all FRAM codes
-            console.log(`🔄 FRAM code detected - duty overridden to LD`);
-        }
-        
-        if (codeUpper.startsWith('CA')) {
-            family = 'AIR';
-        } else if (codeUpper.startsWith('CF') || codeUpper.startsWith('CH')) {
+
+        // Determine family based on FRAM series or scraper hints
+        let family = null;
+        if (/^CA/.test(codeUpper)) {
+            family = 'AIRE';
+        } else if (/^(CF|CH)/.test(codeUpper)) {
             family = 'CABIN';
-        } else if (codeUpper.startsWith('PH') || codeUpper.startsWith('TG') || codeUpper.startsWith('XG') || codeUpper.startsWith('HM')) {
+        } else if (/^(PH|TG|XG|HM)/.test(codeUpper)) {
             family = 'OIL';
-        } else if (codeUpper.startsWith('G') || codeUpper.startsWith('PS')) {
+        } else if (/^(G|PS)/.test(codeUpper)) {
             family = 'FUEL';
         } else {
-            // Fallback to duty-based detection
+            // Use scraper-derived family as hint
             if (duty === 'HD') {
                 family = detectFamilyHD(scraperResult.family);
             } else {
