@@ -100,7 +100,7 @@ async function validateFramCode(code) {
                 valid: true,
                 code: normalizedCode,
                 source: 'FRAM',
-                family: 'AIR',
+                family: 'AIRE',
                 duty: 'LD',
                 last4: normalizedCode.slice(-4),
                 cross: [],
@@ -225,7 +225,30 @@ async function validateFramCode(code) {
 // EXPORT
 // ============================================================================
 
+// Wrapper to provide a bridge-compatible shape
+async function scrapeFram(inputCode) {
+    const result = await validateFramCode(inputCode);
+
+    if (result && result.valid) {
+        return {
+            found: true,
+            code: result.code,
+            original_code: inputCode,
+            series: result.attributes?.series || null,
+            family: result.family || null,
+            family_hint: result.family || null,
+            last4: result.last4,
+            cross: result.cross || [],
+            applications: result.applications || [],
+            attributes: result.attributes || {}
+        };
+    }
+
+    return { found: false };
+}
+
 module.exports = {
     validateFramCode,
+    scrapeFram,
     scrapeFramFilter: validateFramCode // Alias for compatibility
 };
