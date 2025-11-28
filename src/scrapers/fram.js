@@ -219,5 +219,13 @@ async function validateFramCode(code) {
 
 module.exports = {
     validateFramCode,
-    scrapeFramFilter: validateFramCode // Alias for compatibility
+    scrapeFramFilter: validateFramCode,
+    scrapeFram: validateFramCode  // Add this alias
 };
+```
+
+---
+
+## 📝 **Commit:**
+```
+fix: Add scrapeFram alias to FRAM scraper exports
