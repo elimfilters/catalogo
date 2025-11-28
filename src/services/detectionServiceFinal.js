@@ -91,10 +91,14 @@ async function detectFilter(rawInput, lang = 'en') {
         // ---------------------------------------------------------------------
         console.log(`🔧 Step 3: Generating new SKU...`);
         
-        let family;
-        
-        // Detect family from code pattern first (for FRAM codes)
-        const codeUpper = scraperResult.code.toUpperCase();
+       // CRITICAL FIX: FRAM codes are ALWAYS LD
+if (codeUpper.startsWith('CA') || codeUpper.startsWith('CF') || 
+    codeUpper.startsWith('CH') || codeUpper.startsWith('PH') || 
+    codeUpper.startsWith('TG') || codeUpper.startsWith('XG') || 
+    codeUpper.startsWith('HM') || codeUpper.startsWith('G') || 
+    codeUpper.startsWith('PS')) {
+    duty = 'LD';
+}
         
         // CRITICAL FIX: FRAM codes are ALWAYS LD, override duty if FRAM pattern detected
         if (codeUpper.startsWith('CA') || codeUpper.startsWith('CF') || 
