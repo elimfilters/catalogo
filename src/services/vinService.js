@@ -296,7 +296,7 @@ async function processVIN(vin) {
 
         console.log(`✅ Vehicle: ${vehicleInfo.year} ${vehicleInfo.make} ${vehicleInfo.model}`);
 
-        // Step 3: Get OEM filter codes (NOT SKUs yet)
+        // Step 3: Get OEM filter codes
         console.log('🔧 Looking up OEM filter codes...');
         const filterData = await getFilterCodes(vehicleInfo);
 
@@ -315,14 +315,56 @@ async function processVIN(vin) {
                     fuel_type: vehicleInfo.fuel_type,
                     duty: determineVehicleDuty(vehicleInfo)
                 },
-                filter_codes: {},
+                filters: {},
                 message: 'VIN decoded - no filter codes found for this vehicle'
             };
         }
 
-        // Step 4: Build response with OEM codes only
-        // WordPress will call /api/detect/:code for each one to generate SKUs
+        // Step 4: Convert OEM codes to ELIMFILTERS SKUs
+        console.log('🔄 Converting OEM codes to ELIMFILTERS SKUs...');
+        const filters = {};
+        
+        for (const [filterType, oemCode] of Object.entries(filterData.codes)) {
+            if (oemCode) {
+                try {
+                    console.log(`  Converting ${filterType}: ${oemCode}`);
+                    const result = await detectFilter(oemCode);
+                    
+                    if (result.success && result.status === 'OK') {
+                        filters[filterType] = {
+                            sku: result.sku,
+                            oem_code: oemCode,
+                            family: result.family,
+                            duty: result.duty,
+                            media: result.media,
+                            cross_reference: result.cross_reference || [],
+                            applications: result.applications || [],
+                            attributes: result.attributes || {}
+                        };
+                        console.log(`  ✅ ${filterType}: ${oemCode} → ${result.sku}`);
+                    } else {
+                        // If conversion fails, still include OEM code
+                        filters[filterType] = {
+                            sku: null,
+                            oem_code: oemCode,
+                            note: 'SKU generation pending - OEM code available'
+                        };
+                        console.log(`  ⚠️  ${filterType}: ${oemCode} → Pending`);
+                    }
+                } catch (error) {
+                    console.error(`  ❌ Error converting ${oemCode}:`, error.message);
+                    filters[filterType] = {
+                        sku: null,
+                        oem_code: oemCode,
+                        error: 'Conversion failed'
+                    };
+                }
+            }
+        }
+
+        // Step 5: Build response with ELIMFILTERS SKUs
         return {
+            success: true,
             valid: true,
             vin: vinUpper,
             vehicle: {
@@ -336,8 +378,8 @@ async function processVIN(vin) {
                 fuel_type: vehicleInfo.fuel_type,
                 duty: filterData.duty
             },
-            filter_codes: filterData.codes,
-            message: 'VIN decoded successfully - use filter codes with /api/detect/:code to generate SKUs'
+            filters: filters,
+            message: 'VIN decoded successfully - ELIMFILTERS SKUs generated'
         };
 
     } catch (error) {
