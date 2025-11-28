@@ -328,6 +328,10 @@ async function processVIN(vin) {
         }
 
         // Step 4: Convert OEM codes to ELIMFILTERS SKUs
+        // Note: La salida del endpoint VIN no debe exponer códigos de referencia
+        // (FRAM/DONALDSON). Solo OEM del fabricante y SKU ELIMFILTERS.
+        // Mientras se integra una base OEM real, ocultamos códigos de referencia
+        // en la respuesta y dejamos preparado el campo OEM.
         console.log('🔄 Converting OEM codes to ELIMFILTERS SKUs...');
         const filters = {};
         
@@ -346,21 +350,20 @@ async function processVIN(vin) {
                     if (result && result.status === 'OK' && result.sku) {  // ← Fixed condition
                         filters[filterType] = {
                             sku: result.sku,
-                            oem_code: oemCode,
+                            // Usar el primer OEM si está disponible desde detectFilter
+                            oem_code: Array.isArray(result.oem_codes) && result.oem_codes.length > 0 ? result.oem_codes[0] : null,
                             family: result.family,
                             duty: result.duty,
-                            media: result.media,
-                            cross_reference: result.cross_reference || [],
-                            applications: result.applications || [],
-                            attributes: result.attributes || {}
+                            media: result.media
                         };
                         console.log(`  ✅ ${filterType}: ${oemCode} → ${result.sku}`);
                     } else {
                         // If conversion fails, still include OEM code
                         filters[filterType] = {
                             sku: null,
-                            oem_code: oemCode,
-                            note: 'SKU generation pending - OEM code available'
+                            // OEM real pendiente de integrar
+                            oem_code: null,
+                            note: 'SKU generation pending - OEM code unavailable'
                         };
                         console.log(`  ⚠️  ${filterType}: ${oemCode} → Pending`);
                     }
@@ -368,7 +371,8 @@ async function processVIN(vin) {
                     console.error(`  ❌ Error converting ${oemCode}:`, error.message);
                     filters[filterType] = {
                         sku: null,
-                        oem_code: oemCode,
+                        // OEM real pendiente de integrar
+                        oem_code: null,
                         error: error.message || 'Conversion failed'
                     };
                 }
@@ -392,7 +396,7 @@ async function processVIN(vin) {
                 duty: filterData.duty
             },
             filters: filters,
-            message: 'VIN decoded successfully - ELIMFILTERS SKUs generated'
+            message: 'VIN decoded successfully - ELIMFILTERS SKUs generated (OEM pending integration)'
         };
 
     } catch (error) {
