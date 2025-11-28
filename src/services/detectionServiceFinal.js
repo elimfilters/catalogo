@@ -8,9 +8,10 @@ const { scraperBridge } = require('../scrapers/scraperBridge');
 const { detectDuty } = require('../utils/dutyDetector');
 const { detectFamilyHD, detectFamilyLD } = require('../utils/familyDetector');
 const { generateSKU } = require('../sku/generator');
+const { extract4Digits } = require('../utils/digitExtractor');
 const { getMedia } = require('../utils/mediaMapper');
 const { noEquivalentFound } = require('../utils/messages');
-const { searchInSheet, appendToSheet } = require('./syncSheetsService');
+const { searchInSheet, upsertBySku } = require('./syncSheetsService');
 const { extractFramSpecs, extractDonaldsonSpecs, getDefaultSpecs } = require('../services/Technicalspecsscraper · JS');
 
 // Helper local: extraer años de un texto
@@ -373,9 +374,11 @@ function consolidateApps(list) {
 // MAIN DETECTION SERVICE
 // ============================================================================
 
-async function detectFilter(rawInput, lang = 'en') {
+async function detectFilter(rawInput, lang = 'en', options = {}) {
     try {
         const query = normalize.code(rawInput);
+        const force = !!(options && options.force);
+        const generateAll = !!(options && options.generateAll);
 
         console.log(`📊 Processing: ${query}`);
 
@@ -395,6 +398,126 @@ async function detectFilter(rawInput, lang = 'en') {
 
         if (!scraperResult || !scraperResult.last4) {
             console.log(`❌ Invalid code - not found in OEM/Cross-reference: ${query}`);
+
+            // Si force=true, intentamos generar SKU placeholder evitando duplicados
+            if (force) {
+                console.log(`⚙️  FORCE mode enabled. Checking Master before forcing...`);
+                try {
+                    const existingSKU = await searchInSheet(query);
+                    if (existingSKU && existingSKU.found) {
+                        console.log(`✅ Existing SKU found in Master (force bypassed): ${existingSKU.sku}`);
+                        return {
+                            status: 'OK',
+                            found_in_master: true,
+                            query_normalized: query,
+                            code_input: query,
+                            code_oem: existingSKU.code_oem,
+                            oem_codes: existingSKU.oem_codes || [],
+                            duty: existingSKU.duty,
+                            family: existingSKU.family,
+                            sku: existingSKU.sku,
+                            media: existingSKU.media,
+                            source: existingSKU.source,
+                            cross_reference: existingSKU.cross_reference || [],
+                            applications: existingSKU.applications || [],
+                            attributes: existingSKU.attributes || {},
+                            message: 'SKU encontrado en catálogo Master'
+                        };
+                    }
+                } catch (sheetErr) {
+                    console.log(`⚠️  Google Sheets lookup error (force path): ${sheetErr.message}`);
+                }
+
+                // Deduce family por patrón FRAM, si no, usar OIL como genérico
+                let familyForced = null;
+                if (/^CA/i.test(codeUpper)) {
+                    familyForced = 'AIRE';
+                } else if (/^(CF|CH)/i.test(codeUpper)) {
+                    familyForced = 'CABIN';
+                } else if (/^(PH|TG|XG|HM)/i.test(codeUpper)) {
+                    familyForced = 'OIL';
+                } else if (/^(G|PS)/i.test(codeUpper)) {
+                    familyForced = 'FUEL';
+                } else {
+                    familyForced = 'OIL';
+                }
+
+                const last4Forced = extract4Digits(query);
+                if (!last4Forced) {
+                    console.log(`❌ FORCE failed: no digits found to build SKU for ${query}`);
+                    return {
+                        status: 'NOT_FOUND',
+                        query_normalized: query,
+                        message: 'Sin dígitos para generar SKU forzado',
+                        valid: false
+                    };
+                }
+
+                const skuForced = generateSKU(familyForced, duty, last4Forced);
+                if (!skuForced || skuForced.error) {
+                    console.log(`❌ FORCE failed: ${skuForced?.error || 'error desconocido'}`);
+                    return {
+                        status: 'NOT_FOUND',
+                        query_normalized: query,
+                        message: 'No se pudo generar SKU forzado',
+                        valid: false
+                    };
+                }
+
+                const masterDataForced = {
+                    query_normalized: query,
+                    code_input: query,
+                    code_oem: query,
+                    oem_codes: [query],
+                    duty,
+                    family: familyForced,
+                    sku: skuForced,
+                    media: getMedia(familyForced, duty),
+                    filter_type: familyForced,
+                    source: 'FORCED',
+                    cross_reference: [],
+                    applications: [],
+                    equipment_applications: [],
+                    attributes: {
+                        description: 'FORCED PLACEHOLDER',
+                        manufactured_by: 'ELIMFILTERS',
+                        forced: true
+                    },
+                    last4: last4Forced,
+                    oem_equivalent: query
+                };
+
+                try {
+                    await upsertBySku(masterDataForced, { deleteDuplicates: true });
+                    console.log(`✅ FORCED upsert to Master: ${skuForced}`);
+                } catch (saveErr) {
+                    console.error(`❌ Failed forced upsert: ${saveErr.message}`);
+                }
+
+                return {
+                    status: 'FORCED',
+                    forced: true,
+                    found_in_master: false,
+                    newly_generated: true,
+                    query_normalized: query,
+                    code_input: query,
+                    code_oem: query,
+                    oem_codes: [query],
+                    duty,
+                    family: familyForced,
+                    sku: skuForced,
+                    media: getMedia(familyForced, duty),
+                    source: 'FORCED',
+                    oem_homologated: { code: '' },
+                    cross_reference: [],
+                    applications: [],
+                    engine_applications: [],
+                    equipment_applications: [],
+                    attributes: { description: 'FORCED PLACEHOLDER', manufactured_by: 'ELIMFILTERS', forced: true },
+                    message: 'SKU forzado generado y guardado en catálogo Master'
+                };
+            }
+
             return {
                 status: 'NOT_FOUND',
                 query_normalized: query,
@@ -404,6 +527,94 @@ async function detectFilter(rawInput, lang = 'en') {
         }
 
         console.log(`✅ Code validated: ${query} → ${scraperResult.code} (${scraperResult.source})`);
+
+        // Política de homologación: HD requiere DONALDSON, LD requiere FRAM
+        const sourceUp = String(scraperResult.source || '').toUpperCase();
+        const homologationOk = (duty === 'HD' && sourceUp === 'DONALDSON') || (duty === 'LD' && sourceUp === 'FRAM');
+        if (!homologationOk) {
+            console.log(`⛔ Homologación requerida no cumplida: duty=${duty}, source=${sourceUp}.`);
+            if (force) {
+                console.log(`⚙️  FORCE mode enabled. Generating placeholder due to non-homologated source...`);
+                // Deduce family por patrón
+                let familyForced = null;
+                if (/^CA/i.test(codeUpper)) {
+                    familyForced = 'AIRE';
+                } else if (/^(CF|CH)/i.test(codeUpper)) {
+                    familyForced = 'CABIN';
+                } else if (/^(PH|TG|XG|HM)/i.test(codeUpper)) {
+                    familyForced = 'OIL';
+                } else if (/^(G|PS)/i.test(codeUpper)) {
+                    familyForced = 'FUEL';
+                } else {
+                    familyForced = 'OIL';
+                }
+                const last4Forced = extract4Digits(query);
+                if (!last4Forced) {
+                    return {
+                        status: 'NOT_FOUND',
+                        query_normalized: query,
+                        message: 'Sin dígitos para generar SKU forzado',
+                        valid: false
+                    };
+                }
+                const skuForced = generateSKU(familyForced, duty, last4Forced);
+                if (!skuForced || skuForced.error) {
+                    return {
+                        status: 'NOT_FOUND',
+                        query_normalized: query,
+                        message: 'No se pudo generar SKU forzado',
+                        valid: false
+                    };
+                }
+                const masterDataForced = {
+                    query_normalized: query,
+                    code_input: query,
+                    code_oem: query,
+                    oem_codes: [query],
+                    duty,
+                    family: familyForced,
+                    sku: skuForced,
+                    media: getMedia(familyForced, duty),
+                    filter_type: familyForced,
+                    source: 'FORCED',
+                    cross_reference: [],
+                    applications: [],
+                    equipment_applications: [],
+                    attributes: { description: 'FORCED PLACEHOLDER', manufactured_by: 'ELIMFILTERS', forced: true },
+                    last4: last4Forced,
+                    oem_equivalent: query
+                };
+                try { await upsertBySku(masterDataForced, { deleteDuplicates: true }); } catch (_) {}
+                return {
+                    status: 'FORCED',
+                    forced: true,
+                    found_in_master: false,
+                    newly_generated: true,
+                    query_normalized: query,
+                    code_input: query,
+                    code_oem: query,
+                    oem_codes: [query],
+                    duty,
+                    family: familyForced,
+                    sku: skuForced,
+                    media: getMedia(familyForced, duty),
+                    source: 'FORCED',
+                    oem_homologated: { code: '' },
+                    cross_reference: [],
+                    applications: [],
+                    engine_applications: [],
+                    equipment_applications: [],
+                    attributes: { description: 'FORCED PLACEHOLDER', manufactured_by: 'ELIMFILTERS', forced: true },
+                    message: 'SKU forzado (sin homologación) generado y guardado en catálogo Master'
+                };
+            }
+            return {
+                status: 'NOT_FOUND',
+                query_normalized: query,
+                message: 'Requiere homologación: HD con DONALDSON o LD con FRAM',
+                valid: false
+            };
+        }
 
         // ---------------------------------------------------------------------
         // PASO 2: BUSCAR SI YA EXISTE SKU EN GOOGLE SHEET MASTER
@@ -467,7 +678,23 @@ async function detectFilter(rawInput, lang = 'en') {
 
         if (!family) {
             console.log(`❌ Family detection failed for ${scraperResult.code}`);
-            return noEquivalentFound(query, lang);
+            if (force) {
+                console.log('⚙️  FORCE mode: applying fallback family heuristics');
+                if (/^CA/i.test(codeUpper)) {
+                    family = 'AIRE';
+                } else if (/^(CF|CH)/i.test(codeUpper)) {
+                    family = 'CABIN';
+                } else if (/^(PH|TG|XG|HM)/i.test(codeUpper)) {
+                    family = 'OIL';
+                } else if (/^(G|PS)/i.test(codeUpper)) {
+                    family = 'FUEL';
+                } else {
+                    family = 'OIL';
+                }
+                console.log(`✅ FORCE fallback family: ${family}`);
+            } else {
+                return noEquivalentFound(query, lang);
+            }
         }
 
         console.log(`✅ Family: ${family}`);
@@ -567,11 +794,114 @@ const equipFinal = ensureMinApps(equipFmt, duty, 'equipment');
         };
 
         try {
-            await appendToSheet(masterData);
-            console.log(`✅ Saved to Google Sheet Master: ${sku}`);
+            await upsertBySku(masterData, { deleteDuplicates: true });
+            console.log(`✅ Upserted to Google Sheet Master: ${sku}`);
         } catch (saveError) {
-            console.error(`❌ Failed to save to Google Sheet: ${saveError.message}`);
+            console.error(`❌ Failed to upsert to Google Sheet: ${saveError.message}`);
             // Continue anyway - SKU is generated
+        }
+
+        // -----------------------------------------------------------------
+        // Optional: generate SKUs for all associated homologated codes
+        // -----------------------------------------------------------------
+        let generatedAllSummary = [];
+        if (generateAll) {
+            console.log(`🧩 generate_all enabled: attempting homologated SKUs for associated codes...`);
+            const candidates = new Set([...(Array.isArray(oemClean) ? oemClean : []), ...(Array.isArray(crossClean) ? crossClean : [])]);
+            // Remove primary OEM and the input query to avoid duplicates
+            candidates.delete(scraperResult.code);
+            candidates.delete(query);
+
+            for (const cand of candidates) {
+                const cQuery = normalize.code(cand);
+                if (!cQuery || cQuery.length < 3) continue;
+                try {
+                    const sr = await scraperBridge(cQuery, duty);
+                    if (!sr || !sr.last4) {
+                        console.log(`↪️  Skipping ${cQuery}: not validated by scrapers`);
+                        continue;
+                    }
+                    const srcUp = String(sr.source || '').toUpperCase();
+                    const homologOk = (duty === 'HD' && srcUp === 'DONALDSON') || (duty === 'LD' && srcUp === 'FRAM');
+                    if (!homologOk) {
+                        console.log(`↪️  Skipping ${cQuery}: source ${srcUp} not homologated for duty ${duty}`);
+                        continue;
+                    }
+
+                    // Determine family for the candidate; fallback to primary family
+                    let famCand = null;
+                    const cUpper = cQuery.toUpperCase();
+                    if (/^CA/.test(cUpper)) {
+                        famCand = 'AIRE';
+                    } else if (/^(CF|CH)/.test(cUpper)) {
+                        famCand = 'CABIN';
+                    } else if (/^(PH|TG|XG|HM)/.test(cUpper)) {
+                        famCand = 'OIL';
+                    } else if (/^(G|PS)/.test(cUpper)) {
+                        famCand = 'FUEL';
+                    } else {
+                        famCand = duty === 'HD' ? detectFamilyHD(sr.family) : detectFamilyLD(sr.family);
+                    }
+                    if (!famCand) famCand = family;
+
+                    const skuCand = generateSKU(famCand, duty, sr.last4);
+                    if (!skuCand || skuCand.error) {
+                        console.log(`↪️  Skipping ${cQuery}: SKU generation error`);
+                        continue;
+                    }
+
+                    const specsCand = getDefaultSpecs(sr.code, sr.source);
+                    const oemCand = cleanOEMList(sr.attributes?.oem_numbers || sr.oem || [], duty);
+                    const crossCand = cleanCrossList(sr.cross || [], duty, sr.code, sr.source);
+
+                    const masterDataCand = {
+                        query_normalized: cQuery,
+                        code_input: cQuery,
+                        code_oem: sr.code,
+                        oem_codes: oemCand,
+                        duty,
+                        family: famCand,
+                        sku: skuCand,
+                        media: getMedia(famCand, duty),
+                        filter_type: famCand,
+                        source: sr.source,
+                        cross_reference: crossCand,
+                        applications: ensureMinApps(preferBrandModelFormat(consolidateApps(cleanAppsList(specsCand?.engine_applications || [], duty))), duty, 'engine'),
+                        equipment_applications: ensureMinApps(preferBrandModelFormat(consolidateApps(cleanAppsList(specsCand?.equipment_applications || [], duty))), duty, 'equipment'),
+                        attributes: {
+                            ...sr.attributes,
+                            height_mm: specsCand?.dimensions?.height_mm,
+                            outer_diameter_mm: specsCand?.dimensions?.outer_diameter_mm,
+                            thread_size: specsCand?.dimensions?.thread_size,
+                            gasket_od_mm: specsCand?.dimensions?.gasket_od_mm,
+                            iso_main_efficiency_percent: specsCand?.performance?.iso_main_efficiency_percent,
+                            iso_test_method: specsCand?.performance?.iso_test_method,
+                            micron_rating: specsCand?.performance?.micron_rating,
+                            manufacturing_standards: duty === 'HD' ? 'ISO 9001, ISO/TS 16949' : 'ISO 9001',
+                            certification_standards: duty === 'HD' ? 'ISO 5011, ISO 4548-12' : 'SAE J806',
+                            operating_temperature_min_c: '-40',
+                            operating_temperature_max_c: '100',
+                            fluid_compatibility: 'Universal',
+                            disposal_method: 'Recycle according to local regulations',
+                            service_life_hours: '500',
+                            manufactured_by: 'ELIMFILTERS'
+                        },
+                        last4: sr.last4,
+                        oem_equivalent: sr.code
+                    };
+
+                    try {
+                        await upsertBySku(masterDataCand, { deleteDuplicates: true });
+                        console.log(`✅ Upserted associated homologated SKU: ${skuCand} for ${cQuery}`);
+                        generatedAllSummary.push({ code: cQuery, sku: skuCand, source: sr.source, forced: false, upsert_status: 'SAVED' });
+                    } catch (errUp) {
+                        console.log(`⚠️  Failed upsert for ${cQuery}: ${errUp.message}`);
+                        generatedAllSummary.push({ code: cQuery, sku: skuCand, source: sr.source, forced: false, upsert_status: 'UPSERT_FAILED', error: errUp.message });
+                    }
+                } catch (err) {
+                    console.log(`⚠️  Error processing ${cQuery}: ${err.message}`);
+                }
+            }
         }
 
         // ---------------------------------------------------------------------
@@ -605,6 +935,7 @@ const equipFinal = ensureMinApps(equipFmt, duty, 'equipment');
 
         const response = {
             status: 'OK',
+            forced: false,
             found_in_master: false,
             newly_generated: true,
             query_normalized: query,
@@ -625,7 +956,8 @@ const equipFinal = ensureMinApps(equipFmt, duty, 'equipment');
             engine_applications: engineFinal,
             equipment_applications: equipFinal,
             attributes: attributesMerged,
-            message: 'SKU ELIMFILTERS generado y guardado en catálogo Master'
+            message: 'SKU ELIMFILTERS generado y guardado en catálogo Master',
+            generated_all: generatedAllSummary
         };
 
         console.log(`🎉 Detection complete: ${sku}`);
