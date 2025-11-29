@@ -1,0 +1,18 @@
+# Exclude legacy files with middle dot and odd naming that break Node
+
+# Any file containing the Unicode middle dot character
+**/*·*
+
+# Any file names that literally include a space + '·' + space pattern
+**/* · *
+
+# Known problematic legacy scraper filenames
+src/services/Technicalspecsscraper*
+src/services/Technicalspecsscraper · JS
+src/services/Technicalspecsscraper · Js
+src/services/Technicalspecsscraper · js
+
+# Keep standard ignores minimal (Docker image already installs deps)
+node_modules/
+.env
+*.log

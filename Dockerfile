@@ -11,6 +11,9 @@ RUN npm install --production --no-audit --no-fund
 # Copy application code
 COPY . .
 
+# Verify build does not include legacy files
+RUN node scripts/check-legacy.js
+
 # Expose port
 EXPOSE 8080
 

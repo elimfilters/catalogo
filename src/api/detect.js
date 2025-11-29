@@ -24,6 +24,12 @@ router.get('/:code', async (req, res) => {
                 example: '/api/detect/P552100'
             });
         }
+        if (!/^[A-Za-z0-9-]{3,64}$/.test(code)) {
+            return res.status(400).json({
+                error: 'Invalid part number format',
+                details: 'Only letters, numbers, and hyphen allowed (3-64 chars)'
+            });
+        }
 
         console.log(`🔎 Detecting filter: ${code} (force=${force}, generate_all=${generateAll})`);
 
@@ -59,6 +65,12 @@ router.get('/search', async (req, res) => {
                 error: 'Missing query parameter',
                 details: 'Please provide ?q= parameter',
                 example: '/api/detect/search?q=P552100'
+            });
+        }
+        if (!/^[A-Za-z0-9-]{3,64}$/.test(query)) {
+            return res.status(400).json({
+                error: 'Invalid query format',
+                details: 'Only letters, numbers, and hyphen allowed (3-64 chars)'
             });
         }
 
