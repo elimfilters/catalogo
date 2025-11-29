@@ -148,12 +148,14 @@ async function detectFilter(rawInput, lang = 'en') {
         let technicalSpecs = null;
         
         try {
-            // Determine which scraper to use based on source
-            if (scraperResult.source === 'DONALDSON' || duty === 'HD') {
-                console.log(`📡 Calling Donaldson web scraper for: ${scraperResult.code}`);
+            // CRITICAL: Use DUTY to determine scraper, NOT source
+            if (duty === 'HD') {
+                // HD always uses Donaldson scraper
+                console.log(`📡 Calling Donaldson web scraper (HD) for: ${scraperResult.code}`);
                 technicalSpecs = await extractDonaldsonSpecs(scraperResult.code);
-            } else if (scraperResult.source === 'FRAM' || duty === 'LD') {
-                console.log(`📡 Calling FRAM web scraper for: ${scraperResult.code}`);
+            } else if (duty === 'LD') {
+                // LD always uses FRAM scraper
+                console.log(`📡 Calling FRAM web scraper (LD) for: ${scraperResult.code}`);
                 technicalSpecs = await extractFramSpecs(scraperResult.code);
             }
             
