@@ -11,6 +11,7 @@ const { generateSKU } = require('../sku/generator');
 const { getMedia } = require('../utils/mediaMapper');
 const { noEquivalentFound } = require('../utils/messages');
 const { searchInSheet, appendToSheet } = require('./syncSheetsService');
+const { extractDonaldsonSpecs, extractFramSpecs } = require('./technicalSpecsScraper');
 
 // ============================================================================
 // MAIN DETECTION SERVICE
@@ -140,6 +141,36 @@ async function detectFilter(rawInput, lang = 'en') {
         console.log(`✅ SKU Generated: ${sku}`);
 
         // ---------------------------------------------------------------------
+        // PASO 3.5: EXTRAER ESPECIFICACIONES TÉCNICAS VIA WEB SCRAPING
+        // ---------------------------------------------------------------------
+        console.log(`🌐 Step 3.5: Extracting technical specs via web scraping...`);
+        
+        let technicalSpecs = null;
+        
+        try {
+            // Determine which scraper to use based on source
+            if (scraperResult.source === 'DONALDSON' || duty === 'HD') {
+                console.log(`📡 Calling Donaldson web scraper for: ${scraperResult.code}`);
+                technicalSpecs = await extractDonaldsonSpecs(scraperResult.code);
+            } else if (scraperResult.source === 'FRAM' || duty === 'LD') {
+                console.log(`📡 Calling FRAM web scraper for: ${scraperResult.code}`);
+                technicalSpecs = await extractFramSpecs(scraperResult.code);
+            }
+            
+            if (technicalSpecs && technicalSpecs.found) {
+                console.log(`✅ Technical specs extracted successfully`);
+                console.log(`   - Equipment applications: ${technicalSpecs.equipment_applications?.length || 0}`);
+                console.log(`   - Engine applications: ${technicalSpecs.engine_applications?.length || 0}`);
+                console.log(`   - Dimensions found: ${Object.keys(technicalSpecs.dimensions || {}).length}`);
+            } else {
+                console.log(`⚠️  No technical specs found, using defaults`);
+            }
+        } catch (scrapingError) {
+            console.error(`⚠️  Web scraping failed: ${scrapingError.message}`);
+            // Continue without specs - non-critical
+        }
+
+        // ---------------------------------------------------------------------
         // PASO 4: GUARDAR EN GOOGLE SHEET MASTER
         // ---------------------------------------------------------------------
         console.log(`💾 Step 4: Saving to Google Sheet Master...`);
@@ -151,65 +182,66 @@ async function detectFilter(rawInput, lang = 'en') {
             sku: sku,
             duty: duty,
             type: family, // Renamed from 'family' to 'type'
-            filter_type: scraperResult.attributes?.type || family,
+            filter_type: technicalSpecs?.technical_details?.filter_type || scraperResult.attributes?.type || family,
             
             // 6: Description
-            description: scraperResult.family || `${family} Filter`,
+            description: technicalSpecs?.description || scraperResult.family || `${family} Filter`,
             
-            // 7-8: References
-            oem_codes: [], // Will be filled by web scraping
-            cross_reference: scraperResult.cross || [],
+            // 7-8: References (FROM WEB SCRAPING)
+            oem_codes: [], // TODO: Extract from cross-reference page
+            cross_reference: technicalSpecs?.cross_reference || scraperResult.cross || [],
             
             // 9: Media
             media_type: getMedia(family, duty),
             
-            // 10-11: Applications
-            equipment_applications: scraperResult.applications || [],
-            engine_applications: [],
+            // 10-11: Applications (FROM WEB SCRAPING)
+            equipment_applications: technicalSpecs?.equipment_applications || scraperResult.applications || [],
+            engine_applications: technicalSpecs?.engine_applications || [],
             
-            // 12-15: Dimensions
-            height_mm: '',
-            outer_diameter_mm: '',
-            thread_size: '',
-            micron_rating: '',
+            // 12-15: Dimensions (FROM WEB SCRAPING)
+            height_mm: technicalSpecs?.dimensions?.height_mm || '',
+            outer_diameter_mm: technicalSpecs?.dimensions?.outer_diameter_mm || '',
+            thread_size: technicalSpecs?.dimensions?.thread_size || '',
+            micron_rating: technicalSpecs?.performance?.micron_rating || '',
             
             // 16-20: Operating Parameters
-            operating_temperature_min_c: '-40',
-            operating_temperature_max_c: duty === 'LD' ? '120' : '100',
-            fluid_compatibility: family === 'OIL' || family === 'FUEL' ? 'Engine Oil/Diesel' : 
+            operating_temperature_min_c: technicalSpecs?.technical_details?.operating_temperature_min_c || '-40',
+            operating_temperature_max_c: technicalSpecs?.technical_details?.operating_temperature_max_c || (duty === 'LD' ? '120' : '100'),
+            fluid_compatibility: technicalSpecs?.technical_details?.fluid_compatibility || 
+                                (family === 'OIL' || family === 'FUEL' ? 'Engine Oil/Diesel' : 
                                 family === 'AIR' ? 'Air' : 
-                                family === 'CABIN' ? 'Air (Cabin)' : 'Universal',
-            disposal_method: 'Recycle according to local regulations',
-            gasket_od_mm: '',
+                                family === 'CABIN' ? 'Air (Cabin)' : 'Universal'),
+            disposal_method: technicalSpecs?.technical_details?.disposal_method || 'Recycle according to local regulations',
+            gasket_od_mm: technicalSpecs?.dimensions?.gasket_od_mm || '',
             
-            // 21-37: Additional specs
-            subtype: scraperResult.attributes?.series || 'Standard',
-            gasket_id_mm: '',
-            bypass_valve_psi: '',
-            beta_200: '',
-            hydrostatic_burst_psi: '',
-            dirt_capacity_grams: '',
-            rated_flow_gpm: '',
-            rated_flow_cfm: '',
-            operating_pressure_min_psi: '',
-            operating_pressure_max_psi: '',
-            weight_grams: '',
-            panel_width_mm: '',
-            panel_depth_mm: '',
-            water_separation_efficiency_percent: '',
-            drain_type: '',
-            inner_diameter_mm: '',
-            pleat_count: '',
-            seal_material: '',
-            housing_material: '',
+            // 21-37: Additional specs (FROM WEB SCRAPING)
+            subtype: technicalSpecs?.technical_details?.style || scraperResult.attributes?.series || 'Standard',
+            gasket_id_mm: technicalSpecs?.dimensions?.gasket_id_mm || '',
+            bypass_valve_psi: technicalSpecs?.performance?.bypass_valve_psi || '',
+            beta_200: technicalSpecs?.performance?.beta_200 || '',
+            hydrostatic_burst_psi: technicalSpecs?.performance?.hydrostatic_burst_psi || '',
+            dirt_capacity_grams: technicalSpecs?.performance?.dirt_capacity_grams || '',
+            rated_flow_gpm: technicalSpecs?.performance?.rated_flow_gpm || '',
+            rated_flow_cfm: technicalSpecs?.performance?.rated_flow_cfm || '',
+            operating_pressure_min_psi: technicalSpecs?.technical_details?.operating_pressure_min_psi || '',
+            operating_pressure_max_psi: technicalSpecs?.technical_details?.operating_pressure_max_psi || '',
+            weight_grams: technicalSpecs?.technical_details?.weight_grams || '',
+            panel_width_mm: technicalSpecs?.dimensions?.panel_width_mm || '',
+            panel_depth_mm: technicalSpecs?.dimensions?.panel_depth_mm || '',
+            water_separation_efficiency_percent: technicalSpecs?.performance?.water_separation_efficiency_percent || '',
+            drain_type: technicalSpecs?.technical_details?.drain_type || '',
+            inner_diameter_mm: technicalSpecs?.dimensions?.inner_diameter_mm || '',
+            pleat_count: technicalSpecs?.technical_details?.pleat_count || '',
+            seal_material: technicalSpecs?.technical_details?.seal_material || '',
+            housing_material: technicalSpecs?.technical_details?.housing_material || '',
             
-            // 38-45: Performance and Standards
-            iso_main_efficiency_percent: '',
-            iso_test_method: duty === 'HD' ? 'ISO 5011' : 'SAE J806',
-            manufacturing_standards: duty === 'HD' ? 'ISO 9001, ISO/TS 16949' : 'ISO 9001',
-            certification_standards: duty === 'HD' ? 'ISO 5011, ISO 4548-12' : 'SAE J806, SAE J1858',
-            service_life_hours: scraperResult.attributes?.series === 'XG' ? '1000' : '500',
-            change_interval_km: scraperResult.attributes?.series === 'XG' ? '30000' : '15000'
+            // 38-45: Performance and Standards (FROM WEB SCRAPING)
+            iso_main_efficiency_percent: technicalSpecs?.performance?.iso_main_efficiency_percent || '',
+            iso_test_method: technicalSpecs?.performance?.iso_test_method || (duty === 'HD' ? 'ISO 5011' : 'SAE J806'),
+            manufacturing_standards: technicalSpecs?.technical_details?.manufacturing_standards || (duty === 'HD' ? 'ISO 9001, ISO/TS 16949' : 'ISO 9001'),
+            certification_standards: Array.isArray(technicalSpecs?.standards) ? technicalSpecs.standards.join(', ') : (duty === 'HD' ? 'ISO 5011, ISO 4548-12' : 'SAE J806, SAE J1858'),
+            service_life_hours: technicalSpecs?.technical_details?.service_life_hours || (scraperResult.attributes?.series === 'XG' ? '1000' : '500'),
+            change_interval_km: technicalSpecs?.technical_details?.change_interval_km || (scraperResult.attributes?.series === 'XG' ? '30000' : '15000')
         };
 
         try {
