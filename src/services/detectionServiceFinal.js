@@ -11,7 +11,8 @@ const { generateSKU } = require('../sku/generator');
 const { getMedia } = require('../utils/mediaMapper');
 const { noEquivalentFound } = require('../utils/messages');
 const { searchInSheet, appendToSheet } = require('./syncSheetsService');
-const { extractDonaldsonSpecs, extractFramSpecs } = require('./technicalSpecsScraper');
+// TODO: Upload technicalSpecsScraper.js to GitHub first
+// const { extractDonaldsonSpecs, extractFramSpecs } = require('./technicalSpecsScraper');
 
 // ============================================================================
 // MAIN DETECTION SERVICE
@@ -142,11 +143,13 @@ async function detectFilter(rawInput, lang = 'en') {
 
         // ---------------------------------------------------------------------
         // PASO 3.5: EXTRAER ESPECIFICACIONES TÉCNICAS VIA WEB SCRAPING
+        // TODO: Enable after uploading technicalSpecsScraper.js to GitHub
         // ---------------------------------------------------------------------
-        console.log(`🌐 Step 3.5: Extracting technical specs via web scraping...`);
+        // console.log(`🌐 Step 3.5: Extracting technical specs via web scraping...`);
         
         let technicalSpecs = null;
         
+        /* DISABLED - technicalSpecsScraper.js not in GitHub yet
         try {
             // CRITICAL: Use DUTY to determine scraper, NOT source
             if (duty === 'HD') {
@@ -171,6 +174,7 @@ async function detectFilter(rawInput, lang = 'en') {
             console.error(`⚠️  Web scraping failed: ${scrapingError.message}`);
             // Continue without specs - non-critical
         }
+        */
 
         // ---------------------------------------------------------------------
         // PASO 4: GUARDAR EN GOOGLE SHEET MASTER
