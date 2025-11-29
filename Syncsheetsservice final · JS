@@ -112,44 +112,52 @@ async function searchInSheet(code) {
         const rows = await sheet.getRows();
         const normalizedCode = code.toUpperCase().replace(/[^A-Z0-9]/g, '');
 
+        // Safe accessor for environments without row.get()
+        const getCell = (r, key) => {
+            try {
+                if (r && typeof r.get === 'function') return r.get(key);
+                return r ? r[key] : undefined;
+            } catch (_) { return undefined; }
+        };
+
         for (const row of rows) {
-            const queryNorm = row.get('query_norm')?.toUpperCase().replace(/[^A-Z0-9]/g, '');
-            const oemCodes = row.get('oem_codes')?.toUpperCase().replace(/[^A-Z0-9]/g, '');
-            const sku = row.get('sku')?.toUpperCase().replace(/[^A-Z0-9]/g, '');
+            const queryNorm = getCell(row, 'query_norm')?.toUpperCase().replace(/[^A-Z0-9]/g, '');
+            const oemCodes = getCell(row, 'oem_codes')?.toUpperCase().replace(/[^A-Z0-9]/g, '');
+            const sku = getCell(row, 'sku')?.toUpperCase().replace(/[^A-Z0-9]/g, '');
 
             if (queryNorm === normalizedCode || 
                 oemCodes === normalizedCode || 
                 sku === normalizedCode) {
                 
-                console.log(`📊 Found in Google Sheet Master: ${code} → ${row.get('sku')}`);
+                console.log(`📊 Found in Google Sheet Master: ${code} → ${getCell(row, 'sku')}`);
                 
                 return {
                     found: true,
-                    query_norm: row.get('query_norm'),
-                    sku: row.get('sku'),
-                    description: row.get('description'),
-                    family: row.get('family'),
-                    duty: row.get('duty'),
-                    oem_codes: row.get('oem_codes'),
-                    cross_reference: tryParseJSON(row.get('cross_reference')),
-                    media_type: row.get('media_type'),
-                    filter_type: row.get('filter_type'),
-                    subtype: row.get('subtype'),
-                    engine_applications: tryParseJSON(row.get('engine_applications')),
-                    equipment_applications: tryParseJSON(row.get('equipment_applications')),
+                    query_norm: getCell(row, 'query_norm'),
+                    sku: getCell(row, 'sku'),
+                    description: getCell(row, 'description'),
+                    family: getCell(row, 'family'),
+                    duty: getCell(row, 'duty'),
+                    oem_codes: getCell(row, 'oem_codes'),
+                    cross_reference: tryParseJSON(getCell(row, 'cross_reference')),
+                    media_type: getCell(row, 'media_type'),
+                    filter_type: getCell(row, 'filter_type'),
+                    subtype: getCell(row, 'subtype'),
+                    engine_applications: tryParseJSON(getCell(row, 'engine_applications')),
+                    equipment_applications: tryParseJSON(getCell(row, 'equipment_applications')),
                     attributes: {
-                        height_mm: row.get('height_mm'),
-                        outer_diameter_mm: row.get('outer_diameter_mm'),
-                        thread_size: row.get('thread_size'),
-                        gasket_od_mm: row.get('gasket_od_mm'),
-                        gasket_id_mm: row.get('gasket_id_mm'),
-                        bypass_valve_psi: row.get('bypass_valve_psi'),
-                        micron_rating: row.get('micron_rating'),
-                        weight_grams: row.get('weight_grams')
+                        height_mm: getCell(row, 'height_mm'),
+                        outer_diameter_mm: getCell(row, 'outer_diameter_mm'),
+                        thread_size: getCell(row, 'thread_size'),
+                        gasket_od_mm: getCell(row, 'gasket_od_mm'),
+                        gasket_id_mm: getCell(row, 'gasket_id_mm'),
+                        bypass_valve_psi: getCell(row, 'bypass_valve_psi'),
+                        micron_rating: getCell(row, 'micron_rating'),
+                        weight_grams: getCell(row, 'weight_grams')
                     },
-                    source: row.get('source'),
-                    homologated_sku: row.get('homologated_sku'),
-                    all_cross_references: tryParseJSON(row.get('all_cross_references'))
+                    source: getCell(row, 'source'),
+                    homologated_sku: getCell(row, 'homologated_sku'),
+                    all_cross_references: tryParseJSON(getCell(row, 'all_cross_references'))
                 };
             }
         }

@@ -433,3 +433,15 @@ async function pingSheets() {
         return { ok: false, error: error.message };
     }
 }
+
+// ============================================================================
+// EXPORTS
+// ============================================================================
+
+module.exports = {
+    searchInSheet,
+    appendToSheet,
+    upsertBySku,
+    syncToSheets,
+    pingSheets
+};
