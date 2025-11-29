@@ -1,123 +1,132 @@
 // ============================================================================
-// SCRAPER BRIDGE - v5.0.0
-// Routes filter requests to appropriate scraper (Donaldson HD / FRAM LD)
+// SCRAPER BRIDGE - Updated with Strict Validation
+// CRITICAL: Only Donaldson and FRAM codes can generate SKUs
 // ============================================================================
 
-const { scrapeDonaldson } = require('./donaldson');
-const { scrapeFram } = require('./fram');
-const normalize = require('../utils/normalize');
-const { detectFamilyHD, detectFamilyLD } = require('../utils/familyDetector');
-const { extract4Digits } = require('../utils/digitExtractor');
-const { noEquivalentFound } = require('../utils/messages');
+const { validateDonaldsonCode } = require('./donaldson');
+const { validateFramCode } = require('./fram');
 
-// ============================================================================
-// MAIN SCRAPER BRIDGE
-// ============================================================================
-
-async function scraperBridge(originalCode, duty) {
-    const code = normalize.code(originalCode);
-
-    console.log(`🌉 Scraper Bridge: ${code} | Duty: ${duty}`);
-
-    // ---------------------------------------------------------
-    // HD → DONALDSON
-    // ---------------------------------------------------------
+/**
+ * Bridge to determine which scraper to use
+ * CRITICAL RULE: Only Donaldson (HD) or FRAM (LD) codes are valid for SKU generation
+ * Other brands (Fleetguard, Baldwin, WIX) must be rejected or cross-referenced
+ */
+async function scraperBridge(code, duty) {
+    const normalizedCode = code.toUpperCase().trim();
+    
+    console.log(`🌉 Scraper Bridge: ${normalizedCode} | Duty: ${duty}`);
+    
+    // =========================================================================
+    // STEP 1: Validate code belongs to Donaldson or FRAM
+    // =========================================================================
+    
+    const isDonaldson = isDonaldsonCode(normalizedCode);
+    const isFram = isFramCode(normalizedCode);
+    
+    if (!isDonaldson && !isFram) {
+        console.log(`❌ REJECTED: ${normalizedCode} is not Donaldson or FRAM`);
+        console.log(`   This code cannot generate SKU directly`);
+        console.log(`   Brands like Fleetguard (LF), Baldwin (B), WIX must use cross-reference`);
+        
+        return {
+            valid: false,
+            code: normalizedCode,
+            reason: 'NOT_DONALDSON_OR_FRAM',
+            message: 'Only Donaldson or FRAM codes can generate SKUs. Use cross-reference lookup for other brands.'
+        };
+    }
+    
+    // =========================================================================
+    // STEP 2: Call appropriate scraper based on DUTY
+    // =========================================================================
+    
     if (duty === 'HD') {
+        // HD must be Donaldson
+        if (!isDonaldson) {
+            console.log(`❌ MISMATCH: HD duty requires Donaldson code, got: ${normalizedCode}`);
+            return { valid: false, reason: 'HD_REQUIRES_DONALDSON' };
+        }
+        
         console.log(`📡 Calling Donaldson scraper...`);
-        const donResult = await scrapeDonaldson(code);
-
-        if (donResult.found) {
-            const family = detectFamilyHD(donResult.family_hint);
-
-            if (!family) {
-                console.log(`⚠️  Family detection failed for HD`);
-                return null;
-            }
-
-            const last4 = extract4Digits(donResult.code);
-
-            return {
-                found: true,
-                source: 'DONALDSON',
-                code: donResult.code,
-                family,
-                last4,
-                cross: donResult.cross || [],
-                applications: donResult.applications || [],
-                attributes: donResult.attributes || {}
-            };
+        return await validateDonaldsonCode(normalizedCode);
+        
+    } else if (duty === 'LD') {
+        // LD must be FRAM
+        if (!isFram) {
+            console.log(`❌ MISMATCH: LD duty requires FRAM code, got: ${normalizedCode}`);
+            return { valid: false, reason: 'LD_REQUIRES_FRAM' };
         }
-
-        // Fallback OEM-only
-        console.log(`ℹ️  Donaldson not found, using OEM fallback`);
-        const fallback4 = extract4Digits(code);
-
-        return {
-            found: false,
-            source: 'OEM_ONLY',
-            code: code,
-            family: detectFamilyHD(null),
-            last4: fallback4,
-            cross: [],
-            applications: [],
-            attributes: {}
-        };
-    }
-
-    // ---------------------------------------------------------
-    // LD → FRAM
-    // ---------------------------------------------------------
-    if (duty === 'LD') {
+        
         console.log(`📡 Calling FRAM scraper...`);
-        const framResult = await scrapeFram(code);
-
-        if (framResult.found) {
-            const family = detectFamilyLD(framResult.family_hint);
-
-            if (!family) {
-                console.log(`⚠️  Family detection failed for LD`);
-                return null;
-            }
-
-            const last4 = extract4Digits(framResult.code);
-
-            return {
-                found: true,
-                source: 'FRAM',
-                code: framResult.code,
-                family,
-                last4,
-                cross: framResult.cross || [],
-                applications: framResult.applications || [],
-                attributes: framResult.attributes || {}
-            };
-        }
-
-        // Fallback OEM-only
-        console.log(`ℹ️  FRAM not found, using OEM fallback`);
-        const fallback4 = extract4Digits(code);
-
-        return {
-            found: false,
-            source: 'OEM_ONLY',
-            code: code,
-            family: detectFamilyLD(null),
-            last4: fallback4,
-            cross: [],
-            applications: [],
-            attributes: {}
-        };
+        return await validateFramCode(normalizedCode);
+        
+    } else {
+        console.log(`❌ Invalid duty: ${duty}`);
+        return { valid: false, reason: 'INVALID_DUTY' };
     }
+}
 
-    // Invalid duty
-    console.log(`❌ Invalid duty: ${duty}`);
-    return null;
+/**
+ * Check if code is Donaldson (any series)
+ */
+function isDonaldsonCode(code) {
+    // Donaldson series patterns
+    const donaldsonPatterns = [
+        /^P\d{5,6}[A-Z]?$/,        // P-series (most common)
+        /^DBL\d{4,5}$/,             // Lube filters
+        /^ECC\d{5}$/,               // Coolant filters
+        /^FPG\d{5}$/,               // Fuel primary
+        /^FFP\d{5}$/,               // Fuel primary
+        /^FFS\d{5}$/,               // Fuel secondary
+        /^HFA\d{4,5}$/,             // Air primary
+        /^HFP\d{5}$/,               // Air primary
+        /^EAF\d{5}$/,               // Air safety
+        /^X\d{5,6}$/                // X-series
+    ];
+    
+    return donaldsonPatterns.some(pattern => pattern.test(code));
+}
+
+/**
+ * Check if code is FRAM
+ */
+function isFramCode(code) {
+    // FRAM series patterns
+    const framPatterns = [
+        /^PH\d{3,5}[A-Z]?$/,        // Oil Standard
+        /^TG\d{3,5}[A-Z]?$/,        // Oil Tough Guard
+        /^XG\d{3,5}[A-Z]?$/,        // Oil Extra Guard
+        /^HM\d{3,5}[A-Z]?$/,        // Oil High Mileage
+        /^CA\d{3,5}[A-Z]?$/,        // Air
+        /^CF\d{3,5}[A-Z]?$/,        // Cabin FreshBreeze
+        /^CH\d{3,5}[A-Z]?$/,        // Cabin Standard
+        /^G\d{3,5}[A-Z]?$/,         // Fuel In-Line
+        /^PS\d{3,5}[A-Z]?$/         // Fuel Separator
+    ];
+    
+    return framPatterns.some(pattern => pattern.test(code));
+}
+
+/**
+ * Get rejected brands list (for error messages)
+ */
+function getRejectedBrands() {
+    return [
+        'LF (Fleetguard)',
+        'B (Baldwin)',
+        '51xxx (WIX)',
+        'ML (Mann Filter)',
+        'And other non-Donaldson/FRAM brands'
+    ];
 }
 
 // ============================================================================
-// EXPORT
+// EXPORTS
 // ============================================================================
 
 module.exports = {
-    scraperBridge
+    scraperBridge,
+    isDonaldsonCode,
+    isFramCode,
+    getRejectedBrands
 };
