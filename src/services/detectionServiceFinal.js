@@ -8,9 +8,12 @@ const { scraperBridge } = require('../scrapers/scraperBridge');
 const { detectDuty } = require('../utils/dutyDetector');
 const { detectFamilyHD, detectFamilyLD } = require('../utils/familyDetector');
 const { generateSKU } = require('../sku/generator');
-const { getMedia } = require('../utils/mediaMapper');
+const { getMedia, getMediaSpecs, getServiceIntervals, getTechnology, getBrandTagline } = require('../utils/mediaMapper');
+const { generateDescription, detectSubtype } = require('../utils/descriptionGenerator');
 const { noEquivalentFound } = require('../utils/messages');
 const { searchInSheet, appendToSheet } = require('./syncSheetsService');
+// TODO: Upload technicalSpecsScraper.js to GitHub first
+// const { extractDonaldsonSpecs, extractFramSpecs } = require('./technicalSpecsScraper');
 
 // ============================================================================
 // MAIN DETECTION SERVICE
@@ -27,11 +30,14 @@ async function detectFilter(rawInput, lang = 'en') {
         // ---------------------------------------------------------------------
         console.log(`🔍 Step 1: Validating code via scrapers...`);
         
-        const codeUpper = query.toUpperCase();
+        const duty = detectDuty(query);
 
-        // Initial duty detection by code pattern: FRAM series → LD, else HD
-        let duty = /^(CA|CF|CH|PH|TG|XG|HM|G|PS)\d/i.test(codeUpper) ? 'LD' : 'HD';
-        console.log(`✅ Duty detected: ${duty} (initial via code pattern)`);
+        if (!duty) {
+            console.log(`❌ No duty detected for: ${query}`);
+            return noEquivalentFound(query, lang);
+        }
+
+        console.log(`✅ Duty detected: ${duty}`);
 
         // Validar código con scrapers
         const scraperResult = await scraperBridge(query, duty);
@@ -87,19 +93,32 @@ async function detectFilter(rawInput, lang = 'en') {
         // PASO 3: GENERAR SKU ELIMFILTERS
         // ---------------------------------------------------------------------
         console.log(`🔧 Step 3: Generating new SKU...`);
-
-        // Determine family based on FRAM series or scraper hints
-        let family = null;
-        if (/^CA/.test(codeUpper)) {
-            family = 'AIRE';
-        } else if (/^(CF|CH)/.test(codeUpper)) {
+        
+        let family;
+        
+        // Detect family from code pattern first (for FRAM codes)
+        const codeUpper = scraperResult.code.toUpperCase();
+        
+        // CRITICAL FIX: FRAM codes are ALWAYS LD, override duty if FRAM pattern detected
+        if (codeUpper.startsWith('CA') || codeUpper.startsWith('CF') || 
+            codeUpper.startsWith('CH') || codeUpper.startsWith('PH') || 
+            codeUpper.startsWith('TG') || codeUpper.startsWith('XG') || 
+            codeUpper.startsWith('HM') || codeUpper.startsWith('G') || 
+            codeUpper.startsWith('PS')) {
+            duty = 'LD';  // Force LD for all FRAM codes
+            console.log(`🔄 FRAM code detected - duty overridden to LD`);
+        }
+        
+        if (codeUpper.startsWith('CA')) {
+            family = 'AIR';
+        } else if (codeUpper.startsWith('CF') || codeUpper.startsWith('CH')) {
             family = 'CABIN';
-        } else if (/^(PH|TG|XG|HM)/.test(codeUpper)) {
+        } else if (codeUpper.startsWith('PH') || codeUpper.startsWith('TG') || codeUpper.startsWith('XG') || codeUpper.startsWith('HM')) {
             family = 'OIL';
-        } else if (/^(G|PS)/.test(codeUpper)) {
+        } else if (codeUpper.startsWith('G') || codeUpper.startsWith('PS')) {
             family = 'FUEL';
         } else {
-            // Use scraper-derived family as hint
+            // Fallback to duty-based detection
             if (duty === 'HD') {
                 family = detectFamilyHD(scraperResult.family);
             } else {
@@ -124,47 +143,117 @@ async function detectFilter(rawInput, lang = 'en') {
         console.log(`✅ SKU Generated: ${sku}`);
 
         // ---------------------------------------------------------------------
+        // PASO 3.5: EXTRAER ESPECIFICACIONES TÉCNICAS VIA WEB SCRAPING
+        // TODO: Enable after uploading technicalSpecsScraper.js to GitHub
+        // ---------------------------------------------------------------------
+        // console.log(`🌐 Step 3.5: Extracting technical specs via web scraping...`);
+        
+        let technicalSpecs = null;
+        
+        /* DISABLED - technicalSpecsScraper.js not in GitHub yet
+        try {
+            // CRITICAL: Use DUTY to determine scraper, NOT source
+            if (duty === 'HD') {
+                // HD always uses Donaldson scraper
+                console.log(`📡 Calling Donaldson web scraper (HD) for: ${scraperResult.code}`);
+                technicalSpecs = await extractDonaldsonSpecs(scraperResult.code);
+            } else if (duty === 'LD') {
+                // LD always uses FRAM scraper
+                console.log(`📡 Calling FRAM web scraper (LD) for: ${scraperResult.code}`);
+                technicalSpecs = await extractFramSpecs(scraperResult.code);
+            }
+            
+            if (technicalSpecs && technicalSpecs.found) {
+                console.log(`✅ Technical specs extracted successfully`);
+                console.log(`   - Equipment applications: ${technicalSpecs.equipment_applications?.length || 0}`);
+                console.log(`   - Engine applications: ${technicalSpecs.engine_applications?.length || 0}`);
+                console.log(`   - Dimensions found: ${Object.keys(technicalSpecs.dimensions || {}).length}`);
+            } else {
+                console.log(`⚠️  No technical specs found, using defaults`);
+            }
+        } catch (scrapingError) {
+            console.error(`⚠️  Web scraping failed: ${scrapingError.message}`);
+            // Continue without specs - non-critical
+        }
+        */
+
+        // ---------------------------------------------------------------------
         // PASO 4: GUARDAR EN GOOGLE SHEET MASTER
         // ---------------------------------------------------------------------
         console.log(`💾 Step 4: Saving to Google Sheet Master...`);
         
+        // Structure with all 45 columns in correct order
         const masterData = {
+            // 1-5: Identification
             query_normalized: query,
-            code_input: query,
-            code_oem: scraperResult.code,
-            duty,
-            family,
-            sku,
-            media: getMedia(family, duty),
-            filter_type: family,
-            source: scraperResult.source,
-            cross_reference: scraperResult.cross || [],
-            applications: scraperResult.applications || [],
-            equipment_applications: scraperResult.applications || [],
-            attributes: {
-                // Basic attributes from scraper
-                ...scraperResult.attributes,
-                
-                // Description
-                description: scraperResult.family || family,
-                type: scraperResult.family,
-                style: scraperResult.attributes?.style || 'Standard',
-                
-                // Default standards
-                manufacturing_standards: duty === 'HD' ? 'ISO 9001, ISO/TS 16949' : 'ISO 9001',
-                certification_standards: duty === 'HD' ? 'ISO 5011, ISO 4548-12' : 'SAE J806',
-                iso_test_method: duty === 'HD' ? 'ISO 5011' : 'SAE J806',
-                
-                // Operating parameters
-                operating_temperature_min_c: '-40',
-                operating_temperature_max_c: '100',
-                fluid_compatibility: 'Universal',
-                disposal_method: 'Recycle according to local regulations',
-                service_life_hours: '500',
-                manufactured_by: 'ELIMFILTERS'
-            },
-            last4: scraperResult.last4,
-            oem_equivalent: scraperResult.code
+            sku: sku,
+            duty: duty,
+            type: family, // Renamed from 'family' to 'type'
+            filter_type: technicalSpecs?.technical_details?.filter_type || scraperResult.attributes?.type || family,
+            
+            // 6: Description - Professional description with technology and applications
+            description: generateDescription(
+                family,
+                duty,
+                detectSubtype(family, scraperResult.attributes),
+                getMedia(family, duty, scraperResult.code)
+            ),
+            
+            // 7-8: References (FROM WEB SCRAPING)
+            oem_codes: [], // TODO: Extract from cross-reference page
+            cross_reference: technicalSpecs?.cross_reference || scraperResult.cross || [],
+            
+            // 9: Media (ELIMFILTERS proprietary technologies)
+            media_type: getMedia(family, duty, scraperResult.code),
+            
+            // 10-11: Applications (FROM WEB SCRAPING)
+            equipment_applications: technicalSpecs?.equipment_applications || scraperResult.applications || [],
+            engine_applications: technicalSpecs?.engine_applications || [],
+            
+            // 12-15: Dimensions (FROM WEB SCRAPING)
+            height_mm: technicalSpecs?.dimensions?.height_mm || '',
+            outer_diameter_mm: technicalSpecs?.dimensions?.outer_diameter_mm || '',
+            thread_size: technicalSpecs?.dimensions?.thread_size || '',
+            micron_rating: technicalSpecs?.performance?.micron_rating || '',
+            
+            // 16-20: Operating Parameters
+            operating_temperature_min_c: technicalSpecs?.technical_details?.operating_temperature_min_c || '-40',
+            operating_temperature_max_c: technicalSpecs?.technical_details?.operating_temperature_max_c || (duty === 'LD' ? '120' : '100'),
+            fluid_compatibility: technicalSpecs?.technical_details?.fluid_compatibility || 
+                                (family === 'OIL' || family === 'FUEL' ? 'Engine Oil/Diesel' : 
+                                family === 'AIR' ? 'Air' : 
+                                family === 'CABIN' ? 'Air (Cabin)' : 'Universal'),
+            disposal_method: technicalSpecs?.technical_details?.disposal_method || 'Recycle according to local regulations',
+            gasket_od_mm: technicalSpecs?.dimensions?.gasket_od_mm || '',
+            
+            // 21-37: Additional specs (FROM WEB SCRAPING)
+            subtype: technicalSpecs?.technical_details?.style || scraperResult.attributes?.series || 'Standard',
+            gasket_id_mm: technicalSpecs?.dimensions?.gasket_id_mm || '',
+            bypass_valve_psi: technicalSpecs?.performance?.bypass_valve_psi || '',
+            beta_200: technicalSpecs?.performance?.beta_200 || '',
+            hydrostatic_burst_psi: technicalSpecs?.performance?.hydrostatic_burst_psi || '',
+            dirt_capacity_grams: technicalSpecs?.performance?.dirt_capacity_grams || '',
+            rated_flow_gpm: technicalSpecs?.performance?.rated_flow_gpm || '',
+            rated_flow_cfm: technicalSpecs?.performance?.rated_flow_cfm || '',
+            operating_pressure_min_psi: technicalSpecs?.technical_details?.operating_pressure_min_psi || '',
+            operating_pressure_max_psi: technicalSpecs?.technical_details?.operating_pressure_max_psi || '',
+            weight_grams: technicalSpecs?.technical_details?.weight_grams || '',
+            panel_width_mm: technicalSpecs?.dimensions?.panel_width_mm || '',
+            panel_depth_mm: technicalSpecs?.dimensions?.panel_depth_mm || '',
+            water_separation_efficiency_percent: technicalSpecs?.performance?.water_separation_efficiency_percent || '',
+            drain_type: technicalSpecs?.technical_details?.drain_type || '',
+            inner_diameter_mm: technicalSpecs?.dimensions?.inner_diameter_mm || '',
+            pleat_count: technicalSpecs?.technical_details?.pleat_count || '',
+            seal_material: technicalSpecs?.technical_details?.seal_material || '',
+            housing_material: technicalSpecs?.technical_details?.housing_material || '',
+            
+            // 38-45: Performance and Standards (FROM WEB SCRAPING)
+            iso_main_efficiency_percent: technicalSpecs?.performance?.iso_main_efficiency_percent || '',
+            iso_test_method: technicalSpecs?.performance?.iso_test_method || (duty === 'HD' ? 'ISO 5011' : 'SAE J806'),
+            manufacturing_standards: technicalSpecs?.technical_details?.manufacturing_standards || (duty === 'HD' ? 'ISO 9001, ISO/TS 16949' : 'ISO 9001'),
+            certification_standards: Array.isArray(technicalSpecs?.standards) ? technicalSpecs.standards.join(', ') : (duty === 'HD' ? 'ISO 5011, ISO 4548-12' : 'SAE J806, SAE J1858'),
+            service_life_hours: technicalSpecs?.technical_details?.service_life_hours || (scraperResult.attributes?.series === 'XG' ? '1000' : '500'),
+            change_interval_km: technicalSpecs?.technical_details?.change_interval_km || (scraperResult.attributes?.series === 'XG' ? '30000' : '15000')
         };
 
         try {
@@ -184,23 +273,87 @@ async function detectFilter(rawInput, lang = 'en') {
             status: 'OK',
             found_in_master: false,
             newly_generated: true,
+            
+            // Basic identification
             query_normalized: query,
-            code_input: query,
-            code_oem: scraperResult.code,
-            duty,
-            family,
-            sku,
-            media: getMedia(family, duty),
-            source: scraperResult.source,
-            oem_homologated: {
-                brand: scraperResult.source,
-                code: scraperResult.code,
-                type: duty === 'HD' ? 'Donaldson' : 'FRAM'
+            sku: sku,
+            duty: duty,
+            type: family,
+            filter_type: scraperResult.attributes?.type || family,
+            description: scraperResult.family || `${family} Filter`,
+            
+            // Media
+            media_type: getMedia(family, duty),
+            
+            // References
+            oem_codes: masterData.oem_codes || [],
+            cross_reference: masterData.cross_reference || [],
+            
+            // Applications
+            equipment_applications: masterData.equipment_applications || [],
+            engine_applications: masterData.engine_applications || [],
+            
+            // Dimensions
+            specifications: {
+                height_mm: masterData.height_mm,
+                outer_diameter_mm: masterData.outer_diameter_mm,
+                thread_size: masterData.thread_size,
+                micron_rating: masterData.micron_rating,
+                gasket_od_mm: masterData.gasket_od_mm,
+                gasket_id_mm: masterData.gasket_id_mm,
+                bypass_valve_psi: masterData.bypass_valve_psi,
+                beta_200: masterData.beta_200,
+                hydrostatic_burst_psi: masterData.hydrostatic_burst_psi,
+                dirt_capacity_grams: masterData.dirt_capacity_grams,
+                rated_flow_gpm: masterData.rated_flow_gpm,
+                rated_flow_cfm: masterData.rated_flow_cfm,
+                weight_grams: masterData.weight_grams,
+                panel_width_mm: masterData.panel_width_mm,
+                panel_depth_mm: masterData.panel_depth_mm,
+                inner_diameter_mm: masterData.inner_diameter_mm,
+                pleat_count: masterData.pleat_count,
+                seal_material: masterData.seal_material,
+                housing_material: masterData.housing_material
             },
-            cross_reference: scraperResult.cross || [],
-            applications: scraperResult.applications || [],
-            attributes: scraperResult.attributes || {},
-            message: 'SKU ELIMFILTERS generado y guardado en catálogo Master'
+            
+            // Operating parameters
+            operating_parameters: {
+                temperature_min_c: masterData.operating_temperature_min_c,
+                temperature_max_c: masterData.operating_temperature_max_c,
+                pressure_min_psi: masterData.operating_pressure_min_psi,
+                pressure_max_psi: masterData.operating_pressure_max_psi,
+                fluid_compatibility: masterData.fluid_compatibility,
+                disposal_method: masterData.disposal_method
+            },
+            
+            // Performance
+            performance: {
+                iso_main_efficiency_percent: masterData.iso_main_efficiency_percent,
+                iso_test_method: masterData.iso_test_method,
+                service_life_hours: masterData.service_life_hours,
+                change_interval_km: masterData.change_interval_km
+            },
+            
+            // Standards
+            standards: {
+                manufacturing: masterData.manufacturing_standards,
+                certification: masterData.certification_standards
+            },
+            
+            // Fuel-specific
+            fuel_separator: family === 'FUEL' ? {
+                water_separation_efficiency_percent: masterData.water_separation_efficiency_percent,
+                drain_type: masterData.drain_type
+            } : undefined,
+            
+            // Additional info
+            subtype: masterData.subtype,
+            source: scraperResult.source,
+            
+            // Brand
+            brand: getBrandTagline(),
+            
+            message: 'Filtro GENUINO ELIMFILTERS - Precisión Alemana CERTIFICADA'
         };
 
         console.log(`🎉 Detection complete: ${sku}`);
