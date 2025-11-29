@@ -1,6 +1,6 @@
 {
   "name": "elimfilters-api",
-  "version": "5.0.0",
+  "version": "5.2.0",
   "description": "ELIMFILTERS API - Professional filter detection and SKU generation system",
   "main": "server.js",
   "scripts": {
