@@ -9,6 +9,7 @@ const { detectDuty } = require('../utils/dutyDetector');
 const { detectFamilyHD, detectFamilyLD } = require('../utils/familyDetector');
 const { generateSKU } = require('../sku/generator');
 const { getMedia, getMediaSpecs, getServiceIntervals, getTechnology, getBrandTagline } = require('../utils/mediaMapper');
+const { generateDescription, detectSubtype } = require('../utils/descriptionGenerator');
 const { noEquivalentFound } = require('../utils/messages');
 const { searchInSheet, appendToSheet } = require('./syncSheetsService');
 // TODO: Upload technicalSpecsScraper.js to GitHub first
@@ -190,8 +191,13 @@ async function detectFilter(rawInput, lang = 'en') {
             type: family, // Renamed from 'family' to 'type'
             filter_type: technicalSpecs?.technical_details?.filter_type || scraperResult.attributes?.type || family,
             
-            // 6: Description
-            description: technicalSpecs?.description || scraperResult.family || `${family} Filter`,
+            // 6: Description - Professional description with technology and applications
+            description: generateDescription(
+                family,
+                duty,
+                detectSubtype(family, scraperResult.attributes),
+                getMedia(family, duty, scraperResult.code)
+            ),
             
             // 7-8: References (FROM WEB SCRAPING)
             oem_codes: [], // TODO: Extract from cross-reference page
