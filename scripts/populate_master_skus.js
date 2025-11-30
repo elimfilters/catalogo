@@ -17,6 +17,12 @@
 try { require('dotenv').config(); } catch (_) {}
 
 const { upsertBySku } = require('../src/services/syncSheetsService');
+let detectFilter;
+try {
+  ({ detectFilter } = require('../src/services/detectionServiceFinal'));
+} catch (_) {
+  // Optional: detection may not be available in some builds
+}
 
 function parseSkusFromArgs() {
   const argv = process.argv.slice(2);
@@ -61,17 +67,25 @@ async function main() {
   let successCount = 0;
   for (const sku of skus) {
     const queryNorm = normalizeCode(sku);
-    const data = {
-      sku: sku,
-      query_normalized: queryNorm,
-      // Resto de campos opcionales se dejan vacíos para revisión manual en el Master
-    };
     try {
+      if (typeof detectFilter === 'function') {
+        // Enriquecer usando el pipeline de detección (guarda en Master internamente)
+        const res = await detectFilter(queryNorm, 'es', { force: false, generateAll: false });
+        if (res && res.status === 'OK') {
+          console.log(`✅ Detectado y guardado: ${sku} → ${res.sku}`);
+          successCount++;
+          continue; // ya se guardó con datos enriquecidos
+        }
+        console.warn(`↪️ Detección no retornó OK para ${sku}. Fallback a upsert mínimo.`);
+      }
+
+      // Fallback: upsert mínimo con solo sku y query_norm
+      const data = { sku: sku, query_normalized: queryNorm };
       await upsertBySku(data, { deleteDuplicates: true });
-      console.log(`✅ Upsert realizado para SKU: ${sku} (query_norm: ${queryNorm})`);
+      console.log(`✅ Upsert mínimo realizado para SKU: ${sku} (query_norm: ${queryNorm})`);
       successCount++;
     } catch (e) {
-      console.error(`⚠️ Falló upsert para ${sku}: ${e.message}`);
+      console.error(`⚠️ Falló procesamiento para ${sku}: ${e.message}`);
     }
   }
 
