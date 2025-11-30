@@ -6,6 +6,11 @@
 // Load environment variables (for local development)
 try { require('dotenv').config(); } catch (_) {}
 
+// Versioning info
+const { version: pkgVersion } = require('./package.json');
+const APP_VERSION = process.env.APP_VERSION || pkgVersion || 'unknown';
+const GIT_SHA = process.env.GIT_SHA || process.env.RAILWAY_GIT_COMMIT_SHA || null;
+
 const express = require('express');
 const cors = require('cors');
 const morgan = require('morgan');
@@ -138,7 +143,8 @@ app.get('/health/mongo', async (req, res) => {
 app.get('/', (req, res) => {
     res.json({
         status: "online",
-        version: "5.0.0",
+        version: APP_VERSION,
+        git_sha: GIT_SHA,
         service: "ELIMFILTERS API",
         endpoints: {
             filter_detection: "/api/detect/:code",
@@ -155,7 +161,8 @@ app.get('/', (req, res) => {
 app.get('/health', (req, res) => {
     res.status(200).json({
         status: 'OK',
-        version: '5.0.0',
+        version: APP_VERSION,
+        git_sha: GIT_SHA,
         uptime: process.uptime(),
         timestamp: new Date().toISOString()
     });
@@ -163,7 +170,7 @@ app.get('/health', (req, res) => {
 
 // Aggregated health endpoint
 app.get('/health/overall', async (req, res) => {
-    const version = '5.0.0';
+    const version = APP_VERSION;
     const env = process.env.NODE_ENV || 'development';
     const start = Date.now();
     let sheets = { ok: false };
@@ -190,6 +197,7 @@ app.get('/health/overall', async (req, res) => {
     res.status(statusCode).json({
         status: allOk ? 'OK' : 'ERROR',
         version,
+        git_sha: GIT_SHA,
         environment: env,
         uptime: process.uptime(),
         response_time_ms: elapsedMs,
