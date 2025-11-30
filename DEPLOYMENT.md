@@ -240,6 +240,17 @@ Verificación
 - Revisa S3 para el objeto: `s3://<bucket>/<prefix>/<db>/<db>_<timestamp>.tar.gz`.
 - Activa alertas en S3/lifecycle si deseas retención automática.
 
+Restore desde S3 (MongoDB)
+- Variables de entorno:
+  - `MONGODB_URI`, `S3_BUCKET`, `S3_REGION`, `S3_ACCESS_KEY_ID`, `S3_SECRET_ACCESS_KEY`
+  - Opcional: `S3_PREFIX`, `BACKUP_DB_NAME`, `S3_OBJECT_KEY`, `CLEAR_BEFORE_RESTORE`
+- Ejecutar localmente:
+  - `npm run restore:mongo`
+- En Railway (servicio Cron de restore bajo demanda):
+  - Start Command: `node scripts/restore_mongo_from_s3.js`
+  - Opcional: definir `S3_OBJECT_KEY` para un archivo específico; si no, se tomará el último.
+  - Para entorno productivo, recomiendo no automatizar el restore; úsalo manualmente con aprobaciones.
+
 
 ═══════════════════════════════════════════════════════════════
 📞 SUPPORT
