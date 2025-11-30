@@ -11,7 +11,8 @@
     "validate:oem": "node scripts/validate_oem_block.js --file src/data/oem_xref.json",
     "validate:oem:candidate": "node scripts/validate_oem_block.js --file src/data/oem_xref.candidate.json",
     "backup:mongo": "node scripts/backup_mongo_to_s3.js",
-    "restore:mongo": "node scripts/restore_mongo_from_s3.js"
+    "restore:mongo": "node scripts/restore_mongo_from_s3.js",
+    "sheet:populate": "node scripts/populate_master_skus.js"
   },
   "keywords": [
     "elimfilters",
