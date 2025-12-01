@@ -15,6 +15,8 @@ router.get('/:code', async (req, res) => {
         const code = req.params.code?.trim();
         const force = (String(req.query.force || '').toLowerCase() === 'true') || (req.query.force === '1');
         const generateAll = (String(req.query.generate_all || '').toLowerCase() === 'true') || (req.query.generate_all === '1');
+        const qlang = String(req.query.lang || '').toLowerCase();
+        const lang = qlang === 'es' ? 'es' : 'en';
 
         // Validation
         if (!code || code.length < 3) {
@@ -31,9 +33,9 @@ router.get('/:code', async (req, res) => {
             });
         }
 
-        console.log(`🔎 Detecting filter: ${code} (force=${force}, generate_all=${generateAll})`);
+        console.log(`🔎 Detecting filter: ${code} (force=${force}, generate_all=${generateAll}, lang=${lang})`);
 
-        const result = await detectFilter(code, 'en', { force, generateAll });
+        const result = await detectFilter(code, lang, { force, generateAll });
 
         return res.json({
             success: true,
@@ -59,6 +61,8 @@ router.get('/search', async (req, res) => {
         const query = req.query.q?.trim();
         const force = (String(req.query.force || '').toLowerCase() === 'true') || (req.query.force === '1');
         const generateAll = (String(req.query.generate_all || '').toLowerCase() === 'true') || (req.query.generate_all === '1');
+        const qlang = String(req.query.lang || '').toLowerCase();
+        const lang = qlang === 'es' ? 'es' : 'en';
 
         if (!query) {
             return res.status(400).json({
@@ -74,9 +78,9 @@ router.get('/search', async (req, res) => {
             });
         }
 
-        console.log(`🔍 Searching: ${query} (force=${force}, generate_all=${generateAll})`);
+        console.log(`🔍 Searching: ${query} (force=${force}, generate_all=${generateAll}, lang=${lang})`);
 
-        const result = await detectFilter(query, 'en', { force, generateAll });
+        const result = await detectFilter(query, lang, { force, generateAll });
 
         return res.json({
             success: true,

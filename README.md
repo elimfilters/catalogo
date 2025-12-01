@@ -124,6 +124,7 @@ GOOGLE_SHEETS_ID=...          # Google Sheets integration (optional)
 SCRAPER_TIMEOUT=10000         # Scraper timeout in ms
 CACHE_TTL=3600                # Cache time-to-live in seconds
 MARKET_REGION=EU              # Optional regional priority (EU, LATAM, NA/US)
+SUPPORTED_LANGUAGES=en,es     # Optional: languages supported (default en)
 ```
 
 #### Regional Ordering Details
@@ -160,6 +161,17 @@ SKU generation rules are defined in `src/config/skuRules.json`:
 2. **Duty Detection**: Determine HD (Heavy Duty) or LD (Light Duty)
 3. **Scraper Selection**: Route to Donaldson (HD) or FRAM (LD)
 4. **Family Detection**: Identify filter family (OIL, FUEL, AIRE, etc.)
+7. **Language Handling**: Messages returned in `en` or `es` based on `lang`.
+
+### Language Support
+
+- Endpoints accept a `lang` query parameter to return messages in English or Spanish.
+- Supported values: `en` (default), `es`.
+- Examples:
+  - English: `GET /api/detect/P552100?lang=en`
+  - Español: `GET /api/detect/P552100?lang=es`
+  - Search English: `GET /api/detect/search?q=LF3620&lang=en`
+  - Búsqueda Español: `GET /api/detect/search?q=LF3620&lang=es`
 5. **SKU Generation**: Apply prefix rules + last 4 digits
 6. **Media Assignment**: Map to ELIMFILTERS™ media technology
 
