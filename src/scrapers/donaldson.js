@@ -446,6 +446,22 @@ if (typeof DONALDSON_DATABASE === 'object') {
       '23518480': 'P552100'
     }
   };
+  // Overlay: Validación externa confirmada
+  // Fuente: Donaldson P169071 – LUBE FILTER, SPIN-ON FULL FLOW
+  // https://shop.donaldson.com/store/es-us/product/P169071/16389
+  DONALDSON_DATABASE['P169071'] = {
+    family: 'LUBE',
+    type: 'LUBE FILTER, SPIN-ON FULL FLOW',
+    specifications: {
+      style: 'Spin-On',
+      function: 'Full Flow'
+    },
+    cross_references: {
+      // Curado: cruce conocido desde tu catálogo
+      'ECG6714A': 'P169071'
+    },
+    applications: []
+  };
 }
 
 module.exports = {
