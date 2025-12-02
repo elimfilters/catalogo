@@ -290,6 +290,17 @@ async function enrichHDWithFleetguard(masterData, options) {
     md.attributes.tecnologia_aplicada = tecnologia;
   }
 
+  // EK5 Kits (HD only): process Fleetguard maintenance kits and store anonymized kit docs
+  try {
+    const dutyIsHD = String(md.duty || md.duty_type || '').toUpperCase() === 'HD';
+    if (dutyIsHD && Array.isArray(dj.maintenanceKits) && dj.maintenanceKits.length > 0) {
+      console.log(`Procesando Kits HD (EK5) para ${skuInterno}...`);
+      await kitService.processHDKits(dj.maintenanceKits);
+    }
+  } catch (kitErr) {
+    console.log(`⚠️  EK5 kit processing skipped: ${kitErr.message}`);
+  }
+
   // Mongo document (arrays preserved)
   const mongoDoc = {
     code_client: md.query_normalized || md.query,
@@ -316,3 +327,4 @@ module.exports = {
   mapFleetguardToFinal,
   enrichHDWithFleetguard,
 };
+const kitService = require('./kitService');
