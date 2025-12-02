@@ -1,4 +1,4 @@
-﻿// =============================================
+// =============================================
 //  ELIMFILTERS API SERVER - v5.0.0
 //  Production-Ready Architecture
 // =============================================
@@ -21,12 +21,15 @@ const rateLimit = require('express-rate-limit');
 // Route imports
 const detectRoute = require('./src/api/detect');
 const vinRoute = require('./src/api/vin');
+const marinosImportRoute = require('./src/api/marinosImport');
+const routesMapRoute = require('./src/api/routes');
 
 const internalValidateRoute = require('./src/api/internalValidate');
 
 // Service imports
 // Sheets health and sync utilities
 const { pingSheets } = require('./src/services/syncSheetsService');
+const { readPolicyText, policyHash } = require('./src/services/skuCreationPolicy');
 // Mongo service (optional; routes guard when MONGODB_URI is unset)
 let mongoService;
 try {
@@ -105,8 +108,27 @@ const detectLimiter = rateLimit({
 app.use('/api/detect', detectLimiter);
 
 app.use('/api/detect', detectRoute);
+app.use('/api/import/marinos', marinosImportRoute);
+app.use('/api/routes', routesMapRoute);
 
 app.use('/api/internal/validate', internalValidateRoute);
+
+// SKU Policy endpoint (immutable instruction)
+app.get('/policy/sku', (req, res) => {
+    try {
+        const text = readPolicyText();
+        const hash = policyHash();
+        res.status(200).json({
+            version: '1.0.0',
+            hash,
+            language: 'es',
+            name: 'Política Oficial de Creación de SKU ELIMFILTERS',
+            content_md: text
+        });
+    } catch (e) {
+        res.status(500).json({ error: e.message });
+    }
+});
 
 // Sheets health endpoint
 app.get('/health/sheets', async (req, res) => {
@@ -149,7 +171,8 @@ app.get('/', (req, res) => {
         endpoints: {
             filter_detection: "/api/detect/:code",
             search: "/api/detect/search?q=",
-            vin_decode: "/api/vin/:code"
+            vin_decode: "/api/vin/:vin",
+            routes_map: "/api/routes"
         },
         documentation: "https://docs.elimfilters.com"
     });
