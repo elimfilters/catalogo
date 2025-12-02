@@ -225,13 +225,13 @@ function resolveBrandFamilyDutyByPrefix(code) {
     }
   }
 
-  // Donaldson P-series fine-grained family hooks (P55 → OIL, P60 → AIRE)
+  // Donaldson P-series fine-grained family hooks (P55 → OIL, P60 → COOLANT)
   if (!family && brand === 'DONALDSON' && p === 'P') {
     const c2 = normalize(code);
     const m2 = c2.match(/^P(\d{2})/);
     if (m2) {
       const series = m2[1];
-      if (series === '60') family = 'AIRE';
+      if (series === '60') family = 'COOLANT';
       else if (series === '55') family = 'OIL';
     }
   }

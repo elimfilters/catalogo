@@ -34,11 +34,16 @@ async function connect() {
   db = client.db();
   filtersCollection = db.collection(COLLECTION_NAME);
   try {
+    // Índices para rendimiento
     await filtersCollection.createIndex({ code_client: 1 });
     await filtersCollection.createIndex({ code_oem: 1 });
     await filtersCollection.createIndex({ sku: 1 });
     await filtersCollection.createIndex({ duty: 1, family: 1 });
     await filtersCollection.createIndex({ timestamp: -1 });
+    // Clave única: normsku
+    await filtersCollection.createIndex({ normsku: 1 }, { unique: true });
+    // Búsqueda de texto básica sobre código cliente
+    try { await filtersCollection.createIndex({ code_client: 'text' }); } catch (_) {}
   } catch (e) {
     console.log('⚠️  Index creation skipped:', e.message);
   }
@@ -124,9 +129,16 @@ async function saveToCache(data) {
       ],
     });
     if (existing) return existing;
+    const toArray = (v) => {
+      if (!v) return [];
+      if (Array.isArray(v)) return v;
+      return String(v).split(',').map(s => s.trim()).filter(Boolean);
+    };
+
     const document = {
       code_client: data.query || data.code_client,
       code_client_normalized: normalizedClient,
+      normsku: data.normsku || normalizedClient,
       code_oem: data.oem_equivalent || data.code_oem,
       code_oem_normalized: normalizedOEM,
       duty: data.duty,
@@ -134,8 +146,13 @@ async function saveToCache(data) {
       sku: data.sku,
       media: data.media,
       source: data.source,
-      cross_reference: data.cross_reference || [],
-      applications: data.applications || [],
+      oem_codes: toArray(data.oem_codes),
+      cross_reference: toArray(data.cross_reference),
+      engine_applications: Array.isArray(data.engine_applications) ? data.engine_applications : toArray(data.engine_applications),
+      equipment_applications: Array.isArray(data.equipment_applications) ? data.equipment_applications : toArray(data.equipment_applications),
+      manufacturing_standards: toArray(data.manufacturing_standards),
+      certification_standards: toArray(data.certification_standards),
+      applications: Array.isArray(data.applications) ? data.applications : toArray(data.applications),
       attributes: data.attributes || {},
       timestamp: new Date(),
       created_at: new Date(),

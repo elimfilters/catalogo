@@ -19,7 +19,9 @@
     "audit:marinos": "node scripts/audit_marinos_skus.js",
     "fix:marinos": "node scripts/fix_marinos_rows.js",
     "debug:marinos": "node scripts/debug_marinos_headers.js",
-    "seed:vin": "node scripts/seed_vin_map.js"
+    "seed:vin": "node scripts/seed_vin_map.js",
+    "seed:vin:bulk": "node scripts/seed_vin_map_bulk.js",
+    "import:vin": "node scripts/import_vin_map.js"
   },
   "keywords": [
     "elimfilters",

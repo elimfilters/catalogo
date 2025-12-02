@@ -49,7 +49,52 @@ function isValid4Digits(digits) {
     return /^\d{4}$/.test(digits);
 }
 
+/**
+ * Extract exactly 4 alphanumeric characters from OEM code
+ * Rules:
+ * - Normalize to A–Z0–9 (remove separators and symbols)
+ * - Take the last 4 alphanumeric characters
+ * - Pad with zeros if less than 4
+ *
+ * @param {string} code - OEM code
+ * @returns {string|null} - 4 alphanumeric chars or null
+ */
+function extract4Alnum(code) {
+    if (!code) {
+        console.log('⚠️  No code provided for alnum extraction');
+        return null;
+    }
+
+    const cleaned = String(code).toUpperCase().replace(/[^A-Z0-9]/g, '');
+
+    if (!cleaned) {
+        console.log(`⚠️  No alphanumeric content found in: ${code}`);
+        return null;
+    }
+
+    if (cleaned.length >= 4) {
+        const last4 = cleaned.slice(-4);
+        console.log(`📊 Extracted last4 alnum: ${last4} from ${code}`);
+        return last4;
+    }
+
+    const padded = cleaned.padStart(4, '0');
+    console.log(`📊 Padded to last4 alnum: ${padded} from ${code}`);
+    return padded;
+}
+
+/**
+ * Validate that string contains exactly 4 alphanumeric chars
+ * @param {string} text - String to validate
+ * @returns {boolean} - True if valid
+ */
+function isValid4Alnum(text) {
+    return /^[A-Z0-9]{4}$/.test(String(text || ''));
+}
+
 module.exports = {
     extract4Digits,
-    isValid4Digits
+    isValid4Digits,
+    extract4Alnum,
+    isValid4Alnum
 };

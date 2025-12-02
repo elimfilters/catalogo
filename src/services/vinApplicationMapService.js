@@ -14,6 +14,10 @@ const MAKE_ALIASES = {
   'NISSAN-USA': 'NISSAN',
   'TOYOTA USA': 'TOYOTA',
   'DODGE RAM': 'RAM',
+  'FCA': 'RAM',
+  'VAG': 'VOLKSWAGEN',
+  'BAYERISCHE MOTOREN WERKE': 'BMW',
+  'BENZ': 'MERCEDES-BENZ',
 };
 
 function normalizeMake(make) {
@@ -25,6 +29,13 @@ function normalizeModel(model) {
   return String(model || '')
     .toUpperCase()
     .replace(/[^A-Z0-9]/g, '');
+}
+
+function normalizeYear(year) {
+  const y = parseInt(year, 10);
+  if (!y || isNaN(y)) return null;
+  if (y < 1900 || y > 2100) return null;
+  return y;
 }
 
 function normalizeEngineLiters(engineStr) {
@@ -43,7 +54,7 @@ function normalizeEngineLiters(engineStr) {
 function buildKey({ make, model, year, engine_liters }) {
   const mk = normalizeMake(make);
   const md = normalizeModel(model);
-  const yr = parseInt(year, 10);
+  const yr = normalizeYear(year);
   const eng = normalizeEngineLiters(engine_liters);
   if (!mk || !md || !yr || !eng) return null;
   return `${mk}_${md}_${yr}_${eng}`;
@@ -55,6 +66,7 @@ async function ensureIndexes(col) {
     await col.createIndex({ make_model_year_engine: 1 }, { unique: false });
     await col.createIndex({ make: 1, model: 1, year: 1 });
     await col.createIndex({ filter_type: 1 });
+    await col.createIndex({ make_model_year_engine: 1, filter_type: 1 }, { unique: true });
   } catch (_) {}
   indexesEnsured = true;
 }
@@ -98,7 +110,7 @@ async function upsertMapping(doc) {
     make_model_year_engine: key,
     make: normalizeMake(doc.make),
     model: normalizeModel(doc.model),
-    year: parseInt(doc.year, 10),
+    year: normalizeYear(doc.year),
     engine_liters: normalizeEngineLiters(doc.engine_liters),
     filter_type: String(doc.filter_type || '').toUpperCase(),
     oem_code_target: String(doc.oem_code_target || '').toUpperCase(),
@@ -126,6 +138,7 @@ function filterTypeToKey(filterType) {
 module.exports = {
   normalizeMake,
   normalizeModel,
+  normalizeYear,
   normalizeEngineLiters,
   buildKey,
   findByKey,

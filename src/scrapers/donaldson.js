@@ -47,6 +47,25 @@ const DONALDSON_DATABASE = {
         },
         applications: ['DETROIT DIESEL', 'FREIGHTLINER', 'CATERPILLAR']
     },
+    // Specific override: Donaldson P527682 is an Air Filter (Primary Radialseal)
+    'P527682': {
+        family: 'AIRE',
+        type: 'AIR FILTER, PRIMARY RADIALSEAL',
+        specifications: {
+            length: '14.76 inch',
+            outer_diameter: '13.09 inch',
+            inner_diameter: '6.78 inch',
+            media_type: 'Cellulose',
+            style: 'Radialseal'
+        },
+        cross_references: {
+            'AF25139M': 'P527682',
+            'RS3518': 'P527682',
+            'FA1077': 'P527682',
+            'WIX-46556': 'P527682'
+        },
+        applications: ['Heavy Duty Engine Air', 'Freightliner', 'Detroit 60 Series']
+    },
     
     // ========== DBL-SERIES (Donaldson Blue Lube) ==========
     'DBL7349': {
@@ -123,8 +142,108 @@ const DONALDSON_DATABASE = {
             'RE509031': 'P551421'
         },
         applications: ['John Deere agricultural equipment']
+    },
+    // ===== Curated: Common P55 fuel filters
+    'P551329': {
+        family: 'FUEL',
+        type: 'FUEL FILTER',
+        specifications: {
+            function: 'Primary/Secondary Fuel Filtration'
+        },
+        cross_references: {
+        },
+        applications: ['Heavy Duty Fuel Systems']
+    },
+    'P551313': {
+        family: 'FUEL',
+        type: 'FUEL FILTER',
+        specifications: {
+            function: 'Fuel Filtration'
+        },
+        cross_references: {
+            'BALDWIN-BF7633': 'P551313'
+        },
+        applications: []
+    },
+    'P551311': {
+        family: 'FUEL',
+        type: 'FUEL FILTER',
+        specifications: {
+            function: 'Fuel Filtration'
+        },
+        cross_references: {
+            'CATERPILLAR-1R0750': 'P551311',
+            '1R0750': 'P551311'
+        },
+        applications: []
+    }
+    ,
+    // Curated: common market parts
+    'P951413': {
+        family: 'AIR DRYER',
+        type: 'AIR DRYER, SPIN-ON CARTRIDGE',
+        specifications: {},
+        cross_references: {
+            'VOLVO-21620181': 'P951413',
+            'VOLVO-1699132': 'P951413',
+            'VOLVO-3090268': 'P951413',
+            'VOLVO-3090288': 'P951413',
+            'VOLVO-20557234': 'P951413',
+            'VOLVO-20972915': 'P951413',
+            'VOLVO-21508133': 'P951413',
+            'VOLVO-85110799': 'P951413',
+            'WABCO-4324109362': 'P951413',
+            'WABCO-4329012222': 'P951413',
+            'WABCO-4329012232': 'P951413',
+            'WABCO-4329012242': 'P951413',
+            'WABCO-4329012252': 'P951413',
+            'MERITOR-R950068': 'P951413',
+            'BENDIX-5004814PG': 'P951413',
+            'BALDWIN-BA5379': 'P951413',
+            'BALDWIN-BA5592': 'P951413',
+            'MAHLE-AL24': 'P951413',
+            'HENGST-T280W': 'P951413',
+            'HIFI FILTER-TB1390': 'P951413',
+            'KNORR-K039454': 'P951413',
+            'SF-FILTER-ST13742': 'P951413',
+            'WIX-96008E': 'P951413',
+            'MERCEDES-BENZ-4295695': 'P951413',
+            'MERCEDES-BENZ-4295795': 'P951413',
+            'MERCEDES-BENZ-A0004295695': 'P951413',
+            'MERCEDES-BENZ-A0004295795': 'P951413',
+            'DAF-1506635': 'P951413',
+            'DAF-1782420': 'P951413'
+        },
+        applications: ['Volvo D13', 'Heavy Duty Air Systems', 'WABCO/Knorr-Bremse']
+    },
+    'P781466': {
+        family: 'AIR DRYER',
+        type: 'AIR DRYER, SPIN-ON CARTRIDGE',
+        specifications: {},
+        cross_references: {
+            // Nuevo PN vinculado por Donaldson
+            'DONALDSON-P953571': 'P781466'
+        },
+        applications: ['Heavy Duty Air Systems']
+    },
+    'P953571': {
+        family: 'AIR DRYER',
+        type: 'AIR DRYER, SPIN-ON CARTRIDGE',
+        specifications: {},
+        cross_references: {
+            'DONALDSON-P781466': 'P953571'
+        },
+        applications: ['Heavy Duty Air Systems']
     }
 };
+
+// Curated exceptions: Donaldson P55 subseries items known to be FUEL
+const P55_FUEL_EXCEPTIONS = new Set([
+  'P551329',
+  'P551313',
+  'P551311',
+  'P551421'
+]);
 
 /**
  * Detect series type from code
@@ -173,13 +292,24 @@ function detectFamilyFromCode(code) {
     // C-series (Duralite Air) = always AIRE
     if (series === 'C') return 'AIRE';
     
-    // P-series: soportamos P50/P52/P53/P54/P55 (OIL) y P62/P77/P78 (AIRE)
+    // P-series: reglas curadas y excepciones
     if (series === 'P') {
-        if (/^P5(0|2|3|4|5)\d{4}[A-Z]?$/.test(normalized)) return 'OIL';
+        // Excepción curada: P781466 y su PN actualizado P953571 son AIR DRYER
+        if (normalized === 'P781466' || normalized === 'P953571') {
+            return 'AIR DRYER';
+        }
+        // P55: por defecto OIL, con excepciones curadas → FUEL
+        if (/^P55\d{4}[A-Z]?$/.test(normalized)) {
+            if (P55_FUEL_EXCEPTIONS.has(normalized)) return 'FUEL';
+            return 'OIL';
+        }
+        if (/^P5(0|2|3|4)\d{4}[A-Z]?$/.test(normalized)) return 'OIL';
         if (/^P62\d{4}[A-Z]?$/.test(normalized)) return 'AIRE';
         if (/^P77\d{4}[A-Z]?$/.test(normalized)) return 'AIRE';
         if (/^P78\d{4}[A-Z]?$/.test(normalized)) return 'AIRE';
         if (/^P82\d{4}[A-Z]?$/.test(normalized)) return 'AIRE';
+        // P95: Air Dryer spin-on
+        if (/^P95\d{4}[A-Z]?$/.test(normalized)) return 'AIR DRYER';
         if (/^P56\d{4}[A-Z]?$/.test(normalized)) return 'FUEL';
         if (/^P60\d{4}[A-Z]?$/.test(normalized)) return 'COOLANT';
         if (/^P1(5|7|8)\d{4}[A-Z]?$/.test(normalized)) return 'AIRE';

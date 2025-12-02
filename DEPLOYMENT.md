@@ -189,6 +189,44 @@ Rollback
 Railway Dashboard → Deployments → Redeploy previous version
 
 ═══════════════════════════════════════════════════════════════
+🩹 SELF‑HEALING CRON (Railway)
+═══════════════════════════════════════════════════════════════
+
+Overview
+────────
+- The self‑healing job processes `src/data/errorLog.json`, groups failures by `family_inference_signals` (prefix), and injects deterministic rules into `src/config/skuRules.json` when a pattern exceeds a threshold.
+- Script entrypoint: `node src/services/self_heal_rules.js` (also available as `npm run self-heal:rules`).
+
+Setup (Recommended: separate service)
+─────────────────────────────────────
+1. In your Railway project, create a new Service named `self-heal-cron`.
+2. Set Start Command to `node src/services/self_heal_rules.js`.
+3. In Service → Settings → Cron Schedule, set a schedule (UTC): `0 */6 * * *` (every 6 hours, 4×/day).
+4. In Variables, set `SELF_HEAL_THRESHOLD=3` durante la fase de aceleración inicial.
+4. Ensure the service exits after completion; the script terminates on its own.
+
+Environment
+───────────
+- Optional: `SELF_HEAL_THRESHOLD` to control minimum repeated failures before injecting a rule (default: `5`).
+- Optional: `SELF_HEAL_WEBHOOK_URL` para notificaciones automáticas en Slack/Teams.
+- Optional: `SELF_HEAL_STABILIZATION_HOURS` (default: `48`) ventana reciente para monitoreo.
+- Optional: `SELF_HEAL_REDUCTION_TARGET` (default: `0.8`) reducción objetivo (80%).
+- Optional: `SELF_HEAL_MIN_PREV_COUNT` (default: `30`) volumen mínimo de la ventana previa para evaluar estabilización.
+
+Logs & Safety
+─────────────
+- Check deployment logs to see lines like `↪️` for under‑threshold and `➕` when a rule is learned.
+- The script writes to `src/config/skuRules.json` only when confidence ≥ 0.8 and count ≥ threshold.
+- Learned rules are placed under `learnedPrefixes` and are consulted by OEM prefix resolution.
+
+Monitoring & Notification (Threshold Transition)
+────────────────────────────────────────────────
+- El cron evalúa la densidad de fallos comparando dos ventanas adyacentes: `t-96h → t-48h` vs `t-48h → t`.
+- Si la ventana reciente muestra una reducción ≥80% respecto a la previa y la previa tiene al menos `SELF_HEAL_MIN_PREV_COUNT` fallos, se envía un POST a `SELF_HEAL_WEBHOOK_URL`.
+- Payload: `{ text, lastWindow, prevWindow }`, compatible con Slack Incoming Webhooks y Teams Connectors.
+- Mensaje: "🚨 AVISO DE ESTABILIZACIÓN DEL CATÁLOGO. La densidad de fallos ha caído. ACCIÓN REQUERIDA: Favor de establecer SELF_HEAL_THRESHOLD de 3 a 5 para asegurar la precisión y robustez a largo plazo."
+
+═══════════════════════════════════════════════════════════════
 🆘 TROUBLESHOOTING
 ═══════════════════════════════════════════════════════════════
 
@@ -271,3 +309,22 @@ Version: 5.0.0
 Date: 2024-11-27
 Architecture: Modular, Production-Ready
 Status: ✅ Ready for Deployment
+Automatic Webhook Self‑Test (No Manual Steps)
+────────────────────────────────────────────
+Para eliminar la necesidad de ejecutar comandos manuales, el sistema puede realizar una auto‑prueba del webhook inmediatamente al arrancar el servicio.
+
+Configurar en variables de entorno:
+- `DAILY_REPORT_WEBHOOK_URL` → URL completa del webhook (Slack/Teams).
+- `AUTO_SELF_TEST_ON_START=true` → habilita la auto‑prueba al inicio.
+- `REPORT_HOURS=24` → ventana del informe inicial.
+- Opcional: `SELF_TEST_START_DELAY_MS=3000` para retrasar la auto‑prueba 3s tras el arranque.
+
+Qué esperar en logs y canal:
+- Log del contenedor: `⏱️ Auto‑prueba del webhook programada...` y luego `🔔 Reporte diario enviado al webhook. HTTP 200` (o 204).
+- Canal Slack/Teams: encabezado inicial `📣 Reporte Diario de Auto‑Curación` con campos `prevWindow` y `lastWindow` visibles.
+- Cuando el sistema sea elegible para estabilización, el encabezado cambia a `🚨 ACCIÓN REQUERIDA: ESTABILIZACIÓN DEL APRENDIZAJE CRON 📈` y el mensaje sugiere `Cambiar SELF_HEAL_THRESHOLD a 5`.
+
+Troubleshooting rápido:
+- `400/403`: verifique que `DAILY_REPORT_WEBHOOK_URL` esté completo y sin espacios, y que el payload no haya sido bloqueado por políticas del canal.
+- Sin mensaje en el canal pero HTTP 200/204: revise que el conector acepte `blocks` (Slack) o texto plano; el script detecta Slack automáticamente.
+- Sin log de auto‑prueba: confirme `AUTO_SELF_TEST_ON_START=true` y que el servicio arrancó correctamente.

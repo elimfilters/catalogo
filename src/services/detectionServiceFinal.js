@@ -1,6 +1,6 @@
 // ============================================================================
 // DETECTION SERVICE FINAL - v5.2.0
-// Flujo correcto: Validación → Google Sheets → Generación → Guardado → Return
+// Flujo correcto: ValidaciÃ³n â†’ Google Sheets â†’ GeneraciÃ³n â†’ Guardado â†’ Return
 // ============================================================================
 
 const normalize = require('../utils/normalize');
@@ -8,13 +8,17 @@ const { scraperBridge } = require('../scrapers/scraperBridge');
 const prefixMap = require('../config/prefixMap');
 const { detectDuty } = require('../utils/dutyDetector');
 const { detectFamilyHD, detectFamilyLD } = require('../utils/familyDetector');
-const { generateSKU } = require('../sku/generator');
-const { extract4Digits } = require('../utils/digitExtractor');
+const { generateSKU, generateEM9SubtypeSKU, generateEM9SSeparatorSKU, generateET9SystemSKU, generateET9FElementSKU } = require('../sku/generator');
+const { extract4Digits, extract4Alnum } = require('../utils/digitExtractor');
 const { getMedia } = require('../utils/mediaMapper');
 const { noEquivalentFound } = require('../utils/messages');
 const { searchInSheet, upsertBySku } = require('./syncSheetsService');
-const { extractFramSpecs, extractDonaldsonSpecs, getDefaultSpecs } = require('../services/technicalSpecsScraper');
-// OEM dataset para fallback SOLO cuando el código no es ni Donaldson ni FRAM (Regla 3)
+const { enrichHDWithFleetguard } = require('./fleetguardEnrichmentService');
+const { enrichFramLD } = require('./framEnrichmentService');
+const { saveToCache } = require('./mongoService');
+const { upsertMarinosBySku } = require('./marineImportService');
+const { extractFramSpecs, extractDonaldsonSpecs, getDefaultSpecs, extractParkerSpecs, extractMercurySpecs, extractSierraSpecs } = require('../services/technicalSpecsScraper');
+// OEM dataset para fallback SOLO cuando el cÃ³digo no es ni Donaldson ni FRAM (Regla 3)
 let OEM_XREF = {};
 try { OEM_XREF = require('../data/oem_xref.json'); } catch (_) { OEM_XREF = {}; }
 
@@ -36,7 +40,7 @@ function classifyInputCode(code) {
 async function tryOemFallback(oemCode, duty, familyHint) {
   const key = canonKey(oemCode);
   const meta = OEM_XREF[key] || null;
-  // Requisito estricto: solo proceder si el OEM está homologado en OEM_XREF
+  // Requisito estricto: solo proceder si el OEM estÃ¡ homologado en OEM_XREF
   if (!meta) {
     return null;
   }
@@ -48,7 +52,7 @@ async function tryOemFallback(oemCode, duty, familyHint) {
   const sku = generateSKU(family, duty, last4);
   if (!sku || sku.error) return null;
 
-  // Lógica pura: sin persistencia ni datos por defecto
+  // LÃ³gica pura: sin persistencia ni datos por defecto
   const oemClean = [oemCode];
   const crossClean = [];
   const equipFinal = [];
@@ -76,15 +80,15 @@ async function tryOemFallback(oemCode, duty, familyHint) {
     applications: engineFinal,
     equipment_applications: equipFinal,
     attributes,
-    message: 'Fallback OEM homologado: prefijo activo + últimos 4 del OEM'
+    message: 'Fallback OEM homologado: prefijo activo + Ãºltimos 4 del OEM'
   };
 }
 
-// Helper local: extraer años de un texto
+// Helper local: extraer aÃ±os de un texto
 function extractYears(text = '') {
     const t = String(text || '').replace(/\s+/g, ' ').trim();
     if (!t) return '';
-    const range = t.match(/\b(19|20)\d{2}\s*[-–—]\s*(19|20)\d{2}\b/);
+    const range = t.match(/\b(19|20)\d{2}\s*[-â€“â€”]\s*(19|20)\d{2}\b/);
     if (range) return `${range[1]}${range[0].slice(range[1].length, range[0].length - range[2].length)}${range[2]}`;
     const present = t.match(/\b(19|20)\d{2}\s*(?:-|to|a|hasta)\s*(?:present|presente|actual)\b/i);
     if (present) return `${present[1]}+`;
@@ -94,7 +98,7 @@ function extractYears(text = '') {
 }
 
 // ---------------------------------------------------------------------------
-// Limpieza y estandarización global (LD): OEM y Cross-References
+// Limpieza y estandarizaciÃ³n global (LD): OEM y Cross-References
 // ---------------------------------------------------------------------------
 // Prioridad de marcas aftermarket para orden global (mercado mundial)
 const AFTERMARKET_PRIORITY = [
@@ -125,7 +129,7 @@ function cleanOEMList(list, duty) {
             cleaned.push(code);
         }
     }
-    // Unificar límite: siempre máximo 20 elementos
+    // Unificar lÃ­mite: siempre mÃ¡ximo 20 elementos
     return cleaned.slice(0, 20);
 }
 
@@ -154,7 +158,7 @@ function cleanCrossList(list, duty, inputCode, source) {
         return !isFramSelf;
     });
 
-    // Map to code-only y deduplicar por código
+    // Map to code-only y deduplicar por cÃ³digo
     const codeSeen = new Set();
     let codeOnlyList = [];
     for (const s of filtered) {
@@ -172,9 +176,9 @@ function cleanCrossList(list, duty, inputCode, source) {
         const partNumberLike = (c) => {
             const s = String(c || '').toUpperCase();
             if (!s) return false;
-            // Aceptar patrones comunes: "BRANDCODE" o "BRAND-CODE" con dígitos
+            // Aceptar patrones comunes: "BRANDCODE" o "BRAND-CODE" con dÃ­gitos
             if (/^[A-Z]{1,4}[A-Z0-9\-]*\d[A-Z0-9\-]*$/.test(s)) return true;
-            // Aceptar códigos numéricos con separadores típicos
+            // Aceptar cÃ³digos numÃ©ricos con separadores tÃ­picos
             if (/^\d{3,}(?:[A-Z\-\.]+\d+)?$/.test(s)) return true;
             return false;
         };
@@ -182,16 +186,16 @@ function cleanCrossList(list, duty, inputCode, source) {
             const s = String(c || '');
             if (!partNumberLike(s)) return false;
             if (/^(?:MAPS|GOOGL|GOOGLE|HTTP|HTTPS)$/i.test(s)) return false;
-            // Eliminar números puros cortos (<5 dígitos) que suelen ser ruido
+            // Eliminar nÃºmeros puros cortos (<5 dÃ­gitos) que suelen ser ruido
             if (/^\d{1,4}$/.test(s)) return false;
             return true;
         });
     }
 
-    // Orden alfanumérico por código
+    // Orden alfanumÃ©rico por cÃ³digo
     codeOnlyList.sort((a, b) => a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' }));
 
-    // Unificar límite: siempre máximo 20 elementos
+    // Unificar lÃ­mite: siempre mÃ¡ximo 20 elementos
     return codeOnlyList.slice(0, 20);
 }
 
@@ -228,12 +232,12 @@ function codeOnly(text) {
     if (!s) return '';
     // Prefer capturing the trailing code-like segment (allows internal hyphens)
     // e.g., "BALDWIN-B495" -> "B495", "FLEETGUARD-LF-910S" -> "FL-910S"
-    const m = s.match(/(?:^|[\s\-–—])([A-Z0-9][A-Z0-9\-\.]*\d[A-Z0-9\-\.]*)$/i);
+    const m = s.match(/(?:^|[\s\-â€“â€”])([A-Z0-9][A-Z0-9\-\.]*\d[A-Z0-9\-\.]*)$/i);
     if (m && m[1]) {
         return m[1].trim();
     }
     // Fallback: remove leading brand-only prefix tokens (no digits) and keep the rest
-    const tokens = s.split(/[\s\-–—]+/).filter(Boolean);
+    const tokens = s.split(/[\s\-â€“â€”]+/).filter(Boolean);
     let startIdx = 0;
     for (let i = 0; i < tokens.length; i++) {
         if (/\d/.test(tokens[i])) { startIdx = i > 0 ? i - 1 : i; break; }
@@ -280,7 +284,7 @@ function preferBrandModelFormat(apps) {
         }
 
         // Patterns: "Brand - Model" or "Model - Brand"
-        const dash = name.split(/\s*[-–—]\s*/);
+        const dash = name.split(/\s*[-â€“â€”]\s*/);
         if (dash.length === 2) {
             const a = dash[0].trim();
             const b = dash[1].trim();
@@ -344,7 +348,7 @@ const HD_ENGINE_DEFAULTS = [
     { name: 'Inline-6 Diesel Engines', years: '' },
     { name: 'V8 Diesel Engines', years: '' },
     { name: 'Turbo Diesel Engines', years: '' },
-    { name: 'Off‑Highway Diesel Engines', years: '' },
+    { name: 'Offâ€‘Highway Diesel Engines', years: '' },
     { name: 'Marine Diesel Engines', years: '' },
     { name: 'Generator Diesel Engines', years: '' },
     { name: 'Bus and Coach Diesel Engines', years: '' },
@@ -371,10 +375,8 @@ function ensureMinApps(list, duty, kind) {
     const targetMin = 10;
     const out = Array.isArray(list) ? [...list] : [];
     const seen = new Set(out.map(x => `${String(x?.name || '').toUpperCase()}|${String(x?.years || '')}`));
-    if (out.length < targetMin) {
-        const defaults = duty === 'LD'
-            ? (kind === 'engine' ? LD_ENGINE_DEFAULTS : LD_EQUIPMENT_DEFAULTS)
-            : (kind === 'engine' ? HD_ENGINE_DEFAULTS : HD_EQUIPMENT_DEFAULTS);
+    if (out.length < targetMin && kind === 'engine') {
+        const defaults = duty === 'LD' ? LD_ENGINE_DEFAULTS : HD_ENGINE_DEFAULTS;
         for (const def of defaults) {
             const key = `${def.name.toUpperCase()}|${def.years}`;
             if (!seen.has(key)) {
@@ -396,7 +398,7 @@ function consolidateApps(list) {
     function parseYears(y) {
         const s = String(y || '').trim();
         if (!s) return null;
-        const range = s.match(/^((?:19|20)\d{2})\s*[-–—]\s*((?:19|20)\d{2})$/);
+        const range = s.match(/^((?:19|20)\d{2})\s*[-â€“â€”]\s*((?:19|20)\d{2})$/);
         if (range) {
             const start = parseInt(range[1], 10);
             const end = parseInt(range[2], 10);
@@ -471,12 +473,12 @@ async function detectFilter(rawInput, lang = 'en', options = {}) {
         const force = !!(options && options.force);
         const generateAll = !!(options && options.generateAll);
 
-        console.log(`📊 Processing: ${query}`);
+        console.log(`ðŸ“Š Processing: ${query}`);
 
         // ---------------------------------------------------------------------
-        // PASO 1: VALIDAR CÓDIGO (OEM o Cross-Reference válido)
+        // PASO 1: VALIDAR CÃ“DIGO (OEM o Cross-Reference vÃ¡lido)
         // ---------------------------------------------------------------------
-        console.log(`🔍 Step 1: Validating code via scrapers...`);
+        console.log(`ðŸ” Step 1: Validating code via scrapers...`);
         
         const codeUpper = prefixMap.normalize(query);
 
@@ -489,26 +491,26 @@ async function detectFilter(rawInput, lang = 'en', options = {}) {
             const prefix = prefixMatch ? prefixMatch[1] : '';
             if (duty === 'HD' && prefix === 'XC') {
                 duty = 'LD';
-                console.log('🔄 Duty override → LD for ECOGARD XC prefix');
+                console.log('ðŸ”„ Duty override â†’ LD for ECOGARD XC prefix');
             }
             // Override: WIX numeric XP series (e.g., 57356XP) are automotive LD
             if (duty === 'HD' && /^\d{5}XP$/.test(codeUpper)) {
                 duty = 'LD';
-                console.log('🔄 Duty override → LD for WIX XP numeric series');
+                console.log('ðŸ”„ Duty override â†’ LD for WIX XP numeric series');
             }
         } catch (_) {}
-        console.log(`✅ Duty detected: ${duty} (init via prefix hint: ${hint.brand || 'N/A'})`);
+        console.log(`âœ… Duty detected: ${duty} (init via prefix hint: ${hint.brand || 'N/A'})`);
 
-        // Validar código con scrapers
+        // Validar cÃ³digo con scrapers
         let scraperResult = await scraperBridge(query, duty);
 
-        // Fallback HD: cruce curado aftermarket/OEM → Donaldson (ej. BF7633 → P551313)
+        // Fallback HD: cruce curado aftermarket/OEM â†’ Donaldson (ej. BF7633 â†’ P551313)
         if ((!scraperResult || !scraperResult.last4) && duty === 'HD') {
             try {
                 const upHD = prefixMap.normalize(query);
                 const HD_CURATED_MAP = {
                     'BF7633': 'P551313',
-                    // Regla de oro: Caterpillar OEM → Donaldson
+                    // Regla de oro: Caterpillar OEM â†’ Donaldson
                     '1R0750': 'P551311',
                     '8041642': 'P828889'
                 };
@@ -519,15 +521,15 @@ async function detectFilter(rawInput, lang = 'en', options = {}) {
                     if (don && don.last4) {
                         scraperResult = don;
                         duty = 'HD';
-                        console.log(`✅ Canonizado vía cruce curado HD (Baldwin→Donaldson): ${query} → ${mapped}`);
+                        console.log(`âœ… Canonizado vÃ­a cruce curado HD (Baldwinâ†’Donaldson): ${query} â†’ ${mapped}`);
                     }
                 }
             } catch (hdCuratedErr) {
-                console.log(`⚠️  Error en cruce curado HD: ${hdCuratedErr.message}`);
+                console.log(`âš ï¸  Error en cruce curado HD: ${hdCuratedErr.message}`);
             }
         }
 
-        // Fallback: intentar resolver OEM→FRAM con mapa curado solo si el duty es LD
+        // Fallback: intentar resolver OEMâ†’FRAM con mapa curado solo si el duty es LD
         if ((!scraperResult || !scraperResult.last4) && duty === 'LD') {
             try {
                 const { resolveFramByCuratedOEM, validateFramCode } = require('../scrapers/fram');
@@ -537,13 +539,13 @@ async function detectFilter(rawInput, lang = 'en', options = {}) {
                     if (fr2 && fr2.last4) {
                         scraperResult = fr2;
                         duty = 'LD';
-                        console.log(`✅ Resuelto vía mapa curado OEM→FRAM (LD): ${query} → ${framResolved}`);
+                        console.log(`âœ… Resuelto vÃ­a mapa curado OEMâ†’FRAM (LD): ${query} â†’ ${framResolved}`);
                     }
                 }
             } catch (fallbackErr) {
-                console.log(`⚠️  Error en fallback OEM→FRAM (LD): ${fallbackErr.message}`);
+                console.log(`âš ï¸  Error en fallback OEMâ†’FRAM (LD): ${fallbackErr.message}`);
             }
-            // FRAM-first canonicalization for LD cross references (e.g., ECOGARD XC → FRAM CF)
+            // FRAM-first canonicalization for LD cross references (e.g., ECOGARD XC â†’ FRAM CF)
             if (!scraperResult || !scraperResult.last4) {
                 try {
                     const { findFramCode } = require('../scrapers/Fram complete');
@@ -554,14 +556,14 @@ async function detectFilter(rawInput, lang = 'en', options = {}) {
                         if (fr3 && fr3.last4) {
                             scraperResult = fr3;
                             duty = 'LD';
-                            console.log(`✅ Canonizado vía cross FRAM (LD): ${query} → ${framX}`);
+                            console.log(`âœ… Canonizado vÃ­a cross FRAM (LD): ${query} â†’ ${framX}`);
                         }
                     }
                 } catch (crossErr) {
-                    console.log(`⚠️  Error en canonicalización LD via FRAM cross: ${crossErr.message}`);
+                    console.log(`âš ï¸  Error en canonicalizaciÃ³n LD via FRAM cross: ${crossErr.message}`);
                 }
             }
-            // ECOGARD → FRAM direct series mapping heuristics (LD): XA#### → CA####
+            // ECOGARD â†’ FRAM direct series mapping heuristics (LD): XA#### â†’ CA####
             if (!scraperResult || !scraperResult.last4) {
                 try {
                     const up = prefixMap.normalize(query);
@@ -573,14 +575,14 @@ async function detectFilter(rawInput, lang = 'en', options = {}) {
                         if (fr4 && fr4.last4) {
                             scraperResult = fr4;
                             duty = 'LD';
-                            console.log(`✅ Canonizado vía heurística ECOGARD→FRAM (LD): ${query} → ${candidate}`);
+                            console.log(`âœ… Canonizado vÃ­a heurÃ­stica ECOGARDâ†’FRAM (LD): ${query} â†’ ${candidate}`);
                         }
                     }
                 } catch (heurErr) {
-                    console.log(`⚠️  Error en heurística XA→CA: ${heurErr.message}`);
+                    console.log(`âš ï¸  Error en heurÃ­stica XAâ†’CA: ${heurErr.message}`);
                 }
             }
-            // Excepción LD: ECOGARD S-series (ej. S11880) → usar OEM curado si FRAM no fabrica
+            // ExcepciÃ³n LD: ECOGARD S-series (ej. S11880) â†’ usar OEM curado si FRAM no fabrica
             if (!scraperResult || !scraperResult.last4) {
                 try {
                     const brandUp = String(hint.brand || '').toUpperCase();
@@ -593,10 +595,10 @@ async function detectFilter(rawInput, lang = 'en', options = {}) {
                         const oems = ECO_S_TO_OEM[up];
                         if (oems && oems.length) {
                             const primaryOEM = oems[0];
-                            console.log(`🔁 ECOGARD S-series sin FRAM: usando OEM curado ${primaryOEM} para últimos 4`);
+                            console.log(`ðŸ” ECOGARD S-series sin FRAM: usando OEM curado ${primaryOEM} para Ãºltimos 4`);
                             const oemFallback = await tryOemFallback(primaryOEM, 'LD', 'OIL');
                             if (oemFallback) {
-                                // Simular resultado mínimo para continuar con generación de SKU
+                                // Simular resultado mÃ­nimo para continuar con generaciÃ³n de SKU
                                 scraperResult = {
                                     valid: true,
                                     code: primaryOEM,
@@ -606,12 +608,12 @@ async function detectFilter(rawInput, lang = 'en', options = {}) {
                                     last4: extract4Digits(primaryOEM)
                                 };
                                 duty = 'LD';
-                                console.log(`✅ Fallback OEM aplicado para ECOGARD ${query}: last4=${scraperResult.last4}`);
+                                console.log(`âœ… Fallback OEM aplicado para ECOGARD ${query}: last4=${scraperResult.last4}`);
                             }
                         }
                     }
                 } catch (ecoErr) {
-                    console.log(`⚠️  Error en excepción ECOGARD S-series OEM fallback: ${ecoErr.message}`);
+                    console.log(`âš ï¸  Error en excepciÃ³n ECOGARD S-series OEM fallback: ${ecoErr.message}`);
                 }
             }
         }
@@ -620,26 +622,26 @@ async function detectFilter(rawInput, lang = 'en', options = {}) {
             const codeUpper = prefixMap.normalize(query);
             const looksDonaldson = prefixMap.DONALDSON_STRICT_REGEX.test(codeUpper);
             const looksFram = /^(CA|CF|CH|PH|TG|XG|HM|G|PS)\d/i.test(codeUpper);
-            console.log(`❌ Invalid code via scrapers: ${query}. looksDonaldson=${looksDonaldson} looksFram=${looksFram}`);
+            console.log(`âŒ Invalid code via scrapers: ${query}. looksDonaldson=${looksDonaldson} looksFram=${looksFram}`);
 
-            // Nueva regla: Si FRAM/Donaldson no lo fabrican, intentar fallback OEM con prefijo + últimos 4
+            // Nueva regla: Si FRAM/Donaldson no lo fabrican, intentar fallback OEM con prefijo + Ãºltimos 4
             if (looksDonaldson || looksFram) {
                 const famHintA = (prefixMap.resolveBrandFamilyDutyByPrefix(query) || {}).family || hint.family;
                 const oemFallbackA = await tryOemFallback(query, duty, famHintA);
                 if (oemFallbackA) {
-                    console.log(`✅ OEM fallback aplicado (fabricante no fabrica): ${query} → ${oemFallbackA.sku}`);
+                    console.log(`âœ… OEM fallback aplicado (fabricante no fabrica): ${query} â†’ ${oemFallbackA.sku}`);
                     return oemFallbackA;
                 }
                 return {
                     status: 'NOT_FOUND',
                     query_normalized: query,
-                    message: 'Fabricante no fabrica y no hay metadata OEM suficiente para aplicar prefijo + últimos 4.',
+                    message: 'Fabricante no fabrica y no hay metadata OEM suficiente para aplicar prefijo + Ãºltimos 4.',
                     valid: false
                 };
             }
 
-            // Regla: si el duty es HD/LD, exigir homologación del fabricante y NO aplicar fallback OEM
-            // Excepción: LD ECOGARD S-series permite fallback OEM curado
+            // Regla: si el duty es HD/LD, exigir homologaciÃ³n del fabricante y NO aplicar fallback OEM
+            // ExcepciÃ³n: LD ECOGARD S-series permite fallback OEM curado
             const up2 = prefixMap.normalize(query);
             const hint2 = prefixMap.resolveBrandFamilyDutyByPrefix(up2) || {};
             const brandUp2 = String(hint2.brand || hint.brand || '').toUpperCase();
@@ -649,13 +651,13 @@ async function detectFilter(rawInput, lang = 'en', options = {}) {
                 const famHintB = (prefixMap.resolveBrandFamilyDutyByPrefix(query) || {}).family || hint.family;
                 const oemFallbackB = await tryOemFallback(query, duty, famHintB);
                 if (oemFallbackB) {
-                    console.log(`✅ OEM fallback aplicado (HD/LD sin homologación): ${query} → ${oemFallbackB.sku}`);
+                    console.log(`âœ… OEM fallback aplicado (HD/LD sin homologaciÃ³n): ${query} â†’ ${oemFallbackB.sku}`);
                     return oemFallbackB;
                 }
                 return {
                     status: 'NOT_FOUND',
                     query_normalized: query,
-                    message: 'HD/LD sin homologación y sin OEM detectable para aplicar prefijo + últimos 4.',
+                    message: 'HD/LD sin homologaciÃ³n y sin OEM detectable para aplicar prefijo + Ãºltimos 4.',
                     valid: false
                 };
             }
@@ -668,15 +670,15 @@ async function detectFilter(rawInput, lang = 'en', options = {}) {
                     const primaryOEM2 = oems2[0];
                     const oemFallback2 = await tryOemFallback(primaryOEM2, 'LD', 'OIL');
                     if (oemFallback2) {
-                        console.log(`✅ OEM fallback aplicado (Excepción ECOGARD S): ${query} → ${oemFallback2.sku}`);
+                        console.log(`âœ… OEM fallback aplicado (ExcepciÃ³n ECOGARD S): ${query} â†’ ${oemFallback2.sku}`);
                         return oemFallback2;
                     }
                 }
             }
-            // Regla 3: NO HD ni LD (no es Donaldson ni FRAM) → fallback OEM
+            // Regla 3: NO HD ni LD (no es Donaldson ni FRAM) â†’ fallback OEM
             const oemFallback = await tryOemFallback(query, duty, hint.family);
             if (oemFallback) {
-                console.log(`✅ OEM fallback aplicado (Regla 3): ${query} → ${oemFallback.sku}`);
+                console.log(`âœ… OEM fallback aplicado (Regla 3): ${query} â†’ ${oemFallback.sku}`);
                 return oemFallback;
             }
             return {
@@ -687,43 +689,51 @@ async function detectFilter(rawInput, lang = 'en', options = {}) {
             };
         }
 
-        console.log(`✅ Code validated: ${query} → ${scraperResult.code} (${scraperResult.source})`);
+        console.log(`âœ… Code validated: ${query} â†’ ${scraperResult.code} (${scraperResult.source})`);
 
         // Ajuste de duty basado en la fuente resuelta del scraper
         const sourceUp = String(scraperResult.source || '').toUpperCase();
         if (sourceUp === 'FRAM' && duty !== 'LD') {
-            console.log(`🔁 Duty adjusted to LD based on FRAM source`);
+            console.log(`ðŸ” Duty adjusted to LD based on FRAM source`);
             duty = 'LD';
         } else if (sourceUp === 'DONALDSON' && duty !== 'HD') {
-            console.log(`🔁 Duty adjusted to HD based on Donaldson source`);
+            console.log(`ðŸ” Duty adjusted to HD based on Donaldson source`);
             duty = 'HD';
         }
 
-        // Política de homologación: HD requiere DONALDSON, LD requiere FRAM
-        const homologationOk = (duty === 'HD' && sourceUp === 'DONALDSON') || (duty === 'LD' && sourceUp === 'FRAM');
+        // PolÃ­tica de homologaciÃ³n: HD requiere DONALDSON, LD requiere FRAM
+        // ExtensiÃ³n marina/turbina: aceptar OEM Parker/Racor (TURBINE SERIES)
+        // y MerCruiser/Sierra (MARINE) para permitir generaciÃ³n jerÃ¡rquica ET9/EM9
+        const familyUp = String(scraperResult.family || '').toUpperCase();
+        const homologationOk = (
+            (duty === 'HD' && sourceUp === 'DONALDSON') ||
+            (duty === 'LD' && sourceUp === 'FRAM') ||
+            (familyUp === 'TURBINE SERIES' && sourceUp === 'PARKER') ||
+            (familyUp === 'MARINE' && (sourceUp === 'PARKER' || sourceUp === 'MERCRUISER' || sourceUp === 'SIERRA'))
+        );
         if (!homologationOk) {
             const codeUpper = prefixMap.normalize(query);
             const looksDonaldson = prefixMap.DONALDSON_STRICT_REGEX.test(codeUpper);
             const looksFram = /^(CA|CF|CH|PH|TG|XG|HM|G|PS)\d/i.test(codeUpper);
-            console.log(`⛔ Homologación requerida no cumplida: duty=${duty}, source=${sourceUp}. looksDonaldson=${looksDonaldson} looksFram=${looksFram}`);
+            console.log(`â›” HomologaciÃ³n no cumplida: duty=${duty}, source=${sourceUp}, family=${familyUp}. looksDonaldson=${looksDonaldson} looksFram=${looksFram}`);
 
             // Si parece fabricante, NO fallback OEM (reglas 1 y 2)
             if (looksDonaldson || looksFram) {
                 const famHintC = (prefixMap.resolveBrandFamilyDutyByPrefix(query) || {}).family || hint.family;
                 const oemFallbackC = await tryOemFallback(query, duty, famHintC);
                 if (oemFallbackC) {
-                    console.log(`✅ OEM fallback aplicado (no homologación fabricante): ${query} → ${oemFallbackC.sku}`);
+                    console.log(`âœ… OEM fallback aplicado (no homologaciÃ³n fabricante): ${query} â†’ ${oemFallbackC.sku}`);
                     return oemFallbackC;
                 }
                 return {
                     status: 'NOT_FOUND',
                     query_normalized: query,
-                    message: 'Fabricante no homologado y sin OEM detectable para aplicar prefijo + últimos 4.',
+                    message: 'Fabricante no homologado y sin OEM detectable para aplicar prefijo + Ãºltimos 4.',
                     valid: false
                 };
             }
-            // Regla: si el duty es HD/LD, exigir homologación del fabricante y NO aplicar fallback OEM
-            // Excepción: LD ECOGARD S-series permite fallback OEM curado
+            // Regla: si el duty es HD/LD, exigir homologaciÃ³n del fabricante y NO aplicar fallback OEM
+            // ExcepciÃ³n: LD ECOGARD S-series permite fallback OEM curado
             {
                 const up3 = prefixMap.normalize(query);
                 const hint3 = prefixMap.resolveBrandFamilyDutyByPrefix(up3) || {};
@@ -738,7 +748,7 @@ async function detectFilter(rawInput, lang = 'en', options = {}) {
                         const primaryOEM3 = oems3[0];
                         const oemFallback3 = await tryOemFallback(primaryOEM3, 'LD', 'OIL');
                         if (oemFallback3) {
-                            console.log(`✅ OEM fallback aplicado (Excepción ECOGARD S - no homologación): ${query} → ${oemFallback3.sku}`);
+                            console.log(`âœ… OEM fallback aplicado (ExcepciÃ³n ECOGARD S - no homologaciÃ³n): ${query} â†’ ${oemFallback3.sku}`);
                             return oemFallback3;
                         }
                     }
@@ -748,20 +758,20 @@ async function detectFilter(rawInput, lang = 'en', options = {}) {
                 const famHintD = (prefixMap.resolveBrandFamilyDutyByPrefix(query) || {}).family || hint.family;
                 const oemFallbackD = await tryOemFallback(query, duty, famHintD);
                 if (oemFallbackD) {
-                    console.log(`✅ OEM fallback aplicado (HD/LD no homologado): ${query} → ${oemFallbackD.sku}`);
+                    console.log(`âœ… OEM fallback aplicado (HD/LD no homologado): ${query} â†’ ${oemFallbackD.sku}`);
                     return oemFallbackD;
                 }
                 return {
                     status: 'NOT_FOUND',
                     query_normalized: query,
-                    message: 'HD/LD sin homologación y sin OEM detectable para aplicar prefijo + últimos 4.',
+                    message: 'HD/LD sin homologaciÃ³n y sin OEM detectable para aplicar prefijo + Ãºltimos 4.',
                     valid: false
                 };
             }
             // En caso contrario, aplicar Regla 3
             const oemFallback = await tryOemFallback(query, duty, hint.family);
             if (oemFallback) {
-                console.log(`✅ OEM fallback aplicado por no homologación (Regla 3): ${query} → ${oemFallback.sku}`);
+                console.log(`âœ… OEM fallback aplicado por no homologaciÃ³n (Regla 3): ${query} â†’ ${oemFallback.sku}`);
                 return oemFallback;
             }
             return {
@@ -773,7 +783,7 @@ async function detectFilter(rawInput, lang = 'en', options = {}) {
         }
 
         // ---------------------------------------------------------------------
-        // PRE-CÁLCULO: FAMILIA Y SKU ESPERADO PARA VALIDAR CONTRA MASTER
+        // PRE-CÃLCULO: FAMILIA Y SKU ESPERADO PARA VALIDAR CONTRA MASTER
         // ---------------------------------------------------------------------
         const codeForFamilyPre = String(scraperResult?.code || query || '').toUpperCase();
         let familyPre = null;
@@ -781,7 +791,7 @@ async function detectFilter(rawInput, lang = 'en', options = {}) {
         if (!familyPre && hint.family) {
             familyPre = hint.family;
         }
-        // Heurísticas por prefijo FRAM
+        // HeurÃ­sticas por prefijo FRAM
         if (/^CA/.test(codeForFamilyPre)) {
             familyPre = 'AIRE';
         } else if (/^(CF|CH)/.test(codeForFamilyPre)) {
@@ -799,23 +809,45 @@ async function detectFilter(rawInput, lang = 'en', options = {}) {
             }
         }
 
-        // Construir SKU esperado con prefijo oficial y últimos 4 homologados
-        const expectedSkuPre = generateSKU(familyPre, duty, scraperResult.last4);
+        // Construir SKU esperado con prefijo oficial y Ãºltimos 4 homologados
+        // EM9/ET9 hierarchical SKU generation
+        const codeRawPre = String(scraperResult?.code || query || '').trim();
+        const upPre = codeRawPre.toUpperCase();
+        let expectedSkuPre;
+        if (String(familyPre).toUpperCase() === 'TURBINE SERIES') {
+            if (/^\d{3,5}(MA|FH)\b/.test(upPre)) {
+                expectedSkuPre = generateET9SystemSKU(codeRawPre);
+            } else if (/^(2010|2020|2040)/.test(upPre)) {
+                expectedSkuPre = generateET9FElementSKU(codeRawPre);
+            } else {
+                expectedSkuPre = generateSKU(familyPre, duty, scraperResult.last4);
+            }
+        } else if (/^R(12|15|20|25|45|60|90|120)(T|S)$/i.test(codeRawPre)) {
+            expectedSkuPre = generateEM9SSeparatorSKU(codeRawPre);
+            familyPre = 'MARINE';
+        } else if (String(familyPre).toUpperCase() === 'MARINE') {
+            const famHintRaw = String(hint.family || scraperResult.family || '').toUpperCase();
+            const baseFam = ['OIL','FUEL','AIRE'].includes(famHintRaw) ? famHintRaw : 'FUEL';
+            const l4al = scraperResult.last4_alnum || extract4Alnum(codeRawPre) || scraperResult.last4;
+            expectedSkuPre = generateEM9SubtypeSKU(baseFam, l4al);
+        } else {
+            expectedSkuPre = generateSKU(familyPre, duty, scraperResult.last4);
+        }
 
         // ---------------------------------------------------------------------
         // PASO 2: BUSCAR SI YA EXISTE SKU EN GOOGLE SHEET MASTER
         // ---------------------------------------------------------------------
-        console.log(`📊 Step 2: Checking Google Sheet Master for existing SKU...`);
+        console.log(`ðŸ“Š Step 2: Checking Google Sheet Master for existing SKU...`);
         
         try {
             const existingSKU = await searchInSheet(query);
 
             if (existingSKU && existingSKU.found) {
                 if (force) {
-                    console.log(`⚙️  FORCE enabled: ignoring Master SKU (${existingSKU.sku}) and regenerating`);
+                    console.log(`âš™ï¸  FORCE enabled: ignoring Master SKU (${existingSKU.sku}) and regenerating`);
                 } else {
-                    console.log(`✅ SKU already exists in Master: ${query} → ${existingSKU.sku}`);
-                    // Validar contra la homologación actual: familia, duty y últimos 4
+                    console.log(`âœ… SKU already exists in Master: ${query} â†’ ${existingSKU.sku}`);
+                    // Validar contra la homologaciÃ³n actual: familia, duty y Ãºltimos 4
                     if (
                         existingSKU.sku === expectedSkuPre &&
                         String(existingSKU.family).toUpperCase() === String(familyPre).toUpperCase() &&
@@ -836,27 +868,27 @@ async function detectFilter(rawInput, lang = 'en', options = {}) {
                             cross_reference: existingSKU.cross_reference || [],
                             applications: existingSKU.applications || [],
                             attributes: existingSKU.attributes || {},
-                            message: 'SKU encontrado en catálogo Master'
+                            message: 'SKU encontrado en catÃ¡logo Master'
                         };
                     }
-                    // Si no coincide, regenerar y corregir (no retornar aquí)
+                    // Si no coincide, regenerar y corregir (no retornar aquÃ­)
                     console.log(
-                        `♻️  Mismatch de SKU en Master. Esperado: ${expectedSkuPre} (family=${familyPre}, duty=${duty}, last4=${scraperResult.last4}) ` +
-                        `pero existe: ${existingSKU.sku}. Se corregirá y se hará upsert.`
+                        `â™»ï¸  Mismatch de SKU en Master. Esperado: ${expectedSkuPre} (family=${familyPre}, duty=${duty}, last4=${scraperResult.last4}) ` +
+                        `pero existe: ${existingSKU.sku}. Se corregirÃ¡ y se harÃ¡ upsert.`
                     );
                 }
             }
             
-            console.log(`⚠️  SKU not found in Master - will generate new SKU`);
+            console.log(`âš ï¸  SKU not found in Master - will generate new SKU`);
         } catch (sheetError) {
-            console.log(`⚠️  Google Sheets lookup error: ${sheetError.message}`);
+            console.log(`âš ï¸  Google Sheets lookup error: ${sheetError.message}`);
             // Continue to generate SKU anyway
         }
 
         // ---------------------------------------------------------------------
         // PASO 3: GENERAR SKU ELIMFILTERS
         // ---------------------------------------------------------------------
-        console.log(`🔧 Step 3: Generating new SKU...`);
+        console.log(`ðŸ”§ Step 3: Generating new SKU...`);
 
         // Determine family based on resolved code (prefer validated FRAM/DONALDSON code)
         const codeForFamily = String(scraperResult?.code || query || '').toUpperCase();
@@ -883,9 +915,9 @@ async function detectFilter(rawInput, lang = 'en', options = {}) {
         }
 
         if (!family) {
-            console.log(`❌ Family detection failed for ${scraperResult.code}`);
+            console.log(`âŒ Family detection failed for ${scraperResult.code}`);
             if (force) {
-                console.log('⚙️  FORCE mode: applying fallback family heuristics');
+                console.log('âš™ï¸  FORCE mode: applying fallback family heuristics');
                 if (/^CA/i.test(codeForFamily)) {
                     family = 'AIRE';
                 } else if (/^(CF|CH)/i.test(codeForFamily)) {
@@ -897,33 +929,63 @@ async function detectFilter(rawInput, lang = 'en', options = {}) {
                 } else {
                     family = 'OIL';
                 }
-                console.log(`✅ FORCE fallback family: ${family}`);
+                console.log(`âœ… FORCE fallback family: ${family}`);
             } else {
                 return noEquivalentFound(query, lang);
             }
         }
 
-        console.log(`✅ Family: ${family}`);
+        console.log(`âœ… Family: ${family}`);
 
-        const sku = generateSKU(family, duty, scraperResult.last4);
+        // Hierarchical generation for EM9/ET9
+        const codeRaw = String(scraperResult?.code || query || '').trim();
+        const upCode = codeRaw.toUpperCase();
+        let sku;
+        if (String(family).toUpperCase() === 'TURBINE SERIES') {
+            if (/^\d{3,5}(MA|FH)\b/.test(upCode)) {
+                sku = generateET9SystemSKU(codeRaw);
+            } else if (/^(2010|2020|2040)/.test(upCode)) {
+                sku = generateET9FElementSKU(codeRaw);
+            } else {
+                sku = generateSKU(family, duty, scraperResult.last4);
+            }
+        } else if (/^R(12|15|20|25|45|60|90|120)(T|S)$/i.test(codeRaw)) {
+            sku = generateEM9SSeparatorSKU(codeRaw);
+            family = 'MARINE';
+        } else if (String(family).toUpperCase() === 'MARINE') {
+            const famHintRaw = String(hint.family || scraperResult.family || '').toUpperCase();
+            const baseFam = ['OIL','FUEL','AIRE'].includes(famHintRaw) ? famHintRaw : 'FUEL';
+            const l4al = scraperResult.last4_alnum || extract4Alnum(codeRaw) || scraperResult.last4;
+            sku = generateEM9SubtypeSKU(baseFam, l4al);
+        } else {
+            sku = generateSKU(family, duty, scraperResult.last4);
+        }
 
         if (!sku || sku.error) {
-            console.log(`❌ SKU generation failed: ${sku?.error}`);
+            console.log(`âŒ SKU generation failed: ${sku?.error}`);
             return noEquivalentFound(query, lang);
         }
 
-        console.log(`✅ SKU Generated: ${sku}`);
+        console.log(`âœ… SKU Generated: ${sku}`);
 
         // ---------------------------------------------------------------------
         // PASO 4: ENRIQUECER ESPECIFICACIONES (Engines/Equipment) Y GUARDAR EN MASTER
         // ---------------------------------------------------------------------
-        console.log(`💾 Step 4: Enriching specs and saving to Google Sheet Master...`);
+        console.log(`ðŸ’¾ Step 4: Enriching specs and saving to Google Sheet Master...`);
         let specs;
         try {
-            if (duty === 'HD') {
+            if (sourceUp === 'DONALDSON') {
                 specs = await extractDonaldsonSpecs(scraperResult.code);
-            } else {
+            } else if (sourceUp === 'FRAM') {
                 specs = await extractFramSpecs(scraperResult.code);
+            } else if (sourceUp === 'PARKER') {
+                specs = await extractParkerSpecs(scraperResult.code);
+            } else if (sourceUp === 'MERCRUISER') {
+                specs = await extractMercurySpecs(scraperResult.code);
+            } else if (sourceUp === 'SIERRA') {
+                specs = await extractSierraSpecs(scraperResult.code);
+            } else {
+                specs = getDefaultSpecs(scraperResult.code, scraperResult.source || (duty === 'HD' ? 'DONALDSON' : 'FRAM'));
             }
         } catch (e) {
             specs = getDefaultSpecs(scraperResult.code, scraperResult.source || (duty === 'HD' ? 'DONALDSON' : 'FRAM'));
@@ -945,13 +1007,13 @@ async function detectFilter(rawInput, lang = 'en', options = {}) {
         const engineClean = cleanAppsList(rawEngineApps, duty);
 const engineCons = consolidateApps(engineClean);
 const equipCons = consolidateApps(equipClean);
-// Aplicar preferencia de visualización "Fabricante + Modelo" cuando haya marca detectable
+// Aplicar preferencia de visualizaciÃ³n "Fabricante + Modelo" cuando haya marca detectable
 const engineFmt = preferBrandModelFormat(engineCons);
 const equipFmt = preferBrandModelFormat(equipCons);
 const engineFinal = ensureMinApps(engineFmt, duty, 'engine');
 const equipFinal = ensureMinApps(equipFmt, duty, 'equipment');
 
-        const masterData = {
+        let masterData = {
             query_normalized: query,
             code_input: query,
             code_oem: scraperResult.code,
@@ -977,6 +1039,8 @@ const equipFinal = ensureMinApps(equipFmt, duty, 'equipment');
                 iso_main_efficiency_percent: specs?.performance?.iso_main_efficiency_percent,
                 iso_test_method: specs?.performance?.iso_test_method,
                 micron_rating: specs?.performance?.micron_rating,
+                flow_gph: specs?.performance?.flow_gph,
+                flow_lph: specs?.performance?.flow_lph,
                 manufacturing_standards: specs?.technical_details?.manufacturing_standards,
                 certification_standards: specs?.technical_details?.certification_standards,
                 operating_temperature_min_c: specs?.technical_details?.operating_temperature_min_c,
@@ -995,10 +1059,6 @@ const equipFinal = ensureMinApps(equipFmt, duty, 'equipment');
                 iso_test_method: duty === 'HD' ? 'ISO 5011' : 'SAE J806',
                 
                 // Operating parameters
-                operating_temperature_min_c: '-40',
-                operating_temperature_max_c: '100',
-                fluid_compatibility: 'Universal',
-                disposal_method: 'Recycle according to local regulations',
                 service_life_hours: '500',
                 manufactured_by: 'ELIMFILTERS'
             },
@@ -1006,11 +1066,67 @@ const equipFinal = ensureMinApps(equipFmt, duty, 'equipment');
             oem_equivalent: scraperResult.code
         };
 
+        // LD Legal Protection & Enrichment (FRAM)
+        if (duty === 'LD' && String(scraperResult.source || '').toUpperCase() === 'FRAM') {
+            // Move cross codes into oem_codes and set cross_reference label
+            try {
+                const mergedOEM = Array.from(new Set([...(masterData.oem_codes || []), ...(Array.isArray(crossClean) ? crossClean : [])]));
+                masterData.oem_codes = mergedOEM;
+                masterData.cross_reference = mergedOEM.length ? 'Multi-Referencia OEM' : 'N/A';
+            } catch (_) {
+                masterData.cross_reference = 'N/A';
+            }
+
+            // Scrape FRAM page and merge mapped attributes
+            try {
+                const enrichment = await enrichFramLD(scraperResult.code, { family });
+                if (enrichment && enrichment.attributes) {
+                    masterData.attributes = { ...masterData.attributes, ...enrichment.attributes };
+                }
+                if (enrichment && enrichment.oem_codes_from_cross && enrichment.oem_codes_from_cross.length) {
+                    const mergedOEM2 = Array.from(new Set([...(masterData.oem_codes || []), ...enrichment.oem_codes_from_cross]));
+                    masterData.oem_codes = mergedOEM2;
+                    masterData.cross_reference = 'Multi-Referencia OEM';
+                }
+                if (enrichment && enrichment.tecnologia_aplicada) {
+                    masterData.attributes.tecnologia_aplicada = enrichment.tecnologia_aplicada;
+                }
+            } catch (framErr) {
+                console.log(`⚠️  FRAM enrichment skipped: ${framErr.message}`);
+            }
+        }
+
+        // HD Fleetguard enrichment (Phase 2 & 3): only for DONALDSON-based HD flows
         try {
-            await upsertBySku(masterData, { deleteDuplicates: true });
-            console.log(`✅ Upserted to Google Sheet Master: ${sku}`);
+            const srcUp2 = String(scraperResult.source || '').toUpperCase();
+            if (duty === 'HD' && srcUp2 === 'DONALDSON' && scraperResult.code && sku) {
+                const { masterData: mdEnriched, mongoDoc } = await enrichHDWithFleetguard(masterData, {
+                    codeDonaldson: scraperResult.code,
+                    skuInterno: sku,
+                });
+                if (mdEnriched) {
+                    // Replace masterData with enriched fields prior to upsert
+                    Object.assign(masterData, mdEnriched);
+                }
+                if (mongoDoc) {
+                    // Save enriched document to MongoDB cache (arrays preserved)
+                    try { await saveToCache(mongoDoc); } catch (e) { console.log(`⚠️  Mongo save failed: ${e.message}`); }
+                }
+            }
+        } catch (enrichErr) {
+            console.log(`⚠️  Fleetguard enrichment skipped: ${enrichErr.message}`);
+        }
+
+        try {
+            if (/^(EM9|ET9)/.test(String(sku))) {
+                await upsertMarinosBySku(masterData);
+                console.log(`âœ… Upserted to Google Sheet 'Marinos': ${sku}`);
+            } else {
+                await upsertBySku(masterData, { deleteDuplicates: true });
+                console.log(`âœ… Upserted to Google Sheet Master: ${sku}`);
+            }
         } catch (saveError) {
-            console.error(`❌ Failed to upsert to Google Sheet: ${saveError.message}`);
+            console.error(`âŒ Failed to upsert to Google Sheet: ${saveError.message}`);
             // Continue anyway - SKU is generated
         }
 
@@ -1019,7 +1135,7 @@ const equipFinal = ensureMinApps(equipFmt, duty, 'equipment');
         // -----------------------------------------------------------------
         let generatedAllSummary = [];
         if (generateAll) {
-            console.log(`🧩 generate_all enabled: attempting homologated SKUs for associated codes...`);
+            console.log(`ðŸ§© generate_all enabled: attempting homologated SKUs for associated codes...`);
             const candidates = new Set([...(Array.isArray(oemClean) ? oemClean : []), ...(Array.isArray(crossClean) ? crossClean : [])]);
             // Remove primary OEM and the input query to avoid duplicates
             candidates.delete(scraperResult.code);
@@ -1031,13 +1147,13 @@ const equipFinal = ensureMinApps(equipFmt, duty, 'equipment');
                 try {
                     const sr = await scraperBridge(cQuery, duty);
                     if (!sr || !sr.last4) {
-                        console.log(`↪️  Skipping ${cQuery}: not validated by scrapers`);
+                        console.log(`â†ªï¸  Skipping ${cQuery}: not validated by scrapers`);
                         continue;
                     }
                     const srcUp = String(sr.source || '').toUpperCase();
                     const homologOk = (duty === 'HD' && srcUp === 'DONALDSON') || (duty === 'LD' && srcUp === 'FRAM');
                     if (!homologOk) {
-                        console.log(`↪️  Skipping ${cQuery}: source ${srcUp} not homologated for duty ${duty}`);
+                        console.log(`â†ªï¸  Skipping ${cQuery}: source ${srcUp} not homologated for duty ${duty}`);
                         continue;
                     }
 
@@ -1057,13 +1173,50 @@ const equipFinal = ensureMinApps(equipFmt, duty, 'equipment');
                     }
                     if (!famCand) famCand = family;
 
-                    const skuCand = generateSKU(famCand, duty, sr.last4);
+                    let skuCand;
+                    const upCand = cUpper;
+                    if (String(famCand).toUpperCase() === 'TURBINE SERIES') {
+                        if (/^\d{3,5}(MA|FH)\b/.test(upCand)) {
+                            skuCand = generateET9SystemSKU(sr.code);
+                        } else if (/^(2010|2020|2040)/.test(upCand)) {
+                            skuCand = generateET9FElementSKU(sr.code);
+                        } else {
+                            skuCand = generateSKU(famCand, duty, sr.last4);
+                        }
+                    } else if (/^R(12|15|20|25|45|60|90|120)(T|S)$/i.test(sr.code || '')) {
+                        skuCand = generateEM9SSeparatorSKU(sr.code);
+                        famCand = 'MARINE';
+                    } else if (String(famCand).toUpperCase() === 'MARINE') {
+                        const baseFamCand = ['OIL','FUEL','AIRE'].includes(String(sr.family || '').toUpperCase()) ? String(sr.family || '').toUpperCase() : 'FUEL';
+                        const l4alCand = sr.last4_alnum || extract4Alnum(sr.code || '') || sr.last4;
+                        skuCand = generateEM9SubtypeSKU(baseFamCand, l4alCand);
+                    } else {
+                        skuCand = generateSKU(famCand, duty, sr.last4);
+                    }
                     if (!skuCand || skuCand.error) {
-                        console.log(`↪️  Skipping ${cQuery}: SKU generation error`);
+                        console.log(`â†ªï¸  Skipping ${cQuery}: SKU generation error`);
                         continue;
                     }
 
-                    const specsCand = getDefaultSpecs(sr.code, sr.source);
+                    let specsCand;
+                    try {
+                        const srcUp = String(sr.source || '').toUpperCase();
+                        if (srcUp === 'DONALDSON') {
+                            specsCand = await extractDonaldsonSpecs(sr.code);
+                        } else if (srcUp === 'FRAM') {
+                            specsCand = await extractFramSpecs(sr.code);
+                        } else if (srcUp === 'PARKER') {
+                            specsCand = await extractParkerSpecs(sr.code);
+                        } else if (srcUp === 'MERCRUISER') {
+                            specsCand = await extractMercurySpecs(sr.code);
+                        } else if (srcUp === 'SIERRA') {
+                            specsCand = await extractSierraSpecs(sr.code);
+                        } else {
+                            specsCand = getDefaultSpecs(sr.code, sr.source);
+                        }
+                    } catch (_) {
+                        specsCand = getDefaultSpecs(sr.code, sr.source);
+                    }
                     const oemCand = cleanOEMList(sr.attributes?.oem_numbers || sr.oem || [], duty);
                     const crossCand = cleanCrossList(sr.cross || [], duty, sr.code, sr.source);
 
@@ -1090,12 +1243,10 @@ const equipFinal = ensureMinApps(equipFmt, duty, 'equipment');
                             iso_main_efficiency_percent: specsCand?.performance?.iso_main_efficiency_percent,
                             iso_test_method: specsCand?.performance?.iso_test_method,
                             micron_rating: specsCand?.performance?.micron_rating,
+                            flow_gph: specsCand?.performance?.flow_gph,
+                            flow_lph: specsCand?.performance?.flow_lph,
                             manufacturing_standards: duty === 'HD' ? 'ISO 9001, ISO/TS 16949' : 'ISO 9001',
                             certification_standards: duty === 'HD' ? 'ISO 5011, ISO 4548-12' : 'SAE J806',
-                            operating_temperature_min_c: '-40',
-                            operating_temperature_max_c: '100',
-                            fluid_compatibility: 'Universal',
-                            disposal_method: 'Recycle according to local regulations',
                             service_life_hours: '500',
                             manufactured_by: 'ELIMFILTERS'
                         },
@@ -1105,22 +1256,22 @@ const equipFinal = ensureMinApps(equipFmt, duty, 'equipment');
 
                     try {
                         await upsertBySku(masterDataCand, { deleteDuplicates: true });
-                        console.log(`✅ Upserted associated homologated SKU: ${skuCand} for ${cQuery}`);
+                        console.log(`âœ… Upserted associated homologated SKU: ${skuCand} for ${cQuery}`);
                         generatedAllSummary.push({ code: cQuery, sku: skuCand, source: sr.source, forced: false, upsert_status: 'SAVED' });
                     } catch (errUp) {
-                        console.log(`⚠️  Failed upsert for ${cQuery}: ${errUp.message}`);
+                        console.log(`âš ï¸  Failed upsert for ${cQuery}: ${errUp.message}`);
                         generatedAllSummary.push({ code: cQuery, sku: skuCand, source: sr.source, forced: false, upsert_status: 'UPSERT_FAILED', error: errUp.message });
                     }
                 } catch (err) {
-                    console.log(`⚠️  Error processing ${cQuery}: ${err.message}`);
+                    console.log(`âš ï¸  Error processing ${cQuery}: ${err.message}`);
                 }
             }
         }
 
         // ---------------------------------------------------------------------
-        // PASO 5: RETORNAR INFORMACIÓN COMPLETA A WORDPRESS
+        // PASO 5: RETORNAR INFORMACIÃ“N COMPLETA A WORDPRESS
         // ---------------------------------------------------------------------
-        console.log(`✅ Step 5: Returning complete information to WordPress`);
+        console.log(`âœ… Step 5: Returning complete information to WordPress`);
         
         const oemList = oemClean;
         const primaryOEM = Array.isArray(oemList) && oemList.length ? oemList[0] : '';
@@ -1136,6 +1287,8 @@ const equipFinal = ensureMinApps(equipFmt, duty, 'equipment');
             iso_main_efficiency_percent: specs?.performance?.iso_main_efficiency_percent,
             iso_test_method: specs?.performance?.iso_test_method,
             micron_rating: specs?.performance?.micron_rating,
+            flow_gph: specs?.performance?.flow_gph,
+            flow_lph: specs?.performance?.flow_lph,
             manufacturing_standards: specs?.technical_details?.manufacturing_standards,
             certification_standards: specs?.technical_details?.certification_standards,
             operating_temperature_min_c: specs?.technical_details?.operating_temperature_min_c,
@@ -1149,6 +1302,30 @@ const equipFinal = ensureMinApps(equipFmt, duty, 'equipment');
             manufactured_by: 'ELIMFILTERS'
         };
         const attributesMerged = { ...(scraperResult.attributes || {}), ...specAttrs };
+
+        // Ocultar campos funcionales no primarios en visualización del cliente
+        try {
+            const hideNonPrimary = String(process.env.HIDE_NONPRIMARY_FIELDS || 'true').toLowerCase() === 'true';
+            if (hideNonPrimary) {
+                const famUp = String(family || '').toUpperCase();
+                const typeUp = String(specs?.type || scraperResult?.type || '').toUpperCase();
+                const isAir = famUp === 'AIRE' || /AIR/.test(typeUp);
+                const isCabin = famUp === 'CABIN' || /CABIN/.test(typeUp);
+                const isFuel = famUp === 'FUEL' || /FUEL/.test(typeUp);
+                // Regla: WSE solo aplica si FUEL; ocultar en otras familias
+                if (!isFuel) {
+                    delete attributesMerged.water_separation_efficiency_percent;
+                }
+                // Regla: ISO efficiency/method no aplican a Air/Cabin
+                if (isAir || isCabin) {
+                    delete attributesMerged.iso_main_efficiency_percent;
+                    delete attributesMerged.iso_test_method;
+                    // Ocultar flujos no aplicables en Air/Cabin
+                    delete attributesMerged.flow_gph;
+                    delete attributesMerged.flow_lph;
+                }
+            }
+        } catch (_) {}
 
         const response = {
             status: 'OK',
@@ -1164,7 +1341,7 @@ const equipFinal = ensureMinApps(equipFmt, duty, 'equipment');
             sku,
             media: getMedia(family, duty),
             source: scraperResult.source,
-            // Ocultar marcas: exponer solo el código homologado (OEM cuando disponible)
+            // Ocultar marcas: exponer solo el cÃ³digo homologado (OEM cuando disponible)
             oem_homologated: {
                 code: primaryOEM || ''
             },
@@ -1173,15 +1350,15 @@ const equipFinal = ensureMinApps(equipFmt, duty, 'equipment');
             engine_applications: engineFinal,
             equipment_applications: equipFinal,
             attributes: attributesMerged,
-            message: 'SKU ELIMFILTERS generado y guardado en catálogo Master',
+            message: 'SKU ELIMFILTERS generado y guardado en catÃ¡logo Master',
             generated_all: generatedAllSummary
         };
 
-        console.log(`🎉 Detection complete: ${sku}`);
+        console.log(`ðŸŽ‰ Detection complete: ${sku}`);
         return response;
 
     } catch (error) {
-        console.error('❌ Detection service error:', error);
+        console.error('âŒ Detection service error:', error);
         throw error;
     }
 }

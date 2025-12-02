@@ -13,6 +13,13 @@ function detectFamily(scraperFamily, scraperSubtype) {
     const s = clean(scraperSubtype);
 
     // ------------------------------
+    // AIR DRYER (prioritario antes de AIR genérico)
+    // ------------------------------
+    if (f.includes("DRYER")) {
+        return "AIR DRYER";
+    }
+
+    // ------------------------------
     // OIL
     // ------------------------------
     if (f.includes("OIL") || f.includes("LUBE")) {
@@ -54,12 +61,7 @@ function detectFamily(scraperFamily, scraperSubtype) {
         return "HIDRAULIC";
     }
 
-    // ------------------------------
-    // AIR DRYER
-    // ------------------------------
-    if (f.includes("DRYER")) {
-        return "AIR DRYER";
-    }
+    // (Nota: la detección de AIR DRYER se realiza arriba para evitar colisión con AIR)
 
     // ------------------------------
     // COOLANT
@@ -72,7 +74,8 @@ function detectFamily(scraperFamily, scraperSubtype) {
     // TURBINE / MARINE
     // ------------------------------
     if (f.includes("TURBINE")) return "TURBINE SERIES";
-    if (f.includes("MARINE")) return "MARINE FILTERS";
+    // Normalizar a etiqueta usada por detectionService: 'MARINE'
+    if (f.includes("MARINE")) return "MARINE";
 
     return null; // No se pudo detectar familia
 }
