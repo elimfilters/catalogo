@@ -14,7 +14,9 @@ function parseArgs() {
   const args = process.argv.slice(2);
   const fileIdx = args.findIndex(a => a === '--file');
   const file = fileIdx >= 0 ? args[fileIdx + 1] : null;
-  return { file };
+  // strict flag: default true; can be disabled with --no-strict
+  const strict = args.includes('--no-strict') ? false : true;
+  return { file, strict };
 }
 
 function parseCSV(content) {
@@ -45,10 +47,26 @@ function normalizeRow(row) {
   };
 }
 
+function missingFields(doc) {
+  const miss = [];
+  const required = ['make','model','year','engine_liters','filter_type','oem_code_target'];
+  for (const k of required) {
+    const v = doc[k];
+    if (v === undefined || v === null || String(v).trim() === '') miss.push(k);
+  }
+  // year must be a valid integer
+  const y = parseInt(doc.year, 10);
+  if (!y || isNaN(y)) {
+    if (!miss.includes('year')) miss.push('year');
+  }
+  return miss;
+}
+
 async function main() {
-  const { file } = parseArgs();
+  const { file, strict } = parseArgs();
   if (!file) {
-    console.log('Uso: npm run import:vin -- --file path/to/file.json|csv');
+    console.log('Uso: npm run import:vin -- --file path/to/file.json|csv [--no-strict]');
+    console.log('  Por defecto, el importador es estricto y rechaza filas incompletas.');
     process.exit(1);
   }
   if (!process.env.MONGODB_URI) {
@@ -81,11 +99,19 @@ async function main() {
     process.exit(1);
   }
 
-  console.log(`📦 Registros a importar: ${records.length}`);
+  console.log(`📦 Registros a importar: ${records.length} (estricto=${strict})`);
 
   let ok = 0, fail = 0;
   for (const r of records) {
     const doc = normalizeRow(r);
+    if (strict) {
+      const miss = missingFields(doc);
+      if (miss.length > 0) {
+        console.log('✖ fila incompleta (omitida): faltan →', miss.join(','), doc);
+        fail++;
+        continue;
+      }
+    }
     try {
       const res = await upsertMapping(doc);
       if (res && res.make_model_year_engine) {
