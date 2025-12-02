@@ -19,8 +19,7 @@ const FAMILY_FORCE_HD = [
     "HIDRAULIC",
     "COOLANT",
     "CARCAZA AIR FILTER",
-    "TURBINE SERIES",
-    "CENTRIFUGAL"
+    "TURBINE SERIES"
 ];
 
 const FAMILY_HD_LD = [

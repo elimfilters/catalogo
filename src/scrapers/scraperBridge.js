@@ -6,6 +6,7 @@
 
 const { validateDonaldsonCode } = require('./donaldson');
 const { validateFramCode, resolveFramByCuratedOEM } = require('./fram');
+const { extract4Digits, extract4Alnum } = require('../utils/digitExtractor');
 const prefixMap = require('../config/prefixMap');
 
 // Curado mínimo para LD homologación por OEM (sin dependencias externas)
@@ -73,6 +74,22 @@ async function scraperBridge(code, duty) {
         console.log(`⛔ Duty HD: FRAM omitido por norma (HD→Donaldson, LD→FRAM)`);
     }
 
+    // =========================================================================
+    // PASO 3: Intentar validadores OEM marinos (Parker/Racor, MerCruiser, Sierra)
+    // =========================================================================
+    const racor = validateRacorCode(normalizedCode);
+    if (racor && racor.valid) {
+        return racor;
+    }
+    const merc = validateMercruiserCode(normalizedCode);
+    if (merc && merc.valid) {
+        return merc;
+    }
+    const sierra = validateSierraCode(normalizedCode);
+    if (sierra && sierra.valid) {
+        return sierra;
+    }
+
     console.log(`❌ No scraper found for code: ${normalizedCode}`);
     return {
         valid: false,
@@ -119,3 +136,77 @@ module.exports = {
     isFramCode,
     getRejectedBrands
 };
+
+// ----------------------------------------------------------------------------
+// Validadores locales: Parker/Racor, MerCruiser, Sierra
+// ----------------------------------------------------------------------------
+
+function validateRacorCode(code) {
+    const up = String(code || '').toUpperCase();
+    // Sistemas Turbina (hardware/housing): 900MA, 1000FH, etc.
+        if (/^\d{3,5}(MA|FH)\b/.test(up)) {
+            return {
+                valid: true,
+                code: up,
+                last4: extract4Digits(up),
+                last4_alnum: extract4Alnum(up),
+                family: 'TURBINE SERIES',
+                source: 'PARKER'
+            };
+        }
+    // Elementos Turbina (2010/2020/2040 + sufijos de micraje)
+        if (/^(2010|2020|2040)[A-Z0-9]*$/.test(up)) {
+            return {
+                valid: true,
+                code: up,
+                last4: extract4Digits(up),
+                last4_alnum: extract4Alnum(up),
+                family: 'TURBINE SERIES',
+                source: 'PARKER'
+            };
+        }
+    // Separadores Parker/Racor (R12/R15/.../R120 con T/S)
+        if (/^R(12|15|20|25|45|60|90|120)(T|S)$/.test(up)) {
+            return {
+                valid: true,
+                code: up,
+                last4: extract4Digits(up),
+                last4_alnum: extract4Alnum(up),
+                family: 'MARINE',
+                source: 'PARKER'
+            };
+        }
+    return null;
+}
+
+function validateMercruiserCode(code) {
+    const up = String(code || '').toUpperCase();
+    // Patrones comunes: 35-802893Q, 35-8xxxxxA/Q (permitir sin guión tras normalización)
+        if (/^\d{2}-?\d{4,7}[A-Z]?$/.test(up)) {
+            return {
+                valid: true,
+                code: up,
+                last4: extract4Digits(up),
+                last4_alnum: extract4Alnum(up),
+                family: 'MARINE',
+                source: 'MERCRUISER'
+            };
+        }
+    return null;
+}
+
+function validateSierraCode(code) {
+    const up = String(code || '').toUpperCase();
+    // Patrones Sierra: 18-7911, 18-***** (permitir sin guión tras normalización)
+        if (/^18-?\d{4,5}$/.test(up)) {
+            return {
+                valid: true,
+                code: up,
+                last4: extract4Digits(up),
+                last4_alnum: extract4Alnum(up),
+                family: 'MARINE',
+                source: 'SIERRA'
+            };
+        }
+    return null;
+}

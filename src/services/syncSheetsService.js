@@ -13,7 +13,7 @@ if (!process.env.GOOGLE_CREDENTIALS && !process.env.GOOGLE_PRIVATE_KEY) {
         const altEnvPath = path.join(__dirname, '../../../.env');
         require('dotenv').config({ path: altEnvPath });
         if (process.env.GOOGLE_CREDENTIALS || process.env.GOOGLE_PRIVATE_KEY) {
-            console.log('🔧 Loaded env from parent .env');
+            console.log('ðŸ”§ Loaded env from parent .env');
         }
     } catch (_) {}
 }
@@ -26,9 +26,9 @@ const SHEET_ID = process.env.GOOGLE_SHEETS_ID || '1ZYI5c0enkuvWAveu8HMaCUk1cek_V
 
 // Column mapping (new exact headers from Sheet Master)
 const COLUMNS = {
-    QUERY_NORM: 'query_norm',
-    SKU: 'sku',
-    DUTY: 'duty',
+    QUERY: 'query',
+    NORMSKU: 'normsku',
+    DUTY_TYPE: 'duty_type',
     TYPE: 'type',
     SUBTYPE: 'subtype',
     DESCRIPTION: 'description',
@@ -69,15 +69,17 @@ const COLUMNS = {
     MANUFACTURING_STANDARDS: 'manufacturing_standards',
     CERTIFICATION_STANDARDS: 'certification_standards',
     SERVICE_LIFE_HOURS: 'service_life_hours',
-    CHANGE_INTERVAL_KM: 'change_interval_km'
+    CHANGE_INTERVAL_KM: 'change_interval_km',
+    TECNOLOGIA_APLICADA: 'tecnologia_aplicada'
 };
 
-// Desired header order in the Google Sheet
+// Desired header order in the Google Sheet (canonical, compatible with search/upsert)
 const DESIRED_HEADERS = [
-    'query_norm',
-    'sku',
-    'duty',
-    'type',
+    'query',
+    'normsku',
+    'family',
+    'duty_type',
+    'filter_type',
     'subtype',
     'description',
     'oem_codes',
@@ -117,11 +119,25 @@ const DESIRED_HEADERS = [
     'manufacturing_standards',
     'certification_standards',
     'service_life_hours',
-    'change_interval_km'
+    'change_interval_km',
+    'tecnologia_aplicada'
 ];
 
+// ----------------------------------------------------------------------------
+// Fallback de temperaturas (configurable por entorno)
+// ----------------------------------------------------------------------------
+const FALLBACK_TEMP_ENABLED = String(process.env.FALLBACK_TEMP_ENABLED || 'false').toLowerCase() === 'true';
+const FALLBACK_TEMP_MIN_C = parseFloat(process.env.FALLBACK_TEMP_MIN_C || '-40'); // estándar de marca (-30/-40)
+const FALLBACK_TEMP_MAX_NITRILE_C = parseFloat(process.env.FALLBACK_TEMP_MAX_NITRILE_C || '135'); // +120/+135
+const FALLBACK_TEMP_MAX_VITON_C = parseFloat(process.env.FALLBACK_TEMP_MAX_VITON_C || '200');
+// Lista de SKUs excluidos de fallbacks de temperatura (mantener null/vacío)
+const FALLBACK_TEMP_SKU_EXCLUDE_LIST = String(process.env.FALLBACK_TEMP_SKU_EXCLUDE_LIST || '')
+  .split(',')
+  .map(s => s.trim().toUpperCase())
+  .filter(Boolean);
+
 // ============================================================================
-// Descripciones ELIMFILTERS - Diccionario (Prefijo + Línea)
+// Descripciones ELIMFILTERS - Diccionario (Prefijo + LÃ­nea)
 // ============================================================================
 const STOP_WORDS = [
     'AIRE', 'AIR', 'OIL', 'ACEITE', 'FUEL', 'COMBUSTIBLE', 'CABINA', 'CABIN',
@@ -129,18 +145,18 @@ const STOP_WORDS = [
 ];
 
 const DESCRIPCIONES_ELIMFILTERS = {
-    AIR_PRECISION: 'Filtración MACROCORE™ PRECISION para LD con alta eficiencia y flujo estable. Medio Filtrante Genuino. Desarrollado con IA.',
-    AIR_INDUSTRIAL: 'Protección MACROCORE™ INDUSTRIAL para HD con nanofibra OptiFlow™ en entornos severos y elementos de seguridad. Medio Filtrante Genuino. Desarrollado con IA.',
-    OIL_SYNTHETIC: 'ELIMTEK™ SYNTHETIC: Medio sintético de precisión 99% @ 20µ para HD y series XG con performance extendido. Medio Filtrante Genuino. Desarrollado con IA.',
-    OIL_ADVANCED: 'ELIMTEK™ ADVANCED: Celulosa blend reforzada 97% @ 25µ, óptimo para LD y series TG/HM. Balance entre eficiencia y capacidad. Medio Filtrante Genuino. Desarrollado con IA.',
-    FUEL_ULTRA: 'ELIMTEK™ ULTRA: Multi-capa 99.5% @ 4µ con separación de agua >95% para HD/PS-series en sistemas diésel exigentes. Medio Filtrante Genuino. Desarrollado con IA.',
-    FUEL_ADVANCED: 'ELIMTEK™ ADVANCED: Filtración de combustible LD con blend reforzada, eficiencia y costo optimizados. Medio Filtrante Genuino. Desarrollado con IA.',
-    CABIN_PREMIUM: 'MICROKAPPA™ PREMIUM: Carbón activado y sistema multietapa para purificación avanzada del habitáculo. Medio Filtrante Genuino. Desarrollado con IA.',
-    CABIN_PURE: 'MICROKAPPA™ PURE: Electrostático multi-capa de alta eficiencia para aire de cabina estándar. Medio Filtrante Genuino. Desarrollado con IA.',
-    HYDRAULIC_ULTRA: 'ELIMTEK™ ULTRA: Filtración hidráulica de alta presión con nano-fibra multi-capa en líneas de presión/retorno. Medio Filtrante Genuino. Desarrollado con IA.',
-    COOLANT_SYNTHETIC: 'ELIMTEK™ SYNTHETIC: Control de refrigerante con medio sintético de precisión, compatible con sistemas con o sin aditivos SCA. Medio Filtrante Genuino. Desarrollado con IA.',
-    AIR_DRYER_ULTRA: 'ELIMTEK™ ULTRA: Cartucho secador de aire con desecante de alto desempeño para aire comprimido y sistemas de frenado. Medio Filtrante Genuino. Desarrollado con IA.',
-    MARINE_ULTRA: 'ELIMTEK™ ULTRA: Filtración marina Heavy Duty, separación agua/combustible y protección crítica de motores. Medio Filtrante Genuino. Desarrollado con IA.'
+    AIR_PRECISION: 'FiltraciÃ³n MACROCOREâ„¢ PRECISION para LD con alta eficiencia y flujo estable. Medio Filtrante Genuino. Desarrollado con IA.',
+    AIR_INDUSTRIAL: 'ProtecciÃ³n MACROCOREâ„¢ INDUSTRIAL para HD con nanofibra OptiFlowâ„¢ en entornos severos y elementos de seguridad. Medio Filtrante Genuino. Desarrollado con IA.',
+    OIL_SYNTHETIC: 'ELIMTEKâ„¢ SYNTHETIC: Medio sintÃ©tico de precisiÃ³n 99% @ 20Âµ para HD y series XG con performance extendido. Medio Filtrante Genuino. Desarrollado con IA.',
+    OIL_ADVANCED: 'ELIMTEKâ„¢ ADVANCED: Celulosa blend reforzada 97% @ 25Âµ, Ã³ptimo para LD y series TG/HM. Balance entre eficiencia y capacidad. Medio Filtrante Genuino. Desarrollado con IA.',
+    FUEL_ULTRA: 'ELIMTEKâ„¢ ULTRA: Multi-capa 99.5% @ 4Âµ con separaciÃ³n de agua >95% para HD/PS-series en sistemas diÃ©sel exigentes. Medio Filtrante Genuino. Desarrollado con IA.',
+    FUEL_ADVANCED: 'ELIMTEKâ„¢ ADVANCED: FiltraciÃ³n de combustible LD con blend reforzada, eficiencia y costo optimizados. Medio Filtrante Genuino. Desarrollado con IA.',
+    CABIN_PREMIUM: 'MICROKAPPAâ„¢ PREMIUM: CarbÃ³n activado y sistema multietapa para purificaciÃ³n avanzada del habitÃ¡culo. Medio Filtrante Genuino. Desarrollado con IA.',
+    CABIN_PURE: 'MICROKAPPAâ„¢ PURE: ElectrostÃ¡tico multi-capa de alta eficiencia para aire de cabina estÃ¡ndar. Medio Filtrante Genuino. Desarrollado con IA.',
+    HYDRAULIC_ULTRA: 'ELIMTEKâ„¢ ULTRA: FiltraciÃ³n hidrÃ¡ulica de alta presiÃ³n con nano-fibra multi-capa en lÃ­neas de presiÃ³n/retorno. Medio Filtrante Genuino. Desarrollado con IA.',
+    COOLANT_SYNTHETIC: 'ELIMTEKâ„¢ SYNTHETIC: Control de refrigerante con medio sintÃ©tico de precisiÃ³n, compatible con sistemas con o sin aditivos SCA. Medio Filtrante Genuino. Desarrollado con IA.',
+    AIR_DRYER_ULTRA: 'ELIMTEKâ„¢ ULTRA: Cartucho secador de aire con desecante de alto desempeÃ±o para aire comprimido y sistemas de frenado. Medio Filtrante Genuino. Desarrollado con IA.',
+    MARINE_ULTRA: 'ELIMTEKâ„¢ ULTRA: FiltraciÃ³n marina Heavy Duty, separaciÃ³n agua/combustible y protecciÃ³n crÃ­tica de motores. Medio Filtrante Genuino. Desarrollado con IA.'
 };
 
 // Garantiza el lenguaje mandatorio en descripciones de fallback
@@ -153,15 +169,8 @@ const ensureBrandPhrasing = (text) => {
     return t;
 };
 
-// Medias y líneas desde util de producto
-let getProductMedia;
-try {
-    // Utiliza el mapeo detallado (familia+duty+serie)
-    ({ getMedia: getProductMedia } = require('../utils/Mediamapper · JS'));
-} catch (_) {
-    // Fallback al mapeo simple por familia
-    ({ getMedia: getProductMedia } = require('../utils/mediaMapper'));
-}
+// Medias y lÃ­neas desde util de producto (especificaciÃ³n: usar mediaMapper.js)
+const { getMedia: getProductMedia } = require('../utils/mediaMapper');
 
 // ============================================================================
 // AUTHENTICATION
@@ -200,11 +209,11 @@ async function initSheet() {
         }
 
         await doc.loadInfo();
-        console.log(`📊 Google Sheet Master loaded: ${doc.title}`);
+        console.log(`ðŸ“Š Google Sheet Master loaded: ${doc.title}`);
         return doc;
 
     } catch (error) {
-        console.error('❌ Error initializing Google Sheet:', error.message);
+        console.error('âŒ Error initializing Google Sheet:', error.message);
         throw error;
     }
 }
@@ -235,8 +244,8 @@ async function searchInSheet(code) {
         };
 
         for (const row of rows) {
-            const queryNorm = getCell(row, 'query_norm')?.toUpperCase().replace(/[^A-Z0-9]/g, '');
-            const sku = getCell(row, 'sku')?.toUpperCase().replace(/[^A-Z0-9]/g, '');
+            const queryNorm = getCell(row, 'query')?.toUpperCase().replace(/[^A-Z0-9]/g, '');
+            const normsku = getCell(row, 'normsku')?.toUpperCase().replace(/[^A-Z0-9]/g, '');
 
             // oem_codes may be a JSON array string; support matching any element
             const oemRaw = getCell(row, 'oem_codes');
@@ -272,17 +281,17 @@ async function searchInSheet(code) {
 
             if (queryNorm === normalizedCode || 
                 oemMatch || crossMatch || 
-                sku === normalizedCode) {
-                
-                console.log(`📊 Found in Google Sheet Master: ${code} → ${getCell(row, 'sku')}`);
+                normsku === normalizedCode) {
+
+                console.log(`ðŸ“Š Found in Google Sheet Master: ${code} â†’ ${getCell(row, 'normsku')}`);
                 
                 return {
                     found: true,
-                    query_norm: getCell(row, 'query_norm'),
-                    sku: getCell(row, 'sku'),
+                    query: getCell(row, 'query'),
+                    normsku: getCell(row, 'normsku'),
                     description: getCell(row, 'description'),
                     family: getCell(row, 'family'),
-                    duty: getCell(row, 'duty'),
+                    duty_type: getCell(row, 'duty_type'),
                     oem_codes: tryParseJSON(getCell(row, 'oem_codes')),
                     cross_reference: tryParseJSON(getCell(row, 'cross_reference')),
                     media_type: getCell(row, 'media_type'),
@@ -310,7 +319,7 @@ async function searchInSheet(code) {
         return null;
 
     } catch (error) {
-        console.error('❌ Error searching Google Sheet:', error.message);
+        console.error('âŒ Error searching Google Sheet:', error.message);
         return null;
     }
 }
@@ -326,10 +335,10 @@ async function ensureHeaders(sheet) {
         const mismatch = current.length !== DESIRED_HEADERS.length || current.some((h, i) => h !== DESIRED_HEADERS[i]);
         if (mismatch) {
             await sheet.setHeaderRow(DESIRED_HEADERS);
-            console.log('🧭 Sheet headers updated to new structure');
+            console.log('ðŸ§­ Sheet headers updated to new structure');
         }
     } catch (e) {
-        console.warn(`⚠️ Could not verify/update headers: ${e.message}`);
+        console.warn(`âš ï¸ Could not verify/update headers: ${e.message}`);
     }
 }
 
@@ -337,6 +346,22 @@ async function ensureHeaders(sheet) {
  * Build row data according to exact column structure
  */
 function buildRowData(data) {
+    // Minimal mode: only write query and normsku, blank all other headers
+    if (data && data.minimal === true) {
+        const base = {};
+        try {
+            for (const h of DESIRED_HEADERS) base[h] = '';
+        } catch (_) {
+            // Fallback in case headers not loaded; set known essentials
+            base.query = '';
+            base.normsku = '';
+        }
+        const skuVal = String(data.sku || '').toUpperCase().trim();
+        const qn = String(data.query_normalized || skuVal).toUpperCase().replace(/[^A-Z0-9]/g, '');
+        base.query = qn;
+        base.normsku = skuVal;
+        return base;
+    }
     const attrs = data.attributes || {};
     // Helper: join list values into readable comma-separated string
     const formatList = (list) => {
@@ -350,7 +375,7 @@ function buildRowData(data) {
             )
         ).join(', ');
     };
-    // Helper: format applications [{name, years}] → "Name (Years)"
+    // Helper: format applications [{name, years}] â†’ "Name (Years)"
     const formatApps = (apps) => {
         const arr = Array.isArray(apps) ? apps : [];
         const items = arr.map(a => {
@@ -361,7 +386,7 @@ function buildRowData(data) {
         }).filter(Boolean);
         return Array.from(new Set(items)).join(', ');
     };
-    // Normalize dimension strings like "10.24 inch (260 mm)" → "260"
+    // Normalize dimension strings like "10.24 inch (260 mm)" â†’ "260"
     const normalizeMM = (v) => {
         const s = String(v || '').trim();
         if (!s) return '';
@@ -374,13 +399,13 @@ function buildRowData(data) {
         // Direct mm
         const mmDirect = s.match(/([0-9]+(?:\.[0-9]+)?)\s*mm\b/i);
         if (mmDirect) return mmDirect[1];
-        // Inches → mm (allow 'inch', 'in', or ")
+        // Inches â†’ mm (allow 'inch', 'in', or ")
         const inchMatch = s.match(/([0-9]+(?:\.[0-9]+)?)\s*(?:inch|in|\")/i);
         if (inchMatch) {
             const mm = parseFloat(inchMatch[1]) * 25.4;
             if (!isNaN(mm)) return mm.toFixed(2);
         }
-        // Centimeters → mm
+        // Centimeters â†’ mm
         const cmMatch = s.match(/([0-9]+(?:\.[0-9]+)?)\s*cm\b/i);
         if (cmMatch) {
             const mm = parseFloat(cmMatch[1]) * 10;
@@ -399,7 +424,7 @@ function buildRowData(data) {
         let s = String(v || '').trim();
         if (!s) return NaN;
         // Unify decimal separators and remove degree or extra symbols
-        s = s.replace(/[°º]/g, '').replace(/,/g, '.');
+        s = s.replace(/[Â°Âº]/g, '').replace(/,/g, '.');
         const lower = s.toLowerCase();
         // Prefer inside parentheses if it mentions psi
         const paren = s.match(/\(([^)]+)\)/);
@@ -414,14 +439,14 @@ function buildRowData(data) {
             const vpsi = parseFloat(m[1]);
             return isNaN(vpsi) ? NaN : vpsi;
         }
-        // bar → psi (1 bar ≈ 14.5 psi)
+        // bar â†’ psi (1 bar â‰ˆ 14.5 psi)
         m = s.match(/([0-9]+(?:\.[0-9]+)?)\s*bar\b/i);
         if (m) {
             const vbar = parseFloat(m[1]);
             const psi = vbar * 14.5;
             return isNaN(psi) ? NaN : psi;
         }
-        // kPa → psi (1 kPa ≈ 0.145 psi)
+        // kPa â†’ psi (1 kPa â‰ˆ 0.145 psi)
         m = s.match(/([0-9]+(?:\.[0-9]+)?)\s*kpa\b/i);
         if (m) {
             const vkpa = parseFloat(m[1]);
@@ -433,13 +458,13 @@ function buildRowData(data) {
         const tok = m ? parseFloat(m[1]) : NaN;
         return isNaN(tok) ? NaN : tok; // assume PSI if no unit given
     };
-    // Normalize Beta ratio (β) to numeric value
+    // Normalize Beta ratio (Î²) to numeric value
     const normalizeBetaRatio = (v) => {
         let s = String(v || '').trim();
         if (!s) return NaN;
         // Remove common labels and symbols, unify decimal
         s = s.replace(/[,]/g, '.');
-        s = s.replace(/[βΒ]/g, 'beta');
+        s = s.replace(/[Î²Î’]/g, 'beta');
         s = s.replace(/\b(beta|ratio|value|valor)\b/gi, '').trim();
         // Prefer number after '=' if present
         let m = s.match(/=\s*([0-9]+(?:\.[0-9]+)?)/);
@@ -461,7 +486,7 @@ function buildRowData(data) {
         // Remove descriptive words
         s = s.replace(/\b(internal|external|female|male|nominal|thread(ed)?|port size|rosca interna|rosca externa|hembra|macho)\b/gi, '').trim();
         // Common separators normalization
-        s = s.replace(/×/g, 'x').replace(/\s{2,}/g, ' ').trim();
+        s = s.replace(/Ã—/g, 'x').replace(/\s{2,}/g, ' ').trim();
         // Metric patterns: require explicit 'M' prefix OR 'mm' unit to avoid fraction confusion
         let m = s.match(/\bM\s*([0-9]+(?:\.[0-9]+)?)\s*(?:x|-)\s*([0-9]+(?:\.[0-9]+)?)\b/i);
         if (m) {
@@ -485,7 +510,7 @@ function buildRowData(data) {
             const base = `${diamIn.replace(/\s+/g, '')}\"-${tpi}`;
             return cls ? `${base} ${cls}` : base;
         }
-        // Already formatted metric like "M20x1.5" → normalize spacing
+        // Already formatted metric like "M20x1.5" â†’ normalize spacing
         m = s.match(/\bM\s*([0-9]+(?:\.[0-9]+)?)\s*[x-]\s*([0-9]+(?:\.[0-9]+)?)\b/i);
         if (m) {
             return `M${m[1]} x ${m[2]}`;
@@ -507,13 +532,13 @@ function buildRowData(data) {
     // Canonical type and subtype synonym maps
     const TYPE_SYNONYMS = {
         'Aire': ['air', 'filtro de aire', 'motor air filter', 'aire motor'],
-        'Cabina': ['cabin', 'cabin air', 'filtro de cabina', 'habitaculo', 'habitáculo'],
+        'Cabina': ['cabin', 'cabin air', 'filtro de cabina', 'habitaculo', 'habitÃ¡culo'],
         'Fuel': ['fuel', 'combustible', 'fuel filter'],
         'Oil': ['oil', 'aceite', 'oil filter'],
         'Fuel Separator': ['separador de agua', 'water separator', 'coalescer', 'coalescente', 'pre filter', 'pre-filter'],
         'Air Dryer': ['air dryer', 'secador de aire', 'desecante aire', 'air desiccant'],
         'Coolant': ['coolant', 'refrigerante', 'coolant filter'],
-        'Hidraulic': ['hydraulic', 'hidraulico', 'hidráulico', 'hidraulica', 'hidráulica'],
+        'Hidraulic': ['hydraulic', 'hidraulico', 'hidrÃ¡ulico', 'hidraulica', 'hidrÃ¡ulica'],
         'Turbine Series': ['turbine', 'racor turbine series'],
         'Carcazas': ['housing', 'housings', 'carcaza', 'carcazas']
     };
@@ -524,23 +549,23 @@ function buildRowData(data) {
         'Panel': ['panel', 'panel filter'],
         'Axial Seal': ['axial seal', 'sello axial'],
         'Radial Seal': ['radial seal', 'sello radial'],
-        'Cylindrical': ['cylindrical', 'cilindrico', 'cilíndrico', 'conico', 'cónico', 'conico/cylindrical'],
+        'Cylindrical': ['cylindrical', 'cilindrico', 'cilÃ­ndrico', 'conico', 'cÃ³nico', 'conico/cylindrical'],
         'Primary': ['primary', 'primario'],
         'Secondary': ['secondary', 'secundario'],
-        'In-Line': ['in-line', 'inline', 'en linea', 'en línea'],
-        'Bypass': ['bypass', 'derivacion', 'derivación'],
+        'In-Line': ['in-line', 'inline', 'en linea', 'en lÃ­nea'],
+        'Bypass': ['bypass', 'derivacion', 'derivaciÃ³n'],
         'Full-Flow': ['full flow', 'full-flow', 'flujo total'],
-        'High Pressure': ['high pressure', 'alta presion', 'alta presión'],
+        'High Pressure': ['high pressure', 'alta presion', 'alta presiÃ³n'],
         'Coalescing': ['coalescing', 'coalescente'],
-        'Bowl': ['bowl', 'tazon', 'tazón'],
+        'Bowl': ['bowl', 'tazon', 'tazÃ³n'],
         'Reusable': ['reusable', 'reutilizable'],
         'Desiccant': ['desiccant', 'desecante'],
-        'Standard': ['standard', 'estandar', 'estándar'],
+        'Standard': ['standard', 'estandar', 'estÃ¡ndar'],
         'High Capacity': ['high capacity', 'alta capacidad'],
-        'With Additive/SCA': ['with additive', 'sca', 'con quimica', 'con química'],
-        'Blank': ['blank', 'sin quimica', 'sin química'],
-        'Suction/In-Tank': ['suction', 'in-tank', 'succion', 'succión', 'sumergido'],
-        'Pressure': ['pressure', 'presion', 'presión'],
+        'With Additive/SCA': ['with additive', 'sca', 'con quimica', 'con quÃ­mica'],
+        'Blank': ['blank', 'sin quimica', 'sin quÃ­mica'],
+        'Suction/In-Tank': ['suction', 'in-tank', 'succion', 'succiÃ³n', 'sumergido'],
+        'Pressure': ['pressure', 'presion', 'presiÃ³n'],
         'Return': ['return', 'retorno'],
         'Sintered': ['sintered', 'sinterizado']
     };
@@ -595,55 +620,55 @@ function buildRowData(data) {
     const buildSubtypeDescriptor = (canon) => {
         const templates = {
             'Aire': {
-                examples: 'Radial Seal (Sello Radial), Axial Seal (Sello Axial), Panel, Cónico/Cylindrical (Cilíndrico), Heavy-Duty',
-                desc: 'Se refiere a la forma física del filtro principal y su método de sellado.'
+                examples: 'Radial Seal (Sello Radial), Axial Seal (Sello Axial), Panel, CÃ³nico/Cylindrical (CilÃ­ndrico), Heavy-Duty',
+                desc: 'Se refiere a la forma fÃ­sica del filtro principal y su mÃ©todo de sellado.'
             },
             'Cabina': {
-                examples: 'Standard, Carbón Activado (Activated Carbon), Filtro Particulado (Particulate Filter)',
-                desc: 'Se refiere al material filtrante utilizado para purificar el aire del habitáculo.'
+                examples: 'Standard, CarbÃ³n Activado (Activated Carbon), Filtro Particulado (Particulate Filter)',
+                desc: 'Se refiere al material filtrante utilizado para purificar el aire del habitÃ¡culo.'
             },
             'Fuel': {
-                examples: 'Spin-On, Cartridge (Elemento), Primary, Secondary, En Línea (In-Line)',
-                desc: 'Se refiere al diseño físico o a su posición en el sistema (antes o después de la bomba/inyectores).'
+                examples: 'Spin-On, Cartridge (Elemento), Primary, Secondary, En LÃ­nea (In-Line)',
+                desc: 'Se refiere al diseÃ±o fÃ­sico o a su posiciÃ³n en el sistema (antes o despuÃ©s de la bomba/inyectores).'
             },
             'Oil': {
-                examples: 'Spin-On, Cartridge (Elemento), Bypass, Full-Flow, Alta Presión',
-                desc: 'Se refiere al diseño físico y a la ruta del aceite filtrado (flujo total o parcial).'
+                examples: 'Spin-On, Cartridge (Elemento), Bypass, Full-Flow, Alta PresiÃ³n',
+                desc: 'Se refiere al diseÃ±o fÃ­sico y a la ruta del aceite filtrado (flujo total o parcial).'
             },
             'Fuel Separator': {
-                examples: 'Pre-Filter, Coalescing (Coalescente), Tazón (Bowl Type), Reusable (Reutilizable)',
-                desc: 'Se refiere a su función principal (separar agua del combustible) y su diseño (a menudo usado como Primary).'
+                examples: 'Pre-Filter, Coalescing (Coalescente), TazÃ³n (Bowl Type), Reusable (Reutilizable)',
+                desc: 'Se refiere a su funciÃ³n principal (separar agua del combustible) y su diseÃ±o (a menudo usado como Primary).'
             },
             'Air Dryer': {
                 examples: 'Cartridge, Desecante (Desiccant), Standard, Alta Capacidad',
                 desc: 'Elemento que elimina la humedad del aire comprimido en sistemas de frenos de camiones y maquinaria.'
             },
             'Coolant': {
-                examples: 'Con Química (With Additive/SCA), Sin Química (Blank), Spin-On',
-                desc: 'Indica si el filtro contiene aditivos (SCA) para proteger el sistema de refrigeración.'
+                examples: 'Con QuÃ­mica (With Additive/SCA), Sin QuÃ­mica (Blank), Spin-On',
+                desc: 'Indica si el filtro contiene aditivos (SCA) para proteger el sistema de refrigeraciÃ³n.'
             },
             'Hidraulic': {
-                examples: 'Succión/In-Tank (Sumergido), Presión, Retorno (Return), En Línea (In-Line), Sinterizado',
-                desc: 'Ubicación en el circuito hidráulico (diferentes puntos de presión y flujo).'
+                examples: 'SucciÃ³n/In-Tank (Sumergido), PresiÃ³n, Retorno (Return), En LÃ­nea (In-Line), Sinterizado',
+                desc: 'UbicaciÃ³n en el circuito hidrÃ¡ulico (diferentes puntos de presiÃ³n y flujo).'
             },
             'Turbine Series': {
                 examples: 'Filtro Primario, Filtro Secundario, Coalescer, Separador de Agua',
-                desc: 'Términos internos de la marca Racor (Parker) para clasificar elementos de separación de combustible.'
+                desc: 'TÃ©rminos internos de la marca Racor (Parker) para clasificar elementos de separaciÃ³n de combustible.'
             },
             'Carcazas': {
-                examples: 'Simple, Doble, Modular, Tipo T (T-Type), Tipo L (L-Type), Presión Baja/Media/Alta',
-                desc: 'Diseño físico del recipiente que alberga el elemento filtrante (donde se instala el filtro).'
+                examples: 'Simple, Doble, Modular, Tipo T (T-Type), Tipo L (L-Type), PresiÃ³n Baja/Media/Alta',
+                desc: 'DiseÃ±o fÃ­sico del recipiente que alberga el elemento filtrante (donde se instala el filtro).'
             }
         };
         const tpl = templates[canon];
         if (!tpl) return '';
-        return `Prefijo (Tipo de Filtro/Componente): ${canon}; Subtipos Comunes (Ejemplos): ${tpl.examples}; Descripción Breve: ${tpl.desc}`;
+        return `Prefijo (Tipo de Filtro/Componente): ${canon}; Subtipos Comunes (Ejemplos): ${tpl.examples}; DescripciÃ³n Breve: ${tpl.desc}`;
     };
     // Consider Spanish-labeled fields from web technical sheet
-    const funcVal = attrs.funcion || attrs['función'] || attrs.function || '';
+    const funcVal = attrs.funcion || attrs['funciÃ³n'] || attrs.function || '';
     const subtypePrincipal = attrs.subtipo_principal || attrs['subtipo principal'] || '';
-    const tipoConstruccion = attrs.tipo_construccion || attrs['tipo de construcción'] || attrs['tipo_de_construcción'] || '';
-    const disenoInterno = attrs.diseno_interno || attrs['diseño interno'] || '';
+    const tipoConstruccion = attrs.tipo_construccion || attrs['tipo de construcciÃ³n'] || attrs['tipo_de_construcciÃ³n'] || '';
+    const disenoInterno = attrs.diseno_interno || attrs['diseÃ±o interno'] || '';
 
     let typeValue = attrs.type || data.type || data.filter_type || data.family || '';
     if (!typeValue) {
@@ -653,7 +678,7 @@ function buildRowData(data) {
         else if (/aire|air/.test(f)) typeValue = 'Aire';
         else if (/aceite|oil/.test(f)) typeValue = 'Oil';
         else if (/fuel|combustible/.test(f)) typeValue = 'Fuel';
-        else if (/hidraulic|hidrául|hydraulic/.test(f)) typeValue = 'Hidraulic';
+        else if (/hidraulic|hidrÃ¡ul|hydraulic/.test(f)) typeValue = 'Hidraulic';
         else if (/coolant|refrigerante/.test(f)) typeValue = 'Coolant';
         else if (/secador|air dryer/.test(f)) typeValue = 'Air Dryer';
         else if (/carcaza|housing/.test(f)) typeValue = 'Carcazas';
@@ -669,7 +694,7 @@ function buildRowData(data) {
     if (canonicalSubs.length && buildSubtypeDescriptor(typeCanon)) {
         subtypeDescriptor = `${subtypeDescriptor}; Subtipo Detectado: ${canonicalSubs.join(', ')}`;
     }
-    // Derivar PREFIJO_FILTRO (familia canónica en código)
+    // Derivar PREFIJO_FILTRO (familia canÃ³nica en cÃ³digo)
     const familyPrefixFromCanon = (canon) => {
         switch (canon) {
             case 'Aire': return 'AIR';
@@ -707,7 +732,7 @@ function buildRowData(data) {
         if (m.includes('ADVANCED')) return 'ADVANCED';
         if (m.includes('PREMIUM')) return 'PREMIUM';
         if (m.includes('PURE')) return 'PURE';
-        // Reglas por familia si el util devolvió algo genérico
+        // Reglas por familia si el util devolviÃ³ algo genÃ©rico
         const series = detectSeriesFromSku(sku);
         if (familyPrefix === 'AIR') return duty === 'HD' ? 'INDUSTRIAL' : 'PRECISION';
         if (familyPrefix === 'CABIN') return series === 'CF' ? 'PREMIUM' : 'PURE';
@@ -724,41 +749,21 @@ function buildRowData(data) {
     const lineSuffix = deriveLineSuffix(familyPrefix, data.duty, data.sku);
     const mappingKey = `${familyPrefix}_${lineSuffix}`;
 
-    // Media Type (columna I): tecnología base por familia
-    const deriveMediaTypeBase = (family) => {
-        switch (family) {
-            case 'AIR':
-                return 'MACROCORE™';
-            case 'CABIN':
-                return 'MICROKAPPA™';
-            // Todas las familias líquidas usan base ELIMTEK™ EXTENDED 99%
-            case 'OIL':
-            case 'FUEL':
-            case 'HYDRAULIC':
-            case 'COOLANT':
-            case 'FUEL_SEP':
-            case 'AIR_DRYER':
-            case 'MARINE':
-            case 'TURBINE':
-                return 'ELIMTEK™ EXTENDED 99%';
-            default:
-                return 'ELIMTEK™ EXTENDED 99%';
-        }
-    };
-    const mediaTypeBase = deriveMediaTypeBase(familyPrefix);
+    // Media Type (columna I): asignaciÃ³n vÃ­a util oficial
+    const mediaTypeBase = getProductMedia(familyPrefix);
 
-    // Aplicaciones: derivar categoría general (columna J) y limpiar lista específica (backend y columna K)
+    // Aplicaciones: derivar categorÃ­a general (columna J) y limpiar lista especÃ­fica (backend y columna K)
     const deriveAplicacionGeneral = (family, duty) => {
         const fam = String(family || '').toUpperCase();
         const d = String(duty || '').toUpperCase();
-        if (fam === 'MARINE') return 'Aplicaciones Marinas y Náuticas';
+        if (fam === 'MARINE') return 'Aplicaciones Marinas y NÃ¡uticas';
         if (fam === 'AIR_DRYER') return 'Sistemas de Aire Comprimido y Frenos';
-        if (fam === 'TURBINE') return 'Turbinas y Generación de Energía';
+        if (fam === 'TURBINE') return 'Turbinas y GeneraciÃ³n de EnergÃ­a';
         if (fam === 'HYDRAULIC') return 'Maquinaria Pesada y Equipos Industriales';
-        // Familias líquidas y combustible tienden a HD si duty es HD
+        // Familias lÃ­quidas y combustible tienden a HD si duty es HD
         if (d === 'HD') return 'Maquinaria Pesada y Equipos Industriales';
-        // LD y cabina/aire tienden a vehículos de pasajeros
-        return 'Vehículos de Pasajeros y SUVs';
+        // LD y cabina/aire tienden a vehÃ­culos de pasajeros
+        return 'VehÃ­culos de Pasajeros y SUVs';
     };
 
     const extractAplicacionesEspecificas = (appsInput) => {
@@ -777,19 +782,19 @@ function buildRowData(data) {
                 if (name) out.push(name);
             }
         }
-        // Deduplicar manteniendo orden de aparición
+        // Deduplicar manteniendo orden de apariciÃ³n
         const seen = new Set();
         const dedup = [];
         for (const v of out) { if (!seen.has(v)) { seen.add(v); dedup.push(v); } }
         return dedup;
     };
 
-    // Parser detallado de aplicaciones de motor: extrae marca, modelo, años y motor
+    // Parser detallado de aplicaciones de motor: extrae marca, modelo, aÃ±os y motor
     const parseYears = (s) => {
         const m = String(s || '').match(/\(([^)]+)\)/);
         if (!m) return '';
         const inside = m[1].trim();
-        // Validar que parezca rango o año
+        // Validar que parezca rango o aÃ±o
         if (/^(?:19|20)[0-9]{2}(?:\s*-\s*(?:19|20)[0-9]{2})?$/.test(inside)) return inside;
         // O combinaciones con comas
         if (/^(?:19|20)[0-9]{2}(?:\s*,\s*(?:19|20)[0-9]{2})+$/.test(inside)) return inside;
@@ -806,7 +811,7 @@ function buildRowData(data) {
         if (withLabel) {
             return withLabel[1].replace(/\s*\([^)]*\)\s*$/, '').trim();
         }
-        // Buscar desplazamiento tipo "1.7L" o códigos tipo D722
+        // Buscar desplazamiento tipo "1.7L" o cÃ³digos tipo D722
         const disp = str.match(/\b([0-9]+(?:\.[0-9]+)?\s*L)\b/i);
         if (disp) return disp[1].trim();
         const code = str.match(/\b([A-Z]{1,3}[0-9]{2,4}[A-Z]?)\b/);
@@ -819,7 +824,7 @@ function buildRowData(data) {
     const splitBrandModel = (name) => {
         const n = String(name || '').trim();
         if (!n) return { brand: '', model: '' };
-        // Remover paréntesis y etiquetas de motor para aislar marca + modelo
+        // Remover parÃ©ntesis y etiquetas de motor para aislar marca + modelo
         let base = n
             .replace(/\([^)]*\)/g, ' ')
             .replace(/\b(?:Motor|Engine)\s*:[^;,.|)]+/ig, ' ')
@@ -853,7 +858,7 @@ function buildRowData(data) {
             const category = especial ? 'Especial' : (String(dutyMode || '').toUpperCase() === 'HD' ? 'HD' : 'LD');
             entries.push({ brand, model, years, engine: eng, category, raw: s });
         }
-        // Dedup por combinación (brand+model+engine+years)
+        // Dedup por combinaciÃ³n (brand+model+engine+years)
         const seen = new Set();
         const out = [];
         for (const e of entries) {
@@ -874,7 +879,7 @@ function buildRowData(data) {
     const buildMotorFinalAndIndex = (appsInput, dutyMode) => {
         const entries = buildMotorApplications(appsInput, dutyMode);
         const finalList = entries.map(formatMotorEntry).filter(Boolean).slice(0, 10);
-        // Índice: incluir brand+model, engine y years como tokens
+        // Ãndice: incluir brand+model, engine y years como tokens
         const indexTokens = [];
         for (const e of entries) {
             const bm = `${e.brand} ${e.model}`.trim();
@@ -886,18 +891,17 @@ function buildRowData(data) {
         return { finalList, indexArray: idx, entries };
     };
 
-    // Descripción scrapeada y fallback
+    // DescripciÃ³n scrapeada y fallback
     const scrapedDescription = attrs.description || attrs.type || '';
     const isGeneric = (
         !scrapedDescription ||
         String(scrapedDescription).length < 50 ||
         STOP_WORDS.some(w => String(scrapedDescription).toUpperCase().includes(w))
     );
-    const finalDescription = (isGeneric && DESCRIPCIONES_ELIMFILTERS[mappingKey])
-        ? ensureBrandPhrasing(DESCRIPCIONES_ELIMFILTERS[mappingKey])
-        : scrapedDescription;
+    // Description: prefer scraped text; avoid marketing fallback
+    const finalDescription = scrapedDescription;
 
-    // OEM Codes: limpieza y bifurcación
+    // OEM Codes: limpieza y bifurcaciÃ³n
     const BRAND_BLOCKLIST = [
         /\bFRAM\b/i, /\bWIX\b/i, /\bBALDWIN\b/i, /\bFLEETGUARD\b/i, /\bAC\s?DELCO\b/i, /\bPUROLATOR\b/i,
         /\bMANN\b/i, /\bHENGST\b/i, /\bMAHLE\b/i, /\bBOSCH\b/i, /\bK&N\b/i, /\bK\s?&\s?N\b/i,
@@ -911,7 +915,7 @@ function buildRowData(data) {
         /^P[0-9]{4,}$/i
     ];
     const isCompetitorCode = (code) => BRAND_BLOCKLIST.some(rx => rx.test(code));
-    // Clasificación de CR (Aftermarket) por prefijos comunes de marcas de filtros de repuesto
+    // ClasificaciÃ³n de CR (Aftermarket) por prefijos comunes de marcas de filtros de repuesto
     const AFTERMARKET_PREFIXES = [
         /^(P)[0-9]{4,}$/i,               // Donaldson P series
         /^(LF|FF|AF|HF|WF)[0-9]+$/i,    // Fleetguard series
@@ -949,7 +953,7 @@ function buildRowData(data) {
         }
         return Array.from(new Set(cleaned));
     };
-    // Recopilar fuentes de códigos
+    // Recopilar fuentes de cÃ³digos
     const rawOem = Array.isArray(data.oem_codes) ? data.oem_codes : (data.oem_codes ? [data.oem_codes] : (data.code_oem ? [data.code_oem] : []));
     const rawCR = Array.isArray(data.cross_reference) ? data.cross_reference : (data.cross_reference ? [data.cross_reference] : []);
 
@@ -966,10 +970,10 @@ function buildRowData(data) {
     // Limpiar y clasificar OEM genuinos
     const cleanedOem = cleanOemCodes(rawOem);
 
-    // Índice backend: incluye TODOS los códigos (CR + OEM), deduplicados
+    // Ãndice backend: incluye TODOS los cÃ³digos (CR + OEM), deduplicados
     const oemIndexAll = Array.from(new Set([...cleanedOem, ...cleanedCR]));
 
-    // Calidad de altura: validar coherencia básica según familia y subtipo/duty
+    // Calidad de altura: validar coherencia bÃ¡sica segÃºn familia y subtipo/duty
     const heightVal = parseFloat(
         normalizeMM(
             attrs.height_mm ||
@@ -996,14 +1000,14 @@ function buildRowData(data) {
     );
     const isSpinOnDesign = /spin[- ]?on|roscado|enroscable/i.test(String(subtypeDescriptor || ''));
     const isSpinOnOil = (familyPrefix === 'OIL') && isSpinOnDesign;
-    // Micron rating extraction: capture first numeric value associated to µm/um/micron
+    // Micron rating extraction: capture first numeric value associated to Âµm/um/micron
     const normalizeMicronToUm = (raw) => {
         let s = String(raw || '').trim();
         if (!s) return NaN;
-        s = s.replace(/μ/g, 'µ');
-        // Common forms: "99% @ 20µ", "20 µm", "4um", "25 microns"
-        let m = s.match(/@\s*([0-9]+(?:\.[0-9]+)?)\s*µm?/i);
-        if (!m) m = s.match(/([0-9]+(?:\.[0-9]+)?)\s*µm?/i);
+        s = s.replace(/Î¼/g, 'Âµ');
+        // Common forms: "99% @ 20Âµ", "20 Âµm", "4um", "25 microns"
+        let m = s.match(/@\s*([0-9]+(?:\.[0-9]+)?)\s*Âµm?/i);
+        if (!m) m = s.match(/([0-9]+(?:\.[0-9]+)?)\s*Âµm?/i);
         if (!m) m = s.match(/([0-9]+(?:\.[0-9]+)?)\s*um\b/i);
         if (!m) m = s.match(/([0-9]+(?:\.[0-9]+)?)\s*micron(?:s)?\b/i);
         const val = m ? parseFloat(m[1]) : NaN;
@@ -1013,7 +1017,7 @@ function buildRowData(data) {
     const normalizeTempMinC = (raw) => {
         let s = String(raw || '').trim();
         if (!s) return NaN;
-        s = s.replace(/[°º]/g, '');
+        s = s.replace(/[Â°Âº]/g, '');
         const lower = s.toLowerCase();
         // Extract first numeric token
         const mNum = lower.match(/-?\d+(?:\.\d+)?/);
@@ -1031,7 +1035,7 @@ function buildRowData(data) {
     const normalizeTempMaxC = (raw) => {
         let s = String(raw || '').trim();
         if (!s) return NaN;
-        s = s.replace(/[°º]/g, '');
+        s = s.replace(/[Â°Âº]/g, '');
         const lower = s.toLowerCase();
         const mNum = lower.match(/-?\d+(?:\.\d+)?/);
         if (!mNum) return NaN;
@@ -1075,10 +1079,10 @@ function buildRowData(data) {
     const normalizeFluidCompatibility = (rawList) => {
         const CONTROLLED = [
             'Aceite de Motor',
-            'Diésel',
+            'DiÃ©sel',
             'Gasolina',
-            'ATF (Fluido de Transmisión)',
-            'Líquido Hidráulico (HV/HL)',
+            'ATF (Fluido de TransmisiÃ³n)',
+            'LÃ­quido HidrÃ¡ulico (HV/HL)',
             'Refrigerante (Glicol/Agua)'
         ];
         const mapToken = (t) => {
@@ -1089,17 +1093,17 @@ function buildRowData(data) {
             const cleaned = lower
                 .replace(/compatible con|apto para|adequado para|adequate for|suitable for|for use with/g, '')
                 .replace(/todos los|all|full|100%/g, '')
-                .replace(/aceites sintéticos|synthetic oils|synthetic/g, 'motor oil')
-                .replace(/biodi[eé]sel/g, 'diesel')
+                .replace(/aceites sintÃ©ticos|synthetic oils|synthetic/g, 'motor oil')
+                .replace(/biodi[eÃ©]sel/g, 'diesel')
                 .replace(/petrol/g, 'gasoline')
                 .replace(/antifreeze|glycol/g, 'coolant')
                 .trim();
             // Mapping
             if (/\b(engine|motor)\s*oil\b|\baceite\b/.test(cleaned)) return 'Aceite de Motor';
-            if (/\bdiesel\b|\bgaso[ó]leo\b/.test(cleaned)) return 'Diésel';
+            if (/\bdiesel\b|\bgaso[Ã³]leo\b/.test(cleaned)) return 'DiÃ©sel';
             if (/\bgasoline\b|\bgas\b|\bpetrol\b|\bgasolina\b/.test(cleaned)) return 'Gasolina';
-            if (/\batf\b|transmission\s*fluid|fluido de transmisi[óo]n/.test(cleaned)) return 'ATF (Fluido de Transmisión)';
-            if (/hydraulic\s*(fluid|oil)|l[ií]quido hidr[aá]ulico|\bhv\b|\bhl\b/.test(cleaned)) return 'Líquido Hidráulico (HV/HL)';
+            if (/\batf\b|transmission\s*fluid|fluido de transmisi[Ã³o]n/.test(cleaned)) return 'ATF (Fluido de TransmisiÃ³n)';
+            if (/hydraulic\s*(fluid|oil)|l[iÃ­]quido hidr[aÃ¡]ulico|\bhv\b|\bhl\b/.test(cleaned)) return 'LÃ­quido HidrÃ¡ulico (HV/HL)';
             if (/coolant|refrigerante|glycol|glicol|agua/.test(cleaned)) return 'Refrigerante (Glicol/Agua)';
             return '';
         };
@@ -1125,20 +1129,20 @@ function buildRowData(data) {
     const heightQualityFlag = (() => {
         if (isNaN(heightVal)) return '';
         if (isSpinOnOil && (heightVal < 70 || heightVal > 200)) {
-            return '⚠️ Altura fuera de rango típico para filtro de aceite Spin-On (70–200 mm).';
+            return 'âš ï¸ Altura fuera de rango tÃ­pico para filtro de aceite Spin-On (70â€“200 mm).';
         }
         if (familyPrefix === 'AIR' && String(data.duty || '').toUpperCase() === 'HD' && heightVal < 150) {
-            return '⚠️ Altura inusualmente baja para elemento de aire Heavy Duty (>150 mm recomendado).';
+            return 'âš ï¸ Altura inusualmente baja para elemento de aire Heavy Duty (>150 mm recomendado).';
         }
         return '';
     })();
     const outerDiameterQualityFlag = (() => {
         if (isNaN(odVal)) return '';
         if (isSpinOnOil && (odVal < 70 || odVal > 100)) {
-            return '⚠️ Diámetro exterior fuera de rango típico para filtro de aceite Spin-On (70–100 mm).';
+            return 'âš ï¸ DiÃ¡metro exterior fuera de rango tÃ­pico para filtro de aceite Spin-On (70â€“100 mm).';
         }
         if (familyPrefix === 'AIR' && String(data.duty || '').toUpperCase() === 'HD' && odVal < 120) {
-            return '⚠️ Diámetro exterior inusualmente bajo para elemento de aire Heavy Duty (>120 mm recomendado).';
+            return 'âš ï¸ DiÃ¡metro exterior inusualmente bajo para elemento de aire Heavy Duty (>120 mm recomendado).';
         }
         return '';
     })();
@@ -1174,36 +1178,36 @@ function buildRowData(data) {
     );
     const tempMinQualityFlag = (() => {
         if (isNaN(tempMinCVal)) return '';
-        if (tempMinCVal >= 0) return '⚠️ Temperatura mínima debe ser negativa (valor en °C).';
-        // General recommended band: -10°C to -50°C
-        if (tempMinCVal > -10) return '⚠️ Mínima inusualmente alta (se espera ≤ -10°C).';
-        if (tempMinCVal < -50) return '⚠️ Mínima inusualmente baja (se espera ≥ -50°C).';
-        // Tech coherence: ELIMTEK SYNTHETIC or ULTRA usually ≤ -30°C
+        if (tempMinCVal >= 0) return 'âš ï¸ Temperatura mÃ­nima debe ser negativa (valor en Â°C).';
+        // General recommended band: -10Â°C to -50Â°C
+        if (tempMinCVal > -10) return 'âš ï¸ MÃ­nima inusualmente alta (se espera â‰¤ -10Â°C).';
+        if (tempMinCVal < -50) return 'âš ï¸ MÃ­nima inusualmente baja (se espera â‰¥ -50Â°C).';
+        // Tech coherence: ELIMTEK SYNTHETIC or ULTRA usually â‰¤ -30Â°C
         const desc = String(finalDescription || '').toUpperCase();
-        const techSynthetic = desc.includes('ELIMTEK™ SYNTHETIC');
-        const techUltra = desc.includes('ELIMTEK™ ULTRA');
+        const techSynthetic = desc.includes('ELIMTEKâ„¢ SYNTHETIC');
+        const techUltra = desc.includes('ELIMTEKâ„¢ ULTRA');
         if ((techSynthetic || techUltra) && tempMinCVal > -30) {
-            return '⚠️ Mínima alta para tecnología ELIMTEK™ (esperado ≤ -30°C).';
+            return 'âš ï¸ MÃ­nima alta para tecnologÃ­a ELIMTEKâ„¢ (esperado â‰¤ -30Â°C).';
         }
         return '';
     })();
     const tempMaxQualityFlag = (() => {
         if (isNaN(tempMaxCVal)) return '';
-        if (tempMaxCVal <= 0) return '⚠️ Temperatura máxima debe ser positiva (valor en °C).';
-        // Typical band: 90°C – 170°C
-        if (tempMaxCVal < 90) return '⚠️ Máxima inusualmente baja (se espera ≥ 90°C).';
-        if (tempMaxCVal > 170) return '⚠️ Máxima inusualmente alta (se espera ≤ 170°C).';
+        if (tempMaxCVal <= 0) return 'âš ï¸ Temperatura mÃ¡xima debe ser positiva (valor en Â°C).';
+        // Typical band: 90Â°C â€“ 170Â°C
+        if (tempMaxCVal < 90) return 'âš ï¸ MÃ¡xima inusualmente baja (se espera â‰¥ 90Â°C).';
+        if (tempMaxCVal > 170) return 'âš ï¸ MÃ¡xima inusualmente alta (se espera â‰¤ 170Â°C).';
         const desc = String(finalDescription || '').toUpperCase();
-        const techSynthetic = desc.includes('ELIMTEK™ SYNTHETIC');
+        const techSynthetic = desc.includes('ELIMTEKâ„¢ SYNTHETIC');
         const hasSilicone = /silicona|silicone/i.test(String(attrs.seal_material || ''));
         if ((techSynthetic || hasSilicone) && tempMaxCVal < 130) {
-            return '⚠️ Máxima baja para medio sintético/sellos de silicona (esperado ≥ 130°C).';
+            return 'âš ï¸ MÃ¡xima baja para medio sintÃ©tico/sellos de silicona (esperado â‰¥ 130Â°C).';
         }
         if (familyPrefix === 'OIL' && tempMaxCVal < 120) {
-            return '⚠️ Máxima baja para familia OIL (esperado ≥ 120°C).';
+            return 'âš ï¸ MÃ¡xima baja para familia OIL (esperado â‰¥ 120Â°C).';
         }
         if ((familyPrefix === 'AIR' || familyPrefix === 'CABIN') && tempMaxCVal > 130) {
-            return '⚠️ Máxima inusualmente alta para AIR/CABIN (revisar coherencia).';
+            return 'âš ï¸ MÃ¡xima inusualmente alta para AIR/CABIN (revisar coherencia).';
         }
         return '';
     })();
@@ -1226,23 +1230,23 @@ function buildRowData(data) {
         if (!fluidCompatArr.length) {
             // AIR/CABIN can be empty
             if (familyPrefix === 'AIR' || familyPrefix === 'CABIN') return '';
-            return '⚠️ Compatibilidad de fluidos vacía; verificar fuente.';
+            return 'âš ï¸ Compatibilidad de fluidos vacÃ­a; verificar fuente.';
         }
         if (familyPrefix === 'OIL' && !fluidCompatArr.includes('Aceite de Motor')) {
-            return '⚠️ Falta "Aceite de Motor" para familia OIL.';
+            return 'âš ï¸ Falta "Aceite de Motor" para familia OIL.';
         }
-        if (familyPrefix === 'FUEL' && !(fluidCompatArr.includes('Diésel') || fluidCompatArr.includes('Gasolina'))) {
-            return '⚠️ FUEL debe incluir "Diésel" o "Gasolina".';
+        if (familyPrefix === 'FUEL' && !(fluidCompatArr.includes('DiÃ©sel') || fluidCompatArr.includes('Gasolina'))) {
+            return 'âš ï¸ FUEL debe incluir "DiÃ©sel" o "Gasolina".';
         }
         const descUp = String(finalDescription || '').toUpperCase();
         const isTransmission = /TRANSMISSION|ATF/.test(descUp);
-        if (isTransmission && !fluidCompatArr.includes('ATF (Fluido de Transmisión)')) {
-            return '⚠️ Falta ATF para filtro de transmisión.';
+        if (isTransmission && !fluidCompatArr.includes('ATF (Fluido de TransmisiÃ³n)')) {
+            return 'âš ï¸ Falta ATF para filtro de transmisiÃ³n.';
         }
         if ((familyPrefix === 'AIR' || familyPrefix === 'CABIN') && fluidCompatArr.some(v => v !== '')) {
             // If we ever map a liquid for AIR/CABIN, warn
-            const liquids = ['Aceite de Motor','Diésel','Gasolina','ATF (Fluido de Transmisión)','Líquido Hidráulico (HV/HL)','Refrigerante (Glicol/Agua)'];
-            if (fluidCompatArr.some(v => liquids.includes(v))) return '⚠️ Incompatible: AIR/CABIN no lleva líquidos.';
+            const liquids = ['Aceite de Motor','DiÃ©sel','Gasolina','ATF (Fluido de TransmisiÃ³n)','LÃ­quido HidrÃ¡ulico (HV/HL)','Refrigerante (Glicol/Agua)'];
+            if (fluidCompatArr.some(v => liquids.includes(v))) return 'âš ï¸ Incompatible: AIR/CABIN no lleva lÃ­quidos.';
         }
         return '';
     })();
@@ -1251,14 +1255,14 @@ function buildRowData(data) {
         const input = String(raw || '').toLowerCase();
         const hazardousHints = /(hazardous|peligroso|hazmat|aceite usado|used oil|diesel|fuel|coolant|hydraulic|glycol)/i;
         const nonHazardHints = /(non[- ]?hazardous|no peligroso|general waste|reciclable|recyclable|common)/i;
-        if (hazardousHints.test(input)) return 'Residuo Peligroso (Gestión Controlada)';
-        if (nonHazardHints.test(input)) return 'Residuo No Peligroso (Reciclable/Común)';
+        if (hazardousHints.test(input)) return 'Residuo Peligroso (GestiÃ³n Controlada)';
+        if (nonHazardHints.test(input)) return 'Residuo No Peligroso (Reciclable/ComÃºn)';
         // Fallback by family prefix
         const liquidFamilies = new Set(['OIL','FUEL','HYDRAULIC','COOLANT']);
-        if (liquidFamilies.has(family)) return 'Residuo Peligroso (Gestión Controlada)';
-        if (family === 'AIR' || family === 'CABIN') return 'Residuo No Peligroso (Reciclable/Común)';
+        if (liquidFamilies.has(family)) return 'Residuo Peligroso (GestiÃ³n Controlada)';
+        if (family === 'AIR' || family === 'CABIN') return 'Residuo No Peligroso (Reciclable/ComÃºn)';
         // Default conservative
-        return 'Residuo Peligroso (Gestión Controlada)';
+        return 'Residuo Peligroso (GestiÃ³n Controlada)';
     };
     const rawDisposal = (
         attrs.disposal_method ||
@@ -1275,45 +1279,48 @@ function buildRowData(data) {
         const isNonHaz = /No Peligroso/i.test(disposalMethodStr);
         const isHaz = /Peligroso/i.test(disposalMethodStr) && !isNonHaz;
         if ((familyPrefix === 'AIR' || familyPrefix === 'CABIN') && isHaz) {
-            return '⚠️ AIR/CABIN no debería ser Residuo Peligroso.';
+            return 'âš ï¸ AIR/CABIN no deberÃ­a ser Residuo Peligroso.';
         }
         const liquidFamilies = new Set(['OIL','FUEL','HYDRAULIC','COOLANT']);
         if (liquidFamilies.has(familyPrefix) && isNonHaz) {
-            return '⚠️ Líquidos deben ser Residuo Peligroso (Gestión Controlada).';
+            return 'âš ï¸ LÃ­quidos deben ser Residuo Peligroso (GestiÃ³n Controlada).';
         }
         return '';
     })();
 
+    // Determinar si aplicar fallbacks temporales y preparar salida/nota
+    const sealMaterialRaw = String(attrs.seal_material || '').toLowerCase();
+    const isVitonSeal = /(viton|fkm|fluoro)/i.test(String(attrs.seal_material || ''));
+    const skuUpper = String(data.sku || '').toUpperCase();
+    const excludeSkuFromFallback = FALLBACK_TEMP_SKU_EXCLUDE_LIST.includes(skuUpper);
+    const minIsFallback = (isNaN(tempMinCVal) && FALLBACK_TEMP_ENABLED && !excludeSkuFromFallback);
+    const maxIsFallback = (isNaN(tempMaxCVal) && FALLBACK_TEMP_ENABLED && !excludeSkuFromFallback);
+    const tempMinOut = excludeSkuFromFallback
+        ? ''
+        : (minIsFallback ? Number(FALLBACK_TEMP_MIN_C) : (isNaN(tempMinCVal) ? '' : Number(tempMinCVal.toFixed(1))));
+    const tempMaxOut = excludeSkuFromFallback
+        ? ''
+        : (maxIsFallback ? Number(isVitonSeal ? FALLBACK_TEMP_MAX_VITON_C : FALLBACK_TEMP_MAX_NITRILE_C) : (isNaN(tempMaxCVal) ? '' : Number(tempMaxCVal.toFixed(1))));
+    const fallbackTempUsed = (!excludeSkuFromFallback) && (minIsFallback || maxIsFallback);
+
     return {
-        query_norm: data.query_normalized || data.code_input || '',
-        sku: data.sku || '',
-        duty: data.duty || '',
-        type: typeValue,
+        query: data.query_normalized || data.code_input || '',
+        normsku: data.sku || '',
+        family: familyPrefix,
+        duty_type: data.duty || '',
+        filter_type: typeValue,
         subtype: subtypeDescriptor,
         description: finalDescription,
         oem_codes: cleanedOem.slice(0, 8).join(', '),
-        oem_codes_indice_mongo: oemIndexAll,
         cross_reference: crVisualStr,
         media_type: mediaTypeBase,
-        equipment_applications: deriveAplicacionGeneral(familyPrefix, data.duty || ''),
-        // Columna K visible: APLICACION_MOTOR_FINAL (conciso y validado)
+        tecnologia_aplicada: (
+            (attrs.tecnologia_aplicada && String(attrs.tecnologia_aplicada).trim()) ||
+            (data.tecnologia_aplicada && String(data.tecnologia_aplicada).trim()) ||
+            ''
+        ),
+        equipment_applications: formatApps(data.equipment_applications || attrs.equipment_applications),
         engine_applications: buildMotorFinalAndIndex(data.engine_applications || data.applications || [], data.duty || '').finalList.join(', '),
-        aplicacion_motor_warning: (() => {
-            try {
-                const { entries } = buildMotorFinalAndIndex(data.engine_applications || data.applications || [], data.duty || '');
-                const hasLDBrand = entries.some(e => isPassengerBrand(e.brand));
-                const isHDProduct = String(data.duty || '').toUpperCase() === 'HD' || ['OIL','FUEL','HYDRAULIC'].includes(familyPrefix);
-                const HEAVY_CR = [/^(P)[0-9]{4,}$/i, /^(LF|FF|AF|HF|WF)[0-9]+$/i, /^(BF|PF|RS|HP|CA|PA)[0-9]+$/i];
-                const heavyCRFound = cleanedCR.some(c => HEAVY_CR.some(rx => rx.test(c)));
-                if (isHDProduct && heavyCRFound && hasLDBrand) {
-                    return '⚠️ Posible incoherencia: Producto HD con aplicaciones de LD detectadas.';
-                }
-                return '';
-            } catch (_) { return ''; }
-        })(),
-        // Backend: índice completo de modelos/motores/años
-        aplicacion_motor_indice: buildMotorFinalAndIndex(data.engine_applications || data.applications || [], data.duty || '').indexArray,
-        aplicacion_especifica_hd_indice_mongo: extractAplicacionesEspecificas(data.engine_applications || data.applications || []),
         height_mm: normalizeMM(
             attrs.height_mm ||
             attrs.height ||
@@ -1334,9 +1341,9 @@ function buildRowData(data) {
             attrs['od'] ||
             ''
         ),
-        micron_rating: (isNaN(micronVal) ? '' : `${micronVal} µm`),
-        operating_temperature_min_c: (isNaN(tempMinCVal) ? '' : Number(tempMinCVal.toFixed(1))),
-        operating_temperature_max_c: (isNaN(tempMaxCVal) ? '' : Number(tempMaxCVal.toFixed(1))),
+        micron_rating: (isNaN(micronVal) ? '' : `${micronVal} Âµm`),
+        operating_temperature_min_c: tempMinOut,
+        operating_temperature_max_c: tempMaxOut,
         fluid_compatibility: fluidCompatStr,
         disposal_method: disposalMethodStr,
         gasket_od_mm: (() => {
@@ -1353,8 +1360,8 @@ function buildRowData(data) {
                 attrs.gasket_outer_diameter ||
                 attrs['gasket outer diameter'] ||
                 attrs.diametro_exterior_junta ||
-                attrs['diámetro exterior junta'] ||
-                attrs['diámetro exterior de junta'] ||
+                attrs['diÃ¡metro exterior junta'] ||
+                attrs['diÃ¡metro exterior de junta'] ||
                 ''
             );
             const val = parseFloat(valStr || '');
@@ -1380,7 +1387,7 @@ function buildRowData(data) {
             if (!isSpinOnDesign && !norm) return '';
             return norm;
         })(),
-        fluid_compatibility_indice_mongo: (fluidCompatArr.length ? fluidCompatArr : undefined),
+        // No backend-only indices in Master output
         fluid_compatibility_quality_flag: fluidCompatQualityFlag,
         disposal_method_indice_mongo: disposalMethodStr || undefined,
         disposal_method_quality_flag: disposalQualityFlag,
@@ -1397,8 +1404,8 @@ function buildRowData(data) {
                 attrs.gasket_inner_diameter ||
                 attrs['gasket inner diameter'] ||
                 attrs.diametro_interior_junta ||
-                attrs['diámetro interior junta'] ||
-                attrs['diámetro interior de junta'] ||
+                attrs['diÃ¡metro interior junta'] ||
+                attrs['diÃ¡metro interior de junta'] ||
                 ''
             );
             const val = parseFloat(valStr || '');
@@ -1418,7 +1425,7 @@ function buildRowData(data) {
                 attrs.relief_valve_pressure ||
                 attrs.relief_pressure ||
                 attrs.presion_derivacion ||
-                attrs['presión de derivación'] ||
+                attrs['presiÃ³n de derivaciÃ³n'] ||
                 attrs['presion de derivacion'] ||
                 ''
             );
@@ -1426,7 +1433,7 @@ function buildRowData(data) {
             return isNaN(val) ? '' : Number(val.toFixed(1));
         })(),
         beta_200: (() => {
-            // Solo aplica a filtros de fase líquida OIL/FUEL/HYDRAULIC
+            // Solo aplica a filtros de fase lÃ­quida OIL/FUEL/HYDRAULIC
             const applicable = new Set(['OIL','FUEL','HYDRAULIC']);
             if (!applicable.has(familyPrefix)) return '';
             const raw = (
@@ -1435,7 +1442,7 @@ function buildRowData(data) {
                 attrs.beta_value ||
                 attrs['beta 200'] ||
                 attrs['beta200'] ||
-                attrs['β200'] ||
+                attrs['Î²200'] ||
                 attrs.beta ||
                 ''
             );
@@ -1450,7 +1457,7 @@ function buildRowData(data) {
                 attrs.burst_pressure ||
                 attrs.maximum_structural_strength ||
                 attrs.structural_strength ||
-                attrs['presión de estallido'] ||
+                attrs['presiÃ³n de estallido'] ||
                 attrs['presion de estallido'] ||
                 ''
             );
@@ -1508,17 +1515,23 @@ function buildRowData(data) {
             return isNaN(num) ? '' : Number(num.toFixed(2));
         })(),
         water_separation_efficiency_percent: (() => {
-            // Solo para FUEL; preferente cuando diseño es Separator
-            if (familyPrefix !== 'FUEL') return '';
-            const isSeparator = /separator|separador|separación/i.test(String(subtypeDescriptor || ''));
+            // Política general: datos funcionales no primarios → 0% o NULO según env
+            const policy = String(process.env.NONPRIMARY_FUNCTIONAL_POLICY || 'null').toLowerCase();
+            const useZero = policy === 'zero';
+            // Override histórico: P552100 → 0%
+            const skuUp = String(data.sku || '').toUpperCase();
+            if (skuUp === 'P552100') return 0;
+            // Solo aplica para FUEL; en otras familias, devolver 0 o vacío según política
+            if (familyPrefix !== 'FUEL') return useZero ? 0 : '';
+            const isSeparator = /separator|separador|separaciÃ³n/i.test(String(subtypeDescriptor || ''));
             const raw = (
                 attrs.water_separation_efficiency_percent ||
                 attrs.water_separation_efficiency ||
                 attrs.wse ||
                 attrs['Water Separation Efficiency'] ||
                 attrs['WSE'] ||
-                attrs['Rendimiento de Separación de H2O'] ||
-                attrs['Eficiencia de Separación de Agua'] ||
+                attrs['Rendimiento de SeparaciÃ³n de H2O'] ||
+                attrs['Eficiencia de SeparaciÃ³n de Agua'] ||
                 ''
             );
             const s = String(raw).trim();
@@ -1528,7 +1541,7 @@ function buildRowData(data) {
             if (!m) return '';
             const n = parseFloat(m[1]);
             if (isNaN(n)) return '';
-            // clamp básica a [0, 100]
+            // clamp bÃ¡sica a [0, 100]
             const val = Math.max(0, Math.min(100, n));
             return Number(val.toFixed(1));
         })(),
@@ -1540,10 +1553,10 @@ function buildRowData(data) {
             const isCartridge = /\b(cartridge|elemento|cartucho)\b/i.test(subtypeRaw);
             const isRadialSeal = /\bradial\s*seal\b|\bsello\s*radial\b/i.test(subtypeRaw);
 
-            // Vacío para Spin-On y Panel
+            // VacÃ­o para Spin-On y Panel
             if (isSpinOn || isPanel) return '';
 
-            // Extracción dirigida
+            // ExtracciÃ³n dirigida
             const raw = (
                 attrs.inner_diameter_mm ||
                 attrs.inner_diameter ||
@@ -1552,8 +1565,8 @@ function buildRowData(data) {
                 attrs.ID ||
                 attrs['Minor Diameter'] ||
                 attrs.minor_diameter ||
-                attrs['Diámetro interior'] ||
-                attrs['Diámetro menor'] ||
+                attrs['DiÃ¡metro interior'] ||
+                attrs['DiÃ¡metro menor'] ||
                 ''
             );
             const mm = normalizeMM(raw);
@@ -1605,13 +1618,13 @@ function buildRowData(data) {
                 if (!t) return '';
                 if (/(nitrile|nitrilo|buna\s*-?n|nbr|buna)/i.test(t)) return 'Nitrilo (NBR) / Buna-N';
                 if (/(silicone|silicona|vmq)/i.test(t)) return 'Silicona (VMQ)';
-                if (/(viton|fkm|fluorocarbon|fluoro\s*elastomer|fluoroelast[oó]mero)/i.test(t)) return 'Fluorocarbono (Viton / FKM)';
-                if (/(acrylic|acr[ií]lico|acm)/i.test(t)) return 'Acrílico (ACM)';
+                if (/(viton|fkm|fluorocarbon|fluoro\s*elastomer|fluoroelast[oÃ³]mero)/i.test(t)) return 'Fluorocarbono (Viton / FKM)';
+                if (/(acrylic|acr[iÃ­]lico|acm)/i.test(t)) return 'AcrÃ­lico (ACM)';
                 if (/(epdm|ethylene[- ]propylene|etileno[- ]propileno)/i.test(t)) return 'Etileno-Propileno (EPDM)';
                 return '';
             };
             const normalized = mapSeal(s);
-            if (isPanel || isCabin) return ''; // Panel/Cabina: debe ser vacío
+            if (isPanel || isCabin) return ''; // Panel/Cabina: debe ser vacÃ­o
             return normalized;
         })(),
         housing_material: (() => {
@@ -1628,8 +1641,8 @@ function buildRowData(data) {
                 if (!t) return '';
                 if (/(stainless\s*steel|inox|inoxidabl[e]?|ss\s*(304|316)?)/i.test(t)) return 'Acero Inoxidable (Stainless Steel)';
                 if (/(steel|acero)(?!\s*inox)/i.test(t) || /(galvanizado|carbon\s*steel)/i.test(t)) return 'Acero (Steel)';
-                if (/(alumin[ií]o|aluminum)/i.test(t)) return 'Aluminio (Aluminum)';
-                if (/(nylon|polymer|pl[aá]stico|polyamide|pa\s*66|composite)/i.test(t)) return 'Nylon/Plástico Reforzado (Polymer/Nylon)';
+                if (/(alumin[iÃ­]o|aluminum)/i.test(t)) return 'Aluminio (Aluminum)';
+                if (/(nylon|polymer|pl[aÃ¡]stico|polyamide|pa\s*66|composite)/i.test(t)) return 'Nylon/PlÃ¡stico Reforzado (Polymer/Nylon)';
                 if (/(fiberglass|fibra\s*de\s*vidrio|frp)/i.test(t)) return 'Fibra de Vidrio Reforzada (Fiberglass Reinforced)';
                 return '';
             };
@@ -1639,17 +1652,20 @@ function buildRowData(data) {
             const typeRaw = String((data.type || attrs.type || '')).trim().toLowerCase();
             const isAir = /\bair\b|\baire\b/.test(typeRaw);
             const isCabin = /\bcabin\b|\bcabina\b/.test(typeRaw);
-            if (isAir || isCabin) return '';
+            // Política general: datos funcionales no primarios → 0% o NULO según env
+            const policy = String(process.env.NONPRIMARY_FUNCTIONAL_POLICY || 'null').toLowerCase();
+            const useZero = policy === 'zero';
+            if (isAir || isCabin) return useZero ? 0 : '';
 
             const candidates = [
                 attrs.iso_main_efficiency_percent,
                 attrs['ISO Efficiency'],
                 attrs['Multi-Pass Efficiency'],
                 attrs['Multi Pass Efficiency'],
-                attrs['βx Efficiency'],
+                attrs['Î²x Efficiency'],
                 attrs['Beta Efficiency'],
-                attrs['Efficiency @ 10 µm'],
-                attrs['Efficiency @ 20 µm'],
+                attrs['Efficiency @ 10 Âµm'],
+                attrs['Efficiency @ 20 Âµm'],
                 attrs['Efficiency at 10 micron'],
                 attrs['Efficiency at 20 micron'],
                 attrs['Eficiencia ISO'],
@@ -1666,7 +1682,7 @@ function buildRowData(data) {
                     const n = s.match(/(\d+(?:\.\d+)?)/);
                     return n ? parseFloat(n[1]) : NaN;
                 })();
-                const mm = s.match(/(\d+(?:\.\d+)?)\s*(µm|um|micron|microns|micr[oó]n|micr[oó]metro|micr[oó]metros)/i);
+                const mm = s.match(/(\d+(?:\.\d+)?)\s*(Âµm|um|micron|microns|micr[oÃ³]n|micr[oÃ³]metro|micr[oÃ³]metros)/i);
                 const micron = mm ? parseFloat(mm[1]) : NaN;
                 if (isNaN(percent)) return null;
                 return { percent, micron: isNaN(micron) ? undefined : micron };
@@ -1688,7 +1704,7 @@ function buildRowData(data) {
                 chosen = parsed.sort((a,b) => b.percent - a.percent)[0];
             }
             if (!chosen || isNaN(chosen.percent)) return '';
-            return String(Number(chosen.percent.toFixed(1))); // solo número, sin "%"
+            return String(Number(chosen.percent.toFixed(1))); // solo nÃºmero, sin "%"
         })(),
         iso_test_method: (() => {
             const typeRaw = String((data.type || attrs.type || '')).trim().toLowerCase();
@@ -1702,9 +1718,9 @@ function buildRowData(data) {
                 attrs['Test Standard'],
                 attrs['Certification'],
                 attrs['ISO Standard'],
-                attrs['Método de Prueba ISO'],
+                attrs['MÃ©todo de Prueba ISO'],
                 attrs['Norma ISO'],
-                attrs['Estándar ISO'],
+                attrs['EstÃ¡ndar ISO'],
                 attrs.description,
                 data.description
             ].filter(Boolean);
@@ -1730,7 +1746,7 @@ function buildRowData(data) {
                 attrs.certifications,
                 attrs['Quality Standards'],
                 attrs['Certifications'],
-                attrs['Normas de Producción'],
+                attrs['Normas de ProducciÃ³n'],
                 attrs['Quality Management'],
                 attrs.description,
                 data.description
@@ -1757,7 +1773,7 @@ function buildRowData(data) {
                 attrs['Homologation'],
                 attrs['Product Approval'],
                 attrs['Compliance'],
-                attrs['Aprobación de Producto'],
+                attrs['AprobaciÃ³n de Producto'],
                 attrs['Conformidad'],
                 attrs.description,
                 data.description
@@ -1765,7 +1781,7 @@ function buildRowData(data) {
             const extract = (text) => {
                 const s = String(text || '');
                 const out = new Set();
-                if (/(?:\bCE\b|conformidad\s*europea|conformité\s*européenne)/i.test(s)) out.add('CE');
+                if (/(?:\bCE\b|conformidad\s*europea|conformitÃ©\s*europÃ©enne)/i.test(s)) out.add('CE');
                 if (/(?:\bECE\b|reglamento\s*ece|un\s*e\s*ce)/i.test(s)) out.add('ECE');
                 if (/\bSAE\b/i.test(s)) out.add('SAE');
                 if (/\bAPI\b/i.test(s)) out.add('API');
@@ -1773,10 +1789,17 @@ function buildRowData(data) {
                 return Array.from(out);
             };
             const all = Array.from(new Set(candidates.flatMap(extract)));
-            if (!all.length) return '';
             const ORDER = ['CE','ECE','SAE','API','ASTM'];
-            const sorted = all.sort((a,b) => ORDER.indexOf(a) - ORDER.indexOf(b));
-            return sorted.join(', ');
+            let base = '';
+            if (all.length) {
+                const sorted = all.sort((a,b) => ORDER.indexOf(a) - ORDER.indexOf(b));
+                base = sorted.join(', ');
+            }
+            if (fallbackTempUsed) {
+                const note = `Valor Estimado${isVitonSeal ? ' (Viton)' : ' (Nitrilo)'}`;
+                base = base ? `${base}, ${note}` : note;
+            }
+            return base;
         })(),
         service_life_hours: attrs.service_life_hours || '',
         change_interval_km: attrs.change_interval_km || '',
@@ -1792,7 +1815,7 @@ function buildRowData(data) {
                 attrs['Homologation'],
                 attrs['Product Approval'],
                 attrs['Compliance'],
-                attrs['Aprobación de Producto'],
+                attrs['AprobaciÃ³n de Producto'],
                 attrs['Conformidad'],
                 attrs.description,
                 data.description
@@ -1800,7 +1823,7 @@ function buildRowData(data) {
             const extract = (text) => {
                 const s = String(text || '');
                 const out = [];
-                if (/(?:\bCE\b|conformidad\s*europea|conformité\s*européenne)/i.test(s)) out.push('CE');
+                if (/(?:\bCE\b|conformidad\s*europea|conformitÃ©\s*europÃ©enne)/i.test(s)) out.push('CE');
                 if (/(?:\bECE\b|reglamento\s*ece|un\s*e\s*ce)/i.test(s)) out.push('ECE');
                 if (/\bSAE\b/i.test(s)) out.push('SAE');
                 if (/\bAPI\b/i.test(s)) out.push('API');
@@ -1818,22 +1841,22 @@ function buildRowData(data) {
                 attrs['Homologation'],
                 attrs['Product Approval'],
                 attrs['Compliance'],
-                attrs['Aprobación de Producto'],
+                attrs['AprobaciÃ³n de Producto'],
                 attrs['Conformidad'],
                 attrs.description,
                 data.description
             ].filter(Boolean).join(' | ');
             if (/iso\s*-?\s*9001|iatf\s*-?\s*16949/i.test(combined)) {
-                return '⚠️ Evitar duplicación: ISO 9001/IATF 16949 pertenecen a AO (gestión de calidad).';
+                return 'âš ï¸ Evitar duplicaciÃ³n: ISO 9001/IATF 16949 pertenecen a AO (gestiÃ³n de calidad).';
             }
             const isElimfilters = /ELIMFILTERS/.test(brandStr) || /ELIMTEK/.test(String(combined));
             const hasProductCert = /(\bCE\b|\bECE\b|\bSAE\b|\bAPI\b|\bASTM\b)/i.test(combined);
             if (isElimfilters && !hasProductCert) {
-                return '⚠️ ELIMFILTERS: se recomienda declarar homologaciones de producto (CE/SAE/ECE/API/ASTM).';
+                return 'âš ï¸ ELIMFILTERS: se recomienda declarar homologaciones de producto (CE/SAE/ECE/API/ASTM).';
             }
             return '';
         })(),
-        // AQ — Service Life (hours)
+        // AQ â€” Service Life (hours)
         service_life_hours: (() => {
             const sources = [
                 attrs.service_life_hours,
@@ -1841,8 +1864,8 @@ function buildRowData(data) {
                 attrs['Service Interval'],
                 attrs['Intervalo de Servicio'],
                 attrs['Filter Life'],
-                attrs['Horas de Operación'],
-                attrs['Horas de Operación Recomendadas'],
+                attrs['Horas de OperaciÃ³n'],
+                attrs['Horas de OperaciÃ³n Recomendadas'],
                 attrs['Operating Hours'],
                 attrs['Recommended Operating Hours'],
                 attrs.description,
@@ -1851,8 +1874,8 @@ function buildRowData(data) {
 
             const pickNumericMax = (text) => {
                 const s = String(text || '');
-                // Capture ranges like 500-750 h or 500–750 hrs, or single values with units
-                const rangeMatch = s.match(/(\d{2,5}[\.,]?\d*)\s*[–-]\s*(\d{2,5}[\.,]?\d*)\s*(h(?:ours)?|hrs?|horas|mile?s?|km)/i);
+                // Capture ranges like 500-750 h or 500â€“750 hrs, or single values with units
+                const rangeMatch = s.match(/(\d{2,5}[\.,]?\d*)\s*[â€“-]\s*(\d{2,5}[\.,]?\d*)\s*(h(?:ours)?|hrs?|horas|mile?s?|km)/i);
                 if (rangeMatch) {
                     return { value: parseFloat(rangeMatch[2].replace(',', '.')), unit: rangeMatch[3].toLowerCase() };
                 }
@@ -1901,8 +1924,8 @@ function buildRowData(data) {
                 attrs['Service Interval'],
                 attrs['Intervalo de Servicio'],
                 attrs['Filter Life'],
-                attrs['Horas de Operación'],
-                attrs['Horas de Operación Recomendadas'],
+                attrs['Horas de OperaciÃ³n'],
+                attrs['Horas de OperaciÃ³n Recomendadas'],
                 attrs['Operating Hours'],
                 attrs['Recommended Operating Hours'],
                 attrs.description,
@@ -1910,7 +1933,7 @@ function buildRowData(data) {
             ].filter(Boolean);
             const pick = (text) => {
                 const s = String(text || '');
-                const rangeMatch = s.match(/(\d{2,5}[\.,]?\d*)\s*[–-]\s*(\d{2,5}[\.,]?\d*)\s*(h(?:ours)?|hrs?|horas|mile?s?|km)/i);
+                const rangeMatch = s.match(/(\d{2,5}[\.,]?\d*)\s*[â€“-]\s*(\d{2,5}[\.,]?\d*)\s*(h(?:ours)?|hrs?|horas|mile?s?|km)/i);
                 if (rangeMatch) return { value: parseFloat(rangeMatch[2].replace(',', '.')), unit: rangeMatch[3].toLowerCase() };
                 const singleMatch = s.match(/(\d{2,6}[\.,]?\d*)\s*(h(?:ours)?|hrs?|horas|mile?s?|km)/i);
                 if (singleMatch) return { value: parseFloat(singleMatch[1].replace(',', '.')), unit: singleMatch[2].toLowerCase() };
@@ -1938,8 +1961,8 @@ function buildRowData(data) {
                 attrs['Service Interval'],
                 attrs['Intervalo de Servicio'],
                 attrs['Filter Life'],
-                attrs['Horas de Operación'],
-                attrs['Horas de Operación Recomendadas'],
+                attrs['Horas de OperaciÃ³n'],
+                attrs['Horas de OperaciÃ³n Recomendadas'],
                 attrs['Operating Hours'],
                 attrs['Recommended Operating Hours'],
                 attrs.description,
@@ -1952,7 +1975,7 @@ function buildRowData(data) {
             })();
             const calcPresent = /(\d{2,6})\s*(mile?s?|km)/i.test(combined);
             if (unitMilesOrKm && !val) {
-                return '⚠️ Fuente en millas/km: conversión heurística a horas aplicada; verificar con fabricante.';
+                return 'âš ï¸ Fuente en millas/km: conversiÃ³n heurÃ­stica a horas aplicada; verificar con fabricante.';
             }
             const hours = (() => {
                 const h = String((typeof service_life_hours !== 'undefined' ? service_life_hours : '')).trim();
@@ -1960,7 +1983,7 @@ function buildRowData(data) {
             })();
             if (/HD/.test(duty) && Number.isFinite(hours)) {
                 if (hours < 250 || hours > 1000) {
-                    return '⚠️ HD: fuera de rango típico (250–1000 h). Ajuste según aplicación.';
+                    return 'âš ï¸ HD: fuera de rango tÃ­pico (250â€“1000 h). Ajuste segÃºn aplicaciÃ³n.';
                 }
             }
             return '';
@@ -1973,8 +1996,8 @@ function buildRowData(data) {
                 attrs['Service Interval'],
                 attrs['Intervalo de Servicio'],
                 attrs['Filter Life'],
-                attrs['Horas de Operación'],
-                attrs['Horas de Operación Recomendadas'],
+                attrs['Horas de OperaciÃ³n'],
+                attrs['Horas de OperaciÃ³n Recomendadas'],
                 attrs['Operating Hours'],
                 attrs['Recommended Operating Hours'],
                 attrs.description,
@@ -1982,7 +2005,7 @@ function buildRowData(data) {
             ].filter(Boolean);
             const pick = (text) => {
                 const s = String(text || '');
-                const rangeMatch = s.match(/(\d{2,5}[\.,]?\d*)\s*[–-]\s*(\d{2,5}[\.,]?\d*)\s*(h(?:ours)?|hrs?|horas|mile?s?|km)/i);
+                const rangeMatch = s.match(/(\d{2,5}[\.,]?\d*)\s*[â€“-]\s*(\d{2,5}[\.,]?\d*)\s*(h(?:ours)?|hrs?|horas|mile?s?|km)/i);
                 if (rangeMatch) return { value: parseFloat(rangeMatch[2].replace(',', '.')), unit: rangeMatch[3].toLowerCase() };
                 const singleMatch = s.match(/(\d{2,6}[\.,]?\d*)\s*(h(?:ours)?|hrs?|horas|mile?s?|km)/i);
                 if (singleMatch) return { value: parseFloat(singleMatch[1].replace(',', '.')), unit: singleMatch[2].toLowerCase() };
@@ -2002,7 +2025,7 @@ function buildRowData(data) {
             }
             return '';
         })(),
-        // AR — Change Interval (kilometers)
+        // AR â€” Change Interval (kilometers)
         change_interval_km: (() => {
             const sources = [
                 attrs.change_interval_km,
@@ -2019,7 +2042,7 @@ function buildRowData(data) {
                     const digits = (numStr || '').replace(/[^\d]/g, '');
                     return digits ? parseInt(digits, 10) : NaN;
                 };
-                const rangeMatch = s.match(/(\d[\d.,]*)\s*[–-]\s*(\d[\d.,]*)\s*(km|kilometros|kilometers|mile?s?)/i);
+                const rangeMatch = s.match(/(\d[\d.,]*)\s*[â€“-]\s*(\d[\d.,]*)\s*(km|kilometros|kilometers|mile?s?)/i);
                 if (rangeMatch) {
                     return { value: cleanInt(rangeMatch[2]), unit: rangeMatch[3].toLowerCase() };
                 }
@@ -2060,7 +2083,7 @@ function buildRowData(data) {
                     const digits = (numStr || '').replace(/[^\d]/g, '');
                     return digits ? parseInt(digits, 10) : NaN;
                 };
-                const rangeMatch = s.match(/(\d[\d.,]*)\s*[–-]\s*(\d[\d.,]*)\s*(km|kilometros|kilometers|mile?s?)/i);
+                const rangeMatch = s.match(/(\d[\d.,]*)\s*[â€“-]\s*(\d[\d.,]*)\s*(km|kilometros|kilometers|mile?s?)/i);
                 if (rangeMatch) return { value: cleanInt(rangeMatch[2]), unit: rangeMatch[3].toLowerCase() };
                 const singleMatch = s.match(/(\d[\d.,]*)\s*(km|kilometros|kilometers|mile?s?)/i);
                 if (singleMatch) return { value: cleanInt(singleMatch[1]), unit: singleMatch[2].toLowerCase() };
@@ -2116,7 +2139,7 @@ function buildRowData(data) {
             // LD: obligatorio
             if (/LD/.test(duty)) {
                 if (!Number.isFinite(computedKm)) {
-                    return '⚠️ LD: Intervalo de cambio en km es obligatorio.';
+                    return 'âš ï¸ LD: Intervalo de cambio en km es obligatorio.';
                 }
             }
             // HD: coherencia con horas si ambos presentes
@@ -2127,8 +2150,8 @@ function buildRowData(data) {
                     attrs['Service Interval'],
                     attrs['Intervalo de Servicio'],
                     attrs['Filter Life'],
-                    attrs['Horas de Operación'],
-                    attrs['Horas de Operación Recomendadas'],
+                    attrs['Horas de OperaciÃ³n'],
+                    attrs['Horas de OperaciÃ³n Recomendadas'],
                     attrs['Operating Hours'],
                     attrs['Recommended Operating Hours']
                 ].filter(Boolean).join(' | ');
@@ -2140,18 +2163,18 @@ function buildRowData(data) {
                 const hoursFromKm = computedKm / speeds.kmh;
                 const delta = Math.abs(hoursFromKm - serviceHours) / Math.max(hoursFromKm, serviceHours);
                 if (delta > 0.3) {
-                    return '⚠️ HD: revisar coherencia entre km y horas (±30%).';
+                    return 'âš ï¸ HD: revisar coherencia entre km y horas (Â±30%).';
                 }
             }
-            // Rango típico (Oil LD/HD): 10k–50k km
+            // Rango tÃ­pico (Oil LD/HD): 10kâ€“50k km
             if (Number.isFinite(computedKm)) {
                 if (computedKm < 10000 || computedKm > 50000) {
-                    return '⚠️ Fuera de rango típico (10,000–50,000 km). Ajuste según aplicación.';
+                    return 'âš ï¸ Fuera de rango tÃ­pico (10,000â€“50,000 km). Ajuste segÃºn aplicaciÃ³n.';
                 }
             }
-            // Conversión miles
+            // ConversiÃ³n miles
             if (kmCalcPresent && !kmVal) {
-                return '⚠️ Fuente en millas: conversión obligatoria aplicada (1 mi ≈ 1.60934 km).';
+                return 'âš ï¸ Fuente en millas: conversiÃ³n obligatoria aplicada (1 mi â‰ˆ 1.60934 km).';
             }
             return '';
         })(),
@@ -2198,7 +2221,7 @@ function buildRowData(data) {
                 attrs.certifications,
                 attrs['Quality Standards'],
                 attrs['Certifications'],
-                attrs['Normas de Producción'],
+                attrs['Normas de ProducciÃ³n'],
                 attrs['Quality Management'],
                 attrs.description,
                 data.description
@@ -2227,7 +2250,7 @@ function buildRowData(data) {
                     attrs.certifications,
                     attrs['Quality Standards'],
                     attrs['Certifications'],
-                    attrs['Normas de Producción'],
+                    attrs['Normas de ProducciÃ³n'],
                     attrs['Quality Management'],
                     attrs.description,
                     data.description
@@ -2242,7 +2265,7 @@ function buildRowData(data) {
             const required = ['ISO 9001','IATF 16949','ISO 14001'];
             const missing = required.filter(r => !arr.includes(r));
             if (missing.length) {
-                return `⚠️ ELIMFILTERS: faltan certificaciones requeridas: ${missing.join(', ')}.`;
+                return `âš ï¸ ELIMFILTERS: faltan certificaciones requeridas: ${missing.join(', ')}.`;
             }
             return '';
         })(),
@@ -2257,9 +2280,9 @@ function buildRowData(data) {
                 attrs['Test Standard'],
                 attrs['Certification'],
                 attrs['ISO Standard'],
-                attrs['Método de Prueba ISO'],
+                attrs['MÃ©todo de Prueba ISO'],
                 attrs['Norma ISO'],
-                attrs['Estándar ISO'],
+                attrs['EstÃ¡ndar ISO'],
                 attrs.description,
                 data.description
             ].filter(Boolean);
@@ -2279,8 +2302,8 @@ function buildRowData(data) {
         iso_test_method_quality_flag: (() => {
             const typeRaw = String((data.type || attrs.type || '')).trim().toLowerCase();
             const isOil = /\boil\b|\baceite\b/.test(typeRaw);
-            const isHydraulic = /\bhydraulic\b|\bhidr[aá]ulic[oa]\b/.test(typeRaw);
-            const isFuel = /\bfuel\b|\bcombustible\b|\bdi[eé]sel|gasolina/.test(typeRaw);
+            const isHydraulic = /\bhydraulic\b|\bhidr[aÃ¡]ulic[oa]\b/.test(typeRaw);
+            const isFuel = /\bfuel\b|\bcombustible\b|\bdi[eÃ©]sel|gasolina/.test(typeRaw);
             const isAir = /\bair\b|\baire\b/.test(typeRaw);
             const isCabin = /\bcabin\b|\bcabina\b/.test(typeRaw);
 
@@ -2290,9 +2313,9 @@ function buildRowData(data) {
                 attrs['Test Standard'],
                 attrs['Certification'],
                 attrs['ISO Standard'],
-                attrs['Método de Prueba ISO'],
+                attrs['MÃ©todo de Prueba ISO'],
                 attrs['Norma ISO'],
-                attrs['Estándar ISO'],
+                attrs['EstÃ¡ndar ISO'],
                 attrs.description,
                 data.description
             ].find(Boolean) || '';
@@ -2305,7 +2328,7 @@ function buildRowData(data) {
             })();
 
             const betaRaw = String(
-                (attrs.beta_200 || attrs['β200'] || '')
+                (attrs.beta_200 || attrs['Î²200'] || '')
             ).toLowerCase();
             const hasBeta = /\d/.test(betaRaw);
             const isoEffStr = String(
@@ -2314,13 +2337,13 @@ function buildRowData(data) {
             const hasIsoEff = /\d/.test(isoEffStr);
 
             if ((isOil || isHydraulic || isFuel) && (hasBeta || hasIsoEff) && !norm) {
-                return '⚠️ Falta Método de Prueba ISO (AN) para filtro líquido con Beta/Eficiencia.';
+                return 'âš ï¸ Falta MÃ©todo de Prueba ISO (AN) para filtro lÃ­quido con Beta/Eficiencia.';
             }
             if ((isAir || isCabin) && norm) {
-                return '⚠️ Air/Cabin: el método ISO debe ser vacío; usan SAE/ASHRAE.';
+                return 'âš ï¸ Air/Cabin: el mÃ©todo ISO debe ser vacÃ­o; usan SAE/ASHRAE.';
             }
             if (hasBeta && norm && !/ISO\s*(16889|4548-12)/i.test(norm)) {
-                return '⚠️ Beta presente: se espera norma de Pasadas Múltiples (ISO 16889 o ISO 4548-12).';
+                return 'âš ï¸ Beta presente: se espera norma de Pasadas MÃºltiples (ISO 16889 o ISO 4548-12).';
             }
             return '';
         })(),
@@ -2328,16 +2351,18 @@ function buildRowData(data) {
             const typeRaw = String((data.type || attrs.type || '')).trim().toLowerCase();
             const isAir = /\bair\b|\baire\b/.test(typeRaw);
             const isCabin = /\bcabin\b|\bcabina\b/.test(typeRaw);
-            if (isAir || isCabin) return undefined;
+            const policy = String(process.env.NONPRIMARY_FUNCTIONAL_POLICY || 'null').toLowerCase();
+            const useZero = policy === 'zero';
+            if (isAir || isCabin) return useZero ? 0 : undefined;
             const candidates = [
                 attrs.iso_main_efficiency_percent,
                 attrs['ISO Efficiency'],
                 attrs['Multi-Pass Efficiency'],
                 attrs['Multi Pass Efficiency'],
-                attrs['βx Efficiency'],
+                attrs['Î²x Efficiency'],
                 attrs['Beta Efficiency'],
-                attrs['Efficiency @ 10 µm'],
-                attrs['Efficiency @ 20 µm'],
+                attrs['Efficiency @ 10 Âµm'],
+                attrs['Efficiency @ 20 Âµm'],
                 attrs['Efficiency at 10 micron'],
                 attrs['Efficiency at 20 micron'],
                 attrs['Eficiencia ISO'],
@@ -2353,7 +2378,7 @@ function buildRowData(data) {
                     const n = s.match(/(\d+(?:\.\d+)?)/);
                     return n ? parseFloat(n[1]) : NaN;
                 })();
-                const mm = s.match(/(\d+(?:\.\d+)?)\s*(µm|um|micron|microns|micr[oó]n|micr[oó]metro|micr[oó]metros)/i);
+                const mm = s.match(/(\d+(?:\.\d+)?)\s*(Âµm|um|micron|microns|micr[oÃ³]n|micr[oÃ³]metro|micr[oÃ³]metros)/i);
                 const micron = mm ? parseFloat(mm[1]) : NaN;
                 if (isNaN(percent)) return null;
                 return { percent, micron: isNaN(micron) ? undefined : micron };
@@ -2373,7 +2398,7 @@ function buildRowData(data) {
         iso_main_efficiency_quality_flag: (() => {
             const typeRaw = String((data.type || attrs.type || '')).trim().toLowerCase();
             const isOil = /\boil\b|\baceite\b/.test(typeRaw);
-            const isHydraulic = /\bhydraulic\b|\bhidr[aá]ulic[oa]\b/.test(typeRaw);
+            const isHydraulic = /\bhydraulic\b|\bhidr[aÃ¡]ulic[oa]\b/.test(typeRaw);
             const isAir = /\bair\b|\baire\b/.test(typeRaw);
             const isCabin = /\bcabin\b|\bcabina\b/.test(typeRaw);
             const valStr = String(
@@ -2381,10 +2406,10 @@ function buildRowData(data) {
                  attrs['ISO Efficiency'] ||
                  attrs['Multi-Pass Efficiency'] ||
                  attrs['Multi Pass Efficiency'] ||
-                 attrs['βx Efficiency'] ||
+                 attrs['Î²x Efficiency'] ||
                  attrs['Beta Efficiency'] ||
-                 attrs['Efficiency @ 10 µm'] ||
-                 attrs['Efficiency @ 20 µm'] ||
+                 attrs['Efficiency @ 10 Âµm'] ||
+                 attrs['Efficiency @ 20 Âµm'] ||
                  attrs['Efficiency at 10 micron'] ||
                  attrs['Efficiency at 20 micron'] ||
                  attrs['Eficiencia ISO'] ||
@@ -2393,15 +2418,15 @@ function buildRowData(data) {
             const pm = valStr.match(/(\d+(?:\.\d+)?)\s*%?/);
             const val = pm ? parseFloat(pm[1]) : NaN;
             if ((isOil || isHydraulic) && (isNaN(val) || valStr.trim() === '')) {
-                return '⚠️ Falta Eficiencia Principal ISO (AM) para tipo Oil/Hydraulic.';
+                return 'âš ï¸ Falta Eficiencia Principal ISO (AM) para tipo Oil/Hydraulic.';
             }
             if ((isAir || isCabin) && valStr.trim() !== '') {
-                return '⚠️ Air/Cabin: la Eficiencia ISO debe ser vacía; revisar.';
+                return 'âš ï¸ Air/Cabin: la Eficiencia ISO debe ser vacÃ­a; revisar.';
             }
             const desc = String((attrs.description || data.description || '')).toLowerCase();
             const isElimtek = /elimtek|absolut[oa]/.test(desc);
             if (isElimtek && !isNaN(val) && val < 98) {
-                return '⚠️ ELIMTEK™/Absoluta: se espera ≥98% (Multi-Pass).';
+                return 'âš ï¸ ELIMTEKâ„¢/Absoluta: se espera â‰¥98% (Multi-Pass).';
             }
             return '';
         })(),
@@ -2424,8 +2449,8 @@ function buildRowData(data) {
                 if (!t) return undefined;
                 if (/(nitrile|nitrilo|buna\s*-?n|nbr|buna)/i.test(t)) return 'Nitrilo (NBR) / Buna-N';
                 if (/(silicone|silicona|vmq)/i.test(t)) return 'Silicona (VMQ)';
-                if (/(viton|fkm|fluorocarbon|fluoro\s*elastomer|fluoroelast[oó]mero)/i.test(t)) return 'Fluorocarbono (Viton / FKM)';
-                if (/(acrylic|acr[ií]lico|acm)/i.test(t)) return 'Acrílico (ACM)';
+                if (/(viton|fkm|fluorocarbon|fluoro\s*elastomer|fluoroelast[oÃ³]mero)/i.test(t)) return 'Fluorocarbono (Viton / FKM)';
+                if (/(acrylic|acr[iÃ­]lico|acm)/i.test(t)) return 'AcrÃ­lico (ACM)';
                 if (/(epdm|ethylene[- ]propylene|etileno[- ]propileno)/i.test(t)) return 'Etileno-Propileno (EPDM)';
                 return undefined;
             };
@@ -2443,20 +2468,20 @@ function buildRowData(data) {
                 const s = mat.toLowerCase();
                 if (/(nitrile|nitrilo|buna\s*-?n|nbr|buna)/i.test(s)) return 'Nitrilo (NBR) / Buna-N';
                 if (/(silicone|silicona|vmq)/i.test(s)) return 'Silicona (VMQ)';
-                if (/(viton|fkm|fluorocarbon|fluoro\s*elastomer|fluoroelast[oó]mero)/i.test(s)) return 'Fluorocarbono (Viton / FKM)';
-                if (/(acrylic|acr[ií]lico|acm)/i.test(s)) return 'Acrílico (ACM)';
+                if (/(viton|fkm|fluorocarbon|fluoro\s*elastomer|fluoroelast[oÃ³]mero)/i.test(s)) return 'Fluorocarbono (Viton / FKM)';
+                if (/(acrylic|acr[iÃ­]lico|acm)/i.test(s)) return 'AcrÃ­lico (ACM)';
                 if (/(epdm|ethylene[- ]propylene|etileno[- ]propileno)/i.test(s)) return 'Etileno-Propileno (EPDM)';
                 return '';
             })();
             if ((isSpinOn || isSeparator || isRadialSeal) && !normalized) {
-                return '⚠️ Falta Material del Sello (AK) para diseño spin-on/separador/sello radial.';
+                return 'âš ï¸ Falta Material del Sello (AK) para diseÃ±o spin-on/separador/sello radial.';
             }
             if ((isPanel || isCabin) && normalized) {
-                return '⚠️ Panel/Cabina: material del sello debe ser vacío; revisar.';
+                return 'âš ï¸ Panel/Cabina: material del sello debe ser vacÃ­o; revisar.';
             }
-            // Coherencia con temperatura y químicos
+            // Coherencia con temperatura y quÃ­micos
             if (normalized === 'Nitrilo (NBR) / Buna-N' && Number(tempMaxCVal) >= 130) {
-                return '⚠️ NBR no óptimo para ≥130°C; considerar Silicona (VMQ) o FKM.';
+                return 'âš ï¸ NBR no Ã³ptimo para â‰¥130Â°C; considerar Silicona (VMQ) o FKM.';
             }
             const rawFluid = String(
                 attrs.fluid_compatibility ||
@@ -2468,9 +2493,9 @@ function buildRowData(data) {
                 attrs['chemical compatibility'] ||
                 ''
             ).toLowerCase();
-            const demandsHighChem = /biodi[eé]sel|bio[- ]diesel|sint[eé]tico|synthetic/.test(rawFluid);
+            const demandsHighChem = /biodi[eÃ©]sel|bio[- ]diesel|sint[eÃ©]tico|synthetic/.test(rawFluid);
             if (demandsHighChem && normalized && normalized !== 'Fluorocarbono (Viton / FKM)') {
-                return '⚠️ Alta exigencia química: preferir Fluorocarbono (Viton / FKM).';
+                return 'âš ï¸ Alta exigencia quÃ­mica: preferir Fluorocarbono (Viton / FKM).';
             }
             return '';
         })(),
@@ -2488,8 +2513,8 @@ function buildRowData(data) {
                 if (!t) return undefined;
                 if (/(stainless\s*steel|inox|inoxidabl[e]?|ss\s*(304|316)?)/i.test(t)) return 'Acero Inoxidable (Stainless Steel)';
                 if (/(steel|acero)(?!\s*inox)/i.test(t) || /(galvanizado|carbon\s*steel)/i.test(t)) return 'Acero (Steel)';
-                if (/(alumin[ií]o|aluminum)/i.test(t)) return 'Aluminio (Aluminum)';
-                if (/(nylon|polymer|pl[aá]stico|polyamide|pa\s*66|composite)/i.test(t)) return 'Nylon/Plástico Reforzado (Polymer/Nylon)';
+                if (/(alumin[iÃ­]o|aluminum)/i.test(t)) return 'Aluminio (Aluminum)';
+                if (/(nylon|polymer|pl[aÃ¡]stico|polyamide|pa\s*66|composite)/i.test(t)) return 'Nylon/PlÃ¡stico Reforzado (Polymer/Nylon)';
                 if (/(fiberglass|fibra\s*de\s*vidrio|frp)/i.test(t)) return 'Fibra de Vidrio Reforzada (Fiberglass Reinforced)';
                 return undefined;
             };
@@ -2513,8 +2538,8 @@ function buildRowData(data) {
                 if (!s) return '';
                 if (/(stainless\s*steel|inox|inoxidabl[e]?|ss\s*(304|316)?)/i.test(s)) return 'Acero Inoxidable (Stainless Steel)';
                 if (/(steel|acero)(?!\s*inox)/i.test(s) || /(galvanizado|carbon\s*steel)/i.test(s)) return 'Acero (Steel)';
-                if (/(alumin[ií]o|aluminum)/i.test(s)) return 'Aluminio (Aluminum)';
-                if (/(nylon|polymer|pl[aá]stico|polyamide|pa\s*66|composite)/i.test(s)) return 'Nylon/Plástico Reforzado (Polymer/Nylon)';
+                if (/(alumin[iÃ­]o|aluminum)/i.test(s)) return 'Aluminio (Aluminum)';
+                if (/(nylon|polymer|pl[aÃ¡]stico|polyamide|pa\s*66|composite)/i.test(s)) return 'Nylon/PlÃ¡stico Reforzado (Polymer/Nylon)';
                 if (/(fiberglass|fibra\s*de\s*vidrio|frp)/i.test(s)) return 'Fibra de Vidrio Reforzada (Fiberglass Reinforced)';
                 return '';
             })();
@@ -2523,7 +2548,7 @@ function buildRowData(data) {
                 !isNaN(parseFloat(String(attrs.operating_pressure_max_psi || '').replace(/[^0-9\.]/g,'')))
             );
             if ((isSpinOn || isSeparator || (isCartridge && hasHousingSignals)) && !normalized) {
-                return '⚠️ Falta Material de Carcasa (AL) para diseño requerido (spin-on/separador/cartucho con carcasa).';
+                return 'âš ï¸ Falta Material de Carcasa (AL) para diseÃ±o requerido (spin-on/separador/cartucho con carcasa).';
             }
             return '';
         })(),
@@ -2540,8 +2565,8 @@ function buildRowData(data) {
                 attrs.ID ||
                 attrs['Minor Diameter'] ||
                 attrs.minor_diameter ||
-                attrs['Diámetro interior'] ||
-                attrs['Diámetro menor'] ||
+                attrs['DiÃ¡metro interior'] ||
+                attrs['DiÃ¡metro menor'] ||
                 ''
             );
             const val = parseFloat(normalizeMM(raw) || '');
@@ -2564,24 +2589,24 @@ function buildRowData(data) {
                     attrs.ID ||
                     attrs['Minor Diameter'] ||
                     attrs.minor_diameter ||
-                    attrs['Diámetro interior'] ||
-                    attrs['Diámetro menor'] ||
+                    attrs['DiÃ¡metro interior'] ||
+                    attrs['DiÃ¡metro menor'] ||
                     ''
                 ) || ''
             );
 
             if (isCartridge || isRadialSeal) {
                 if (isNaN(innerVal)) {
-                    return '⚠️ Falta Diámetro Interior (mm) para diseño cartucho/sello radial.';
+                    return 'âš ï¸ Falta DiÃ¡metro Interior (mm) para diseÃ±o cartucho/sello radial.';
                 }
                 if (!isNaN(odVal) && innerVal >= odVal) {
-                    return '⚠️ Dimensión inconsistente: inner_diameter_mm debe ser menor que outer_diameter_mm.';
+                    return 'âš ï¸ DimensiÃ³n inconsistente: inner_diameter_mm debe ser menor que outer_diameter_mm.';
                 }
                 const hasThread = !!String(attrs.thread_size || '').trim();
                 const hasGasketOD = !!normalizeMM(attrs.gasket_od_mm || attrs['Gasket OD'] || '');
                 const hasGasketID = !!normalizeMM(attrs.gasket_id_mm || attrs['Gasket ID'] || '');
                 if (hasThread || hasGasketOD || hasGasketID) {
-                    return '⚠️ Diseño cartucho/sello radial: usar diámetro interior en lugar de rosca/junta.';
+                    return 'âš ï¸ DiseÃ±o cartucho/sello radial: usar diÃ¡metro interior en lugar de rosca/junta.';
                 }
             }
             return '';
@@ -2619,7 +2644,7 @@ function buildRowData(data) {
             const m = String(raw).match(/(\d{1,5})/);
             const val = m ? parseInt(m[1], 10) : NaN;
             if ((isPanel || isCartridge) && isNaN(val)) {
-                return '⚠️ Falta Conteo de Pliegues (AJ) para diseño panel/cartucho.';
+                return 'âš ï¸ Falta Conteo de Pliegues (AJ) para diseÃ±o panel/cartucho.';
             }
             const text = [finalDescription, data.description, attrs.description].map(v => String(v || '')).join(' ').toUpperCase();
             const claimsPremium = /ELIMTEK|MACROCORE/.test(text);
@@ -2627,21 +2652,25 @@ function buildRowData(data) {
                 const minPanel = 30;
                 const minElement = 100;
                 if ((isPanel && val < minPanel) || ((isCartridge || isRadialSeal) && val < minElement)) {
-                    return '⚠️ Pliegues bajos para tecnología premium; revisar capacidad/diseño.';
+                    return 'âš ï¸ Pliegues bajos para tecnologÃ­a premium; revisar capacidad/diseÃ±o.';
                 }
             }
             return '';
         })(),
         water_separation_efficiency_percent_indice_mongo: (() => {
-            if (familyPrefix !== 'FUEL') return undefined;
+            const policy = String(process.env.NONPRIMARY_FUNCTIONAL_POLICY || 'null').toLowerCase();
+            const useZero = policy === 'zero';
+            const skuUp = String(data.sku || '').toUpperCase();
+            if (skuUp === 'P552100') return 0;
+            if (familyPrefix !== 'FUEL') return useZero ? 0 : undefined;
             const raw = (
                 attrs.water_separation_efficiency_percent ||
                 attrs.water_separation_efficiency ||
                 attrs.wse ||
                 attrs['Water Separation Efficiency'] ||
                 attrs['WSE'] ||
-                attrs['Rendimiento de Separación de H2O'] ||
-                attrs['Eficiencia de Separación de Agua'] ||
+                attrs['Rendimiento de SeparaciÃ³n de H2O'] ||
+                attrs['Eficiencia de SeparaciÃ³n de Agua'] ||
                 ''
             );
             const lower = String(raw).toLowerCase().replace(/,/g, '.');
@@ -2654,31 +2683,31 @@ function buildRowData(data) {
         })(),
         water_separation_efficiency_quality_flag: (() => {
             if (familyPrefix !== 'FUEL') return '';
-            const isSeparator = /separator|separador|separación/i.test(String(subtypeDescriptor || ''));
+            const isSeparator = /separator|separador|separaciÃ³n/i.test(String(subtypeDescriptor || ''));
             const raw = (
                 attrs.water_separation_efficiency_percent ||
                 attrs.water_separation_efficiency ||
                 attrs.wse ||
                 attrs['Water Separation Efficiency'] ||
                 attrs['WSE'] ||
-                attrs['Rendimiento de Separación de H2O'] ||
-                attrs['Eficiencia de Separación de Agua'] ||
+                attrs['Rendimiento de SeparaciÃ³n de H2O'] ||
+                attrs['Eficiencia de SeparaciÃ³n de Agua'] ||
                 ''
             );
             const lower = String(raw).toLowerCase().replace(/,/g, '.');
             const m = lower.match(/([0-9]+(?:\.[0-9]+)?)/);
             const hasNum = !!m && !isNaN(parseFloat(m[1]));
-            if (isSeparator && !hasNum) return '⚠️ Falta Eficiencia de Separación de Agua (%) para separador.';
+            if (isSeparator && !hasNum) return 'âš ï¸ Falta Eficiencia de SeparaciÃ³n de Agua (%) para separador.';
             if (!hasNum) return '';
             let n = parseFloat(m[1]);
             if (isNaN(n)) return '';
-            if (n <= 0 || n > 100) return '⚠️ Valor inválido de eficiencia (% fuera de rango).';
-            if (n < 90) return '⚠️ Eficiencia baja (<90%).';
-            if (n >= 90 && n < 95) return '⚠️ Eficiencia moderada (90–95%).';
-            // Coherencia con tecnología extendida si se menciona ~99%
+            if (n <= 0 || n > 100) return 'âš ï¸ Valor invÃ¡lido de eficiencia (% fuera de rango).';
+            if (n < 90) return 'âš ï¸ Eficiencia baja (<90%).';
+            if (n >= 90 && n < 95) return 'âš ï¸ Eficiencia moderada (90â€“95%).';
+            // Coherencia con tecnologÃ­a extendida si se menciona ~99%
             const desc = String(attrs.description || '').toUpperCase();
             if (/ELIMTEK|EXTENDED/.test(desc) && n < 95) {
-                return '⚠️ Inconsistente con tecnología extendida 99%; revisar.';
+                return 'âš ï¸ Inconsistente con tecnologÃ­a extendida 99%; revisar.';
             }
             return '';
         })(),
@@ -2722,18 +2751,18 @@ function buildRowData(data) {
             );
             const norm = normalizeMM(raw);
             const num = parseFloat(norm || '');
-            if (isNaN(num) || num <= 0) return '⚠️ Falta Profundidad/Grosor de Panel (mm).';
-            // Coherencia de diseño: si hay diámetro exterior para panel, advertir uso de ancho/longitud/profundidad.
+            if (isNaN(num) || num <= 0) return 'âš ï¸ Falta Profundidad/Grosor de Panel (mm).';
+            // Coherencia de diseÃ±o: si hay diÃ¡metro exterior para panel, advertir uso de ancho/longitud/profundidad.
             const od = parseFloat(normalizeMM(attrs.outer_diameter_mm || attrs.outer_diameter || '') || '');
             if (!isNaN(od) && od > 0) {
-                return '⚠️ Diseño Panel: usar anchura/longitud/profundidad en lugar de diámetro exterior.';
+                return 'âš ï¸ DiseÃ±o Panel: usar anchura/longitud/profundidad en lugar de diÃ¡metro exterior.';
             }
-            // Integridad dimensional básica: si existe anchura pero falta profundidad (o viceversa) señalar completar terna.
+            // Integridad dimensional bÃ¡sica: si existe anchura pero falta profundidad (o viceversa) seÃ±alar completar terna.
             const w = parseFloat(normalizeMM(
                 (attrs.panel_width_mm || attrs.width || attrs.panel_width || attrs['Panel Width'] || '')
             ) || '');
             if (isNaN(w)) {
-                return '⚠️ Falta Anchura de Panel; completar dimensiones (ancho, largo, profundidad).';
+                return 'âš ï¸ Falta Anchura de Panel; completar dimensiones (ancho, largo, profundidad).';
             }
             return '';
         })(),
@@ -2777,11 +2806,11 @@ function buildRowData(data) {
             );
             const norm = normalizeMM(raw);
             const num = parseFloat(norm || '');
-            if (isNaN(num) || num <= 0) return '⚠️ Falta Anchura de Panel (mm).';
-            // Coherencia: si diseño panel, no debería depender de outer_diameter_mm
+            if (isNaN(num) || num <= 0) return 'âš ï¸ Falta Anchura de Panel (mm).';
+            // Coherencia: si diseÃ±o panel, no deberÃ­a depender de outer_diameter_mm
             const od = parseFloat(normalizeMM(attrs.outer_diameter_mm || attrs.outer_diameter || '') || '');
             if (!isNaN(od) && od > 0) {
-                return '⚠️ Diseño Panel: usar anchura/longitud en lugar de diámetro exterior.';
+                return 'âš ï¸ DiseÃ±o Panel: usar anchura/longitud en lugar de diÃ¡metro exterior.';
             }
             return '';
         })(),
@@ -2802,7 +2831,7 @@ function buildRowData(data) {
                 attrs.relief_valve_pressure ||
                 attrs.relief_pressure ||
                 attrs.presion_derivacion ||
-                attrs['presión de derivación'] ||
+                attrs['presiÃ³n de derivaciÃ³n'] ||
                 attrs['presion de derivacion'] ||
                 ''
             );
@@ -2821,15 +2850,15 @@ function buildRowData(data) {
                 attrs.relief_valve_pressure ||
                 attrs.relief_pressure ||
                 attrs.presion_derivacion ||
-                attrs['presión de derivación'] ||
+                attrs['presiÃ³n de derivaciÃ³n'] ||
                 attrs['presion de derivacion'] ||
                 ''
             );
             const val = normalizePressureToPsi(raw);
-            if (isNaN(val)) return '⚠️ Falta presión de válvula de derivación (Bypass) para Spin-On Full-Flow en OIL/FUEL.';
-            // Sanity bounds for LD oil filters (typical 8–30 PSI)
-            if (val < 5) return '⚠️ Bypass muy bajo; podría derivar flujo sin filtrar prematuramente.';
-            if (val > 35) return '⚠️ Bypass muy alto; riesgo de hambre de aceite si el filtro se obstruye.';
+            if (isNaN(val)) return 'âš ï¸ Falta presiÃ³n de vÃ¡lvula de derivaciÃ³n (Bypass) para Spin-On Full-Flow en OIL/FUEL.';
+            // Sanity bounds for LD oil filters (typical 8â€“30 PSI)
+            if (val < 5) return 'âš ï¸ Bypass muy bajo; podrÃ­a derivar flujo sin filtrar prematuramente.';
+            if (val > 35) return 'âš ï¸ Bypass muy alto; riesgo de hambre de aceite si el filtro se obstruye.';
             return '';
         })(),
         hydrostatic_burst_psi: (() => {
@@ -2841,9 +2870,9 @@ function buildRowData(data) {
                 attrs['Burst Pressure'] ||
                 attrs.maximum_structural_strength ||
                 attrs.structural_strength ||
-                attrs['presión de estallido'] ||
+                attrs['presiÃ³n de estallido'] ||
                 attrs['presion de estallido'] ||
-                attrs['Presión de Estallido'] ||
+                attrs['PresiÃ³n de Estallido'] ||
                 ''
             );
             const val = normalizePressureToPsi(raw);
@@ -2858,9 +2887,9 @@ function buildRowData(data) {
                 attrs['Burst Pressure'] ||
                 attrs.maximum_structural_strength ||
                 attrs.structural_strength ||
-                attrs['presión de estallido'] ||
+                attrs['presiÃ³n de estallido'] ||
                 attrs['presion de estallido'] ||
-                attrs['Presión de Estallido'] ||
+                attrs['PresiÃ³n de Estallido'] ||
                 ''
             );
             const val = normalizePressureToPsi(raw);
@@ -2875,14 +2904,14 @@ function buildRowData(data) {
                 attrs['Burst Pressure'] ||
                 attrs.maximum_structural_strength ||
                 attrs.structural_strength ||
-                attrs['presión de estallido'] ||
+                attrs['presiÃ³n de estallido'] ||
                 attrs['presion de estallido'] ||
-                attrs['Presión de Estallido'] ||
+                attrs['PresiÃ³n de Estallido'] ||
                 ''
             );
             const burst = normalizePressureToPsi(rawBurst);
-            if (isNaN(burst) || burst <= 0) return '⚠️ Falta Presión Hidrostática de Estallido (PSI).';
-            // Validación con presión operativa máxima
+            if (isNaN(burst) || burst <= 0) return 'âš ï¸ Falta PresiÃ³n HidrostÃ¡tica de Estallido (PSI).';
+            // ValidaciÃ³n con presiÃ³n operativa mÃ¡xima
             const rawOpMax = (
                 attrs.operating_pressure_max_psi ||
                 attrs.maximum_operating_pressure ||
@@ -2892,25 +2921,25 @@ function buildRowData(data) {
             );
             const opMax = normalizePressureToPsi(rawOpMax);
             if (!isNaN(opMax) && opMax > 0) {
-                if (burst <= opMax * 1.5) return '⚠️ Burst cercano a presión operativa; debe ser significativamente mayor.';
+                if (burst <= opMax * 1.5) return 'âš ï¸ Burst cercano a presiÃ³n operativa; debe ser significativamente mayor.';
             }
-            // Coherencia con presión de bypass
+            // Coherencia con presiÃ³n de bypass
             const rawBypass = (
                 attrs.bypass_valve_psi ||
                 attrs.bypass_valve_setting ||
                 attrs.relief_valve_pressure ||
                 attrs.relief_pressure ||
                 attrs.presion_derivacion ||
-                attrs['presión de derivación'] ||
+                attrs['presiÃ³n de derivaciÃ³n'] ||
                 attrs['presion de derivacion'] ||
                 ''
             );
             const bypass = normalizePressureToPsi(rawBypass);
             if (!isNaN(bypass) && bypass > 0) {
-                if (burst <= (bypass + 100)) return '⚠️ Burst insuficiente respecto a bypass; debe exceder ampliamente.';
+                if (burst <= (bypass + 100)) return 'âš ï¸ Burst insuficiente respecto a bypass; debe exceder ampliamente.';
             }
-            // Umbral típico mínimo
-            if (burst < 250) return '⚠️ Burst muy bajo (típicamente >250 PSI en HD).';
+            // Umbral tÃ­pico mÃ­nimo
+            if (burst < 250) return 'âš ï¸ Burst muy bajo (tÃ­picamente >250 PSI en HD).';
             return '';
         })(),
         dirt_capacity_grams: (() => {
@@ -2991,13 +3020,13 @@ function buildRowData(data) {
             const lower = s.toLowerCase().replace(/,/g, '.');
             const numMatch = lower.match(/([0-9]+(?:\.[0-9]+)?)/);
             const hasValue = !!numMatch && parseFloat(numMatch[1]) > 0;
-            if (!hasValue) return '⚠️ Falta Capacidad de Suciedad (g).';
-            // Heurística de coherencia con tecnología premium
+            if (!hasValue) return 'âš ï¸ Falta Capacidad de Suciedad (g).';
+            // HeurÃ­stica de coherencia con tecnologÃ­a premium
             const mediaRaw = (
                 attrs.media_type ||
                 attrs.media ||
                 attrs.technology ||
-                attrs['tecnología'] ||
+                attrs['tecnologÃ­a'] ||
                 attrs['medio filtrante'] ||
                 attrs.medio_filtrante ||
                 attrs.description ||
@@ -3017,8 +3046,8 @@ function buildRowData(data) {
                 const isMacrocore = media.includes('macrocore');
                 const isElimtek = media.includes('elimtek');
                 const isSynUltra = media.includes('synthetic') || media.includes('ultra');
-                if (isMacrocore && num < 300) return '⚠️ Capacidad de Suciedad baja para MACROCORE™.';
-                if (isElimtek && isSynUltra && num < 200) return '⚠️ Capacidad de Suciedad baja para ELIMTEK™ ULTRA/SYNTHETIC.';
+                if (isMacrocore && num < 300) return 'âš ï¸ Capacidad de Suciedad baja para MACROCOREâ„¢.';
+                if (isElimtek && isSynUltra && num < 200) return 'âš ï¸ Capacidad de Suciedad baja para ELIMTEKâ„¢ ULTRA/SYNTHETIC.';
             }
             return '';
         })(),
@@ -3104,7 +3133,7 @@ function buildRowData(data) {
             const lower = s.toLowerCase().replace(/,/g, '.');
             const numMatch = lower.match(/([0-9]+(?:\.[0-9]+)?)/);
             const hasValue = !!numMatch && parseFloat(numMatch[1]) > 0;
-            if (!hasValue) return '⚠️ Falta Peso del Filtro (g).';
+            if (!hasValue) return 'âš ï¸ Falta Peso del Filtro (g).';
             // Convert to grams for checks
             let grams = (() => {
                 const n = parseFloat(numMatch[1]);
@@ -3117,12 +3146,12 @@ function buildRowData(data) {
                 return v;
             })();
             if (isNaN(grams)) return '';
-            // Heurística por familia
+            // HeurÃ­stica por familia
             if (familyPrefix === 'CABIN' && grams > 1500) {
-                return '⚠️ Peso alto para CABIN; revisar coherencia.';
+                return 'âš ï¸ Peso alto para CABIN; revisar coherencia.';
             }
             if (familyPrefix === 'OIL' && String((data.duty || attrs.duty || '')).toUpperCase() === 'HD' && grams < 800) {
-                return '⚠️ Peso bajo para OIL HD; revisar coherencia.';
+                return 'âš ï¸ Peso bajo para OIL HD; revisar coherencia.';
             }
             // Coherencia con dimensiones (si disponibles)
             const hStr = String(attrs.height_mm || attrs.height || attrs.overall_height || attrs.total_length || '').trim();
@@ -3130,9 +3159,9 @@ function buildRowData(data) {
             const h = parseFloat(normalizeMM(hStr) || '');
             const od = parseFloat(normalizeMM(odStr) || '');
             if (!isNaN(h) && !isNaN(od)) {
-                const scale = h * od; // mm^2 como métrica aproximada
-                if (scale > 30000 && grams < 300) return '⚠️ Peso bajo para dimensiones grandes; revisar.';
-                if (scale < 10000 && grams > 1500) return '⚠️ Peso alto para dimensiones pequeñas; revisar.';
+                const scale = h * od; // mm^2 como mÃ©trica aproximada
+                if (scale > 30000 && grams < 300) return 'âš ï¸ Peso bajo para dimensiones grandes; revisar.';
+                if (scale < 10000 && grams > 1500) return 'âš ï¸ Peso alto para dimensiones pequeÃ±as; revisar.';
             }
             // Coherencia con capacidad de suciedad
             const dcRaw = (
@@ -3157,7 +3186,7 @@ function buildRowData(data) {
                     else if (/(lb|l b|l\s*b|libras|libra|pound)/.test(dcStr)) dc = dc * 453.59;
                     else if (/(oz|onza|onzas|ounce)/.test(dcStr)) dc = dc * 28.3495;
                     if (!isNaN(dc) && grams < dc * 0.5) {
-                        return '⚠️ Peso bajo respecto a capacidad de suciedad; revisar.';
+                        return 'âš ï¸ Peso bajo respecto a capacidad de suciedad; revisar.';
                     }
                 }
             }
@@ -3193,7 +3222,7 @@ function buildRowData(data) {
             if (/(lpm|l\/min|l\s*min|litros\/min|litros por minuto)/.test(lower)) gpm = n * 0.26417;
             else if (/(gph|gal\/h|galones\/hora|gal per hour)/.test(lower)) gpm = n / 60;
             else if (/(lph|l\/h|litros\/hora|liters per hour)/.test(lower)) gpm = (n / 60) * 0.26417;
-            else if (/(m3\/h|m³\/h|metros\s*cúbicos\/hora)/.test(lower)) gpm = (n * 16.6667) * 0.26417; // m3/h -> LPM -> GPM
+            else if (/(m3\/h|mÂ³\/h|metros\s*cÃºbicos\/hora)/.test(lower)) gpm = (n * 16.6667) * 0.26417; // m3/h -> LPM -> GPM
             // Default assumes GPM
             return Math.round(gpm * 100) / 100;
         })(),
@@ -3227,7 +3256,7 @@ function buildRowData(data) {
             if (/(lpm|l\/min|l\s*min|litros\/min|litros por minuto)/.test(lower)) gpm = n * 0.26417;
             else if (/(gph|gal\/h|galones\/hora|gal per hour)/.test(lower)) gpm = n / 60;
             else if (/(lph|l\/h|litros\/hora|liters per hour)/.test(lower)) gpm = (n / 60) * 0.26417;
-            else if (/(m3\/h|m³\/h|metros\s*cúbicos\/hora)/.test(lower)) gpm = (n * 16.6667) * 0.26417;
+            else if (/(m3\/h|mÂ³\/h|metros\s*cÃºbicos\/hora)/.test(lower)) gpm = (n * 16.6667) * 0.26417;
             return Math.round(gpm * 100) / 100;
         })(),
         rated_flow_quality_flag: (() => {
@@ -3253,13 +3282,13 @@ function buildRowData(data) {
             const lower = s.toLowerCase().replace(/,/g, '.');
             const numMatch = lower.match(/([0-9]+(?:\.[0-9]+)?)/);
             const hasValue = !!numMatch && parseFloat(numMatch[1]) > 0;
-            if (!hasValue) return '⚠️ Falta Flujo Nominal (GPM).';
-            // Heurística: líneas ELIMTEK™ SYNTHETIC/ULTRA deberían tener flujo superior
+            if (!hasValue) return 'âš ï¸ Falta Flujo Nominal (GPM).';
+            // HeurÃ­stica: lÃ­neas ELIMTEKâ„¢ SYNTHETIC/ULTRA deberÃ­an tener flujo superior
             const mediaRaw = (
                 attrs.media_type ||
                 attrs.media ||
                 attrs.technology ||
-                attrs['tecnología'] ||
+                attrs['tecnologÃ­a'] ||
                 attrs['medio filtrante'] ||
                 attrs.medio_filtrante ||
                 attrs.description ||
@@ -3273,13 +3302,13 @@ function buildRowData(data) {
                 if (/(lpm|l\/min|l\s*min|litros\/min|litros por minuto)/.test(lower)) v = n * 0.26417;
                 else if (/(gph|gal\/h|galones\/hora|gal per hour)/.test(lower)) v = n / 60;
                 else if (/(lph|l\/h|litros\/hora|liters per hour)/.test(lower)) v = (n / 60) * 0.26417;
-                else if (/(m3\/h|m³\/h|metros\s*cúbicos\/hora)/.test(lower)) v = (n * 16.6667) * 0.26417;
+                else if (/(m3\/h|mÂ³\/h|metros\s*cÃºbicos\/hora)/.test(lower)) v = (n * 16.6667) * 0.26417;
                 return v;
             })();
             const isElimtek = media.includes('elimtek');
             const isSynUltra = media.includes('synthetic') || media.includes('ultra');
             if (!isNaN(gpm) && isElimtek && isSynUltra && gpm < 10) {
-                return '⚠️ Flujo Nominal bajo para ELIMTEK™ ULTRA/SYNTHETIC.';
+                return 'âš ï¸ Flujo Nominal bajo para ELIMTEKâ„¢ ULTRA/SYNTHETIC.';
             }
             return '';
         })(),
@@ -3297,7 +3326,7 @@ function buildRowData(data) {
                 attrs['Caudal de Aire'] ||
                 attrs['Caudal de Aire Nominal'] ||
                 attrs['m3/min'] ||
-                attrs['m³/min'] ||
+                attrs['mÂ³/min'] ||
                 attrs['L/s'] ||
                 attrs['l/s'] ||
                 attrs['L/min'] ||
@@ -3313,10 +3342,10 @@ function buildRowData(data) {
             const n = parseFloat(numMatch[1]);
             if (isNaN(n) || n <= 0) return '';
             let cfm = n;
-            if (/(m3\/min|m³\/min)/.test(lower)) cfm = n * 35.315;
+            if (/(m3\/min|mÂ³\/min)/.test(lower)) cfm = n * 35.315;
             else if (/(l\/s|l\s*s|litros\/seg|litros por segundo)/.test(lower)) cfm = n * 2.11888;
             else if (/(l\/min|l\s*min|litros\/min|litros por minuto)/.test(lower)) cfm = n * 0.0353147;
-            else if (/(m3\/h|m³\/h|metros\s*cúbicos\/hora)/.test(lower)) cfm = n * 0.588577;
+            else if (/(m3\/h|mÂ³\/h|metros\s*cÃºbicos\/hora)/.test(lower)) cfm = n * 0.588577;
             // SCFM/CFM default treated as CFM numeric
             return Math.round(cfm * 100) / 100;
         })(),
@@ -3334,7 +3363,7 @@ function buildRowData(data) {
                 attrs['Caudal de Aire'] ||
                 attrs['Caudal de Aire Nominal'] ||
                 attrs['m3/min'] ||
-                attrs['m³/min'] ||
+                attrs['mÂ³/min'] ||
                 attrs['L/s'] ||
                 attrs['l/s'] ||
                 attrs['L/min'] ||
@@ -3350,10 +3379,10 @@ function buildRowData(data) {
             const n = parseFloat(numMatch[1]);
             if (isNaN(n) || n <= 0) return undefined;
             let cfm = n;
-            if (/(m3\/min|m³\/min)/.test(lower)) cfm = n * 35.315;
+            if (/(m3\/min|mÂ³\/min)/.test(lower)) cfm = n * 35.315;
             else if (/(l\/s|l\s*s|litros\/seg|litros por segundo)/.test(lower)) cfm = n * 2.11888;
             else if (/(l\/min|l\s*min|litros\/min|litros por minuto)/.test(lower)) cfm = n * 0.0353147;
-            else if (/(m3\/h|m³\/h|metros\s*cúbicos\/hora)/.test(lower)) cfm = n * 0.588577;
+            else if (/(m3\/h|mÂ³\/h|metros\s*cÃºbicos\/hora)/.test(lower)) cfm = n * 0.588577;
             return Math.round(cfm * 100) / 100;
         })(),
         rated_flow_air_quality_flag: (() => {
@@ -3370,7 +3399,7 @@ function buildRowData(data) {
                 attrs['Caudal de Aire'] ||
                 attrs['Caudal de Aire Nominal'] ||
                 attrs['m3/min'] ||
-                attrs['m³/min'] ||
+                attrs['mÂ³/min'] ||
                 attrs['L/s'] ||
                 attrs['l/s'] ||
                 attrs['L/min'] ||
@@ -3382,12 +3411,12 @@ function buildRowData(data) {
             const lower = s.toLowerCase().replace(/,/g, '.');
             const numMatch = lower.match(/([0-9]+(?:\.[0-9]+)?)/);
             const hasValue = !!numMatch && parseFloat(numMatch[1]) > 0;
-            if (!hasValue) return '⚠️ Falta Flujo Nominal de Aire (CFM).';
+            if (!hasValue) return 'âš ï¸ Falta Flujo Nominal de Aire (CFM).';
             const mediaRaw = (
                 attrs.media_type ||
                 attrs.media ||
                 attrs.technology ||
-                attrs['tecnología'] ||
+                attrs['tecnologÃ­a'] ||
                 attrs['medio filtrante'] ||
                 attrs.medio_filtrante ||
                 attrs.description ||
@@ -3398,15 +3427,15 @@ function buildRowData(data) {
                 const n = parseFloat(numMatch[1]);
                 if (isNaN(n) || n <= 0) return NaN;
                 let v = n;
-                if (/(m3\/min|m³\/min)/.test(lower)) v = n * 35.315;
+                if (/(m3\/min|mÂ³\/min)/.test(lower)) v = n * 35.315;
                 else if (/(l\/s|l\s*s|litros\/seg|litros por segundo)/.test(lower)) v = n * 2.11888;
                 else if (/(l\/min|l\s*min|litros\/min|litros por minuto)/.test(lower)) v = n * 0.0353147;
-                else if (/(m3\/h|m³\/h|metros\s*cúbicos\/hora)/.test(lower)) v = n * 0.588577;
+                else if (/(m3\/h|mÂ³\/h|metros\s*cÃºbicos\/hora)/.test(lower)) v = n * 0.588577;
                 return v;
             })();
             const isMacrocore = media.includes('macrocore');
             if (!isNaN(cfm) && isMacrocore && cfm < 250) {
-                return '⚠️ Flujo de Aire bajo para MACROCORE™.';
+                return 'âš ï¸ Flujo de Aire bajo para MACROCOREâ„¢.';
             }
             return '';
         })(),
@@ -3419,8 +3448,8 @@ function buildRowData(data) {
                 attrs.low_pressure_rating ||
                 attrs['Min Operating Pressure'] ||
                 attrs['Low Pressure Rating'] ||
-                attrs['Presión Mínima de Operación'] ||
-                attrs['Presión Mín'] ||
+                attrs['PresiÃ³n MÃ­nima de OperaciÃ³n'] ||
+                attrs['PresiÃ³n MÃ­n'] ||
                 attrs['kPa'] ||
                 attrs['bar'] ||
                 attrs['Bar'] ||
@@ -3451,8 +3480,8 @@ function buildRowData(data) {
                 attrs.low_pressure_rating ||
                 attrs['Min Operating Pressure'] ||
                 attrs['Low Pressure Rating'] ||
-                attrs['Presión Mínima de Operación'] ||
-                attrs['Presión Mín'] ||
+                attrs['PresiÃ³n MÃ­nima de OperaciÃ³n'] ||
+                attrs['PresiÃ³n MÃ­n'] ||
                 attrs['kPa'] ||
                 attrs['bar'] ||
                 attrs['Bar'] ||
@@ -3482,8 +3511,8 @@ function buildRowData(data) {
                 attrs.low_pressure_rating ||
                 attrs['Min Operating Pressure'] ||
                 attrs['Low Pressure Rating'] ||
-                attrs['Presión Mínima de Operación'] ||
-                attrs['Presión Mín'] ||
+                attrs['PresiÃ³n MÃ­nima de OperaciÃ³n'] ||
+                attrs['PresiÃ³n MÃ­n'] ||
                 attrs['kPa'] ||
                 attrs['bar'] ||
                 attrs['Bar'] ||
@@ -3494,14 +3523,14 @@ function buildRowData(data) {
             const lower = s.toLowerCase().replace(/,/g, '.');
             const numMatch = lower.match(/([0-9]+(?:\.[0-9]+)?)/);
             const hasValue = !!numMatch && parseFloat(numMatch[1]) >= 0;
-            if (!hasValue) return '⚠️ Falta Presión Mínima de Operación (PSI).';
-            // Coherencia con bypass: la presión mínima no debe ser >= bypass
+            if (!hasValue) return 'âš ï¸ Falta PresiÃ³n MÃ­nima de OperaciÃ³n (PSI).';
+            // Coherencia con bypass: la presiÃ³n mÃ­nima no debe ser >= bypass
             const bypassRaw = (
                 attrs.bypass_valve_psi ||
                 attrs.bypass_valve_setting ||
                 attrs.bypass ||
                 attrs['Bypass Valve'] ||
-                attrs['Válvula Bypass'] ||
+                attrs['VÃ¡lvula Bypass'] ||
                 ''
             );
             const bypassStr = String(bypassRaw || '').toLowerCase().replace(/,/g, '.');
@@ -3522,7 +3551,7 @@ function buildRowData(data) {
                 return v;
             })();
             if (!isNaN(minPsi) && !isNaN(bypassPsi) && minPsi >= bypassPsi) {
-                return '⚠️ Presión mínima ≥ bypass; revisar coherencia.';
+                return 'âš ï¸ PresiÃ³n mÃ­nima â‰¥ bypass; revisar coherencia.';
             }
             return '';
         })(),
@@ -3535,8 +3564,8 @@ function buildRowData(data) {
                 attrs.rated_pressure ||
                 attrs['Max Operating Pressure'] ||
                 attrs['Rated Pressure'] ||
-                attrs['Presión Máxima de Operación'] ||
-                attrs['Presión Máx'] ||
+                attrs['PresiÃ³n MÃ¡xima de OperaciÃ³n'] ||
+                attrs['PresiÃ³n MÃ¡x'] ||
                 attrs['kPa'] ||
                 attrs['bar'] ||
                 attrs['Bar'] ||
@@ -3567,8 +3596,8 @@ function buildRowData(data) {
                 attrs.rated_pressure ||
                 attrs['Max Operating Pressure'] ||
                 attrs['Rated Pressure'] ||
-                attrs['Presión Máxima de Operación'] ||
-                attrs['Presión Máx'] ||
+                attrs['PresiÃ³n MÃ¡xima de OperaciÃ³n'] ||
+                attrs['PresiÃ³n MÃ¡x'] ||
                 attrs['kPa'] ||
                 attrs['bar'] ||
                 attrs['Bar'] ||
@@ -3599,8 +3628,8 @@ function buildRowData(data) {
                 attrs.rated_pressure ||
                 attrs['Max Operating Pressure'] ||
                 attrs['Rated Pressure'] ||
-                attrs['Presión Máxima de Operación'] ||
-                attrs['Presión Máx'] ||
+                attrs['PresiÃ³n MÃ¡xima de OperaciÃ³n'] ||
+                attrs['PresiÃ³n MÃ¡x'] ||
                 attrs['kPa'] ||
                 attrs['bar'] ||
                 attrs['Bar'] ||
@@ -3612,7 +3641,7 @@ function buildRowData(data) {
             const lower = s.toLowerCase().replace(/,/g, '.');
             const numMatch = lower.match(/([0-9]+(?:\.[0-9]+)?)/);
             const hasValue = !!numMatch && !isNaN(parseFloat(numMatch[1]));
-            if (!hasValue) return '⚠️ Falta Presión Máxima de Operación (PSI).';
+            if (!hasValue) return 'âš ï¸ Falta PresiÃ³n MÃ¡xima de OperaciÃ³n (PSI).';
             // Coherencia con Burst: max debe ser < burst
             const burstRaw = (
                 attrs.hydrostatic_burst_psi ||
@@ -3620,7 +3649,7 @@ function buildRowData(data) {
                 attrs.burst_pressure ||
                 attrs['Hydrostatic Burst'] ||
                 attrs['Burst Pressure'] ||
-                attrs['Presión de Estallido'] ||
+                attrs['PresiÃ³n de Estallido'] ||
                 ''
             );
             const burstStr = String(burstRaw || '').toLowerCase().replace(/,/g, '.');
@@ -3648,12 +3677,12 @@ function buildRowData(data) {
                 return v;
             })();
             if (!isNaN(maxPsi) && !isNaN(burstPsi)) {
-                if (maxPsi >= burstPsi) return '⚠️ Presión Máxima ≥ Estallido; incoherente.';
-                if (maxPsi > burstPsi * 0.7) return '⚠️ Presión Máxima muy cercana a Estallido; factor de seguridad bajo.';
+                if (maxPsi >= burstPsi) return 'âš ï¸ PresiÃ³n MÃ¡xima â‰¥ Estallido; incoherente.';
+                if (maxPsi > burstPsi * 0.7) return 'âš ï¸ PresiÃ³n MÃ¡xima muy cercana a Estallido; factor de seguridad bajo.';
             }
-            // Heurística por prefijo: HYDRAULIC suele tener valores altos
+            // HeurÃ­stica por prefijo: HYDRAULIC suele tener valores altos
             if (familyPrefix === 'HYDRAULIC' && !isNaN(maxPsi) && maxPsi < 500) {
-                return '⚠️ Presión Máxima baja para HYDRAULIC; revisar especificación.';
+                return 'âš ï¸ PresiÃ³n MÃ¡xima baja para HYDRAULIC; revisar especificaciÃ³n.';
             }
             return '';
         })(),
@@ -3666,7 +3695,7 @@ function buildRowData(data) {
                 attrs.beta_value ||
                 attrs['beta 200'] ||
                 attrs['beta200'] ||
-                attrs['β200'] ||
+                attrs['Î²200'] ||
                 attrs.beta ||
                 ''
             );
@@ -3682,14 +3711,14 @@ function buildRowData(data) {
                 attrs.beta_value ||
                 attrs['beta 200'] ||
                 attrs['beta200'] ||
-                attrs['β200'] ||
+                attrs['Î²200'] ||
                 attrs.beta ||
                 ''
             );
             const val = normalizeBetaRatio(raw);
-            if (isNaN(val) || val <= 0) return '⚠️ Falta Beta 200 (mandatorio en filtros de fase líquida).';
+            if (isNaN(val) || val <= 0) return 'âš ï¸ Falta Beta 200 (mandatorio en filtros de fase lÃ­quida).';
             const highEfficiencyLine = /ULTRA|SYNTHETIC/i.test(String(lineSuffix || ''));
-            if (highEfficiencyLine && val < 75) return '⚠️ Beta bajo para línea ULTRA/SYNTHETIC (<75).';
+            if (highEfficiencyLine && val < 75) return 'âš ï¸ Beta bajo para lÃ­nea ULTRA/SYNTHETIC (<75).';
             return '';
         })(),
         gasket_od_mm_indice_mongo: (() => {
@@ -3705,8 +3734,8 @@ function buildRowData(data) {
                 attrs.gasket_outer_diameter ||
                 attrs['gasket outer diameter'] ||
                 attrs.diametro_exterior_junta ||
-                attrs['diámetro exterior junta'] ||
-                attrs['diámetro exterior de junta'] ||
+                attrs['diÃ¡metro exterior junta'] ||
+                attrs['diÃ¡metro exterior de junta'] ||
                 ''
             );
             const val = parseFloat(valStr || '');
@@ -3725,12 +3754,12 @@ function buildRowData(data) {
                 attrs.gasket_outer_diameter ||
                 attrs['gasket outer diameter'] ||
                 attrs.diametro_exterior_junta ||
-                attrs['diámetro exterior junta'] ||
-                attrs['diámetro exterior de junta'] ||
+                attrs['diÃ¡metro exterior junta'] ||
+                attrs['diÃ¡metro exterior de junta'] ||
                 ''
             );
             const gasketVal = parseFloat(gasketStr || '');
-            if (isNaN(gasketVal)) return '⚠️ Falta Gasket OD para diseño spin-on en familia líquida.';
+            if (isNaN(gasketVal)) return 'âš ï¸ Falta Gasket OD para diseÃ±o spin-on en familia lÃ­quida.';
             // Compare against outer diameter
             const odStr = normalizeMM(
                 attrs.outer_diameter_mm ||
@@ -3743,7 +3772,7 @@ function buildRowData(data) {
                 ''
             );
             const od = parseFloat(odStr || '');
-            if (!isNaN(od) && gasketVal >= od) return '⚠️ Gasket OD debe ser menor que el diámetro exterior.';
+            if (!isNaN(od) && gasketVal >= od) return 'âš ï¸ Gasket OD debe ser menor que el diÃ¡metro exterior.';
             // Compare against thread major diameter
             const rawThread = (
                 attrs.thread_size ||
@@ -3757,7 +3786,7 @@ function buildRowData(data) {
             );
             const threadMajor = extractThreadMajorDiameterMM(rawThread);
             if (!isNaN(threadMajor) && gasketVal <= threadMajor) {
-                return '⚠️ Gasket OD debe ser mayor que el diámetro de rosca.';
+                return 'âš ï¸ Gasket OD debe ser mayor que el diÃ¡metro de rosca.';
             }
             return '';
         })(),
@@ -3774,8 +3803,8 @@ function buildRowData(data) {
                 attrs.gasket_inner_diameter ||
                 attrs['gasket inner diameter'] ||
                 attrs.diametro_interior_junta ||
-                attrs['diámetro interior junta'] ||
-                attrs['diámetro interior de junta'] ||
+                attrs['diÃ¡metro interior junta'] ||
+                attrs['diÃ¡metro interior de junta'] ||
                 ''
             );
             const val = parseFloat(valStr || '');
@@ -3795,12 +3824,12 @@ function buildRowData(data) {
                 attrs.gasket_inner_diameter ||
                 attrs['gasket inner diameter'] ||
                 attrs.diametro_interior_junta ||
-                attrs['diámetro interior junta'] ||
-                attrs['diámetro interior de junta'] ||
+                attrs['diÃ¡metro interior junta'] ||
+                attrs['diÃ¡metro interior de junta'] ||
                 ''
             );
             const idVal = parseFloat(idStr || '');
-            if (isNaN(idVal)) return '⚠️ Falta Gasket ID para diseño spin-on en familia líquida.';
+            if (isNaN(idVal)) return 'âš ï¸ Falta Gasket ID para diseÃ±o spin-on en familia lÃ­quida.';
             const odStr = normalizeMM(
                 attrs.gasket_od_mm ||
                 attrs.gasket_od ||
@@ -3810,12 +3839,12 @@ function buildRowData(data) {
                 attrs.gasket_outer_diameter ||
                 attrs['gasket outer diameter'] ||
                 attrs.diametro_exterior_junta ||
-                attrs['diámetro exterior junta'] ||
-                attrs['diámetro exterior de junta'] ||
+                attrs['diÃ¡metro exterior junta'] ||
+                attrs['diÃ¡metro exterior de junta'] ||
                 ''
             );
             const odVal = parseFloat(odStr || '');
-            if (!isNaN(odVal) && idVal >= odVal) return '⚠️ Gasket ID debe ser menor que Gasket OD.';
+            if (!isNaN(odVal) && idVal >= odVal) return 'âš ï¸ Gasket ID debe ser menor que Gasket OD.';
             const rawThread = (
                 attrs.thread_size ||
                 attrs.thread ||
@@ -3828,7 +3857,7 @@ function buildRowData(data) {
             );
             const threadMajor = extractThreadMajorDiameterMM(rawThread);
             if (!isNaN(threadMajor) && idVal + tol < threadMajor) {
-                return '⚠️ Gasket ID debe ser mayor o muy cercano al diámetro de rosca.';
+                return 'âš ï¸ Gasket ID debe ser mayor o muy cercano al diÃ¡metro de rosca.';
             }
             return '';
         })(),
@@ -3853,6 +3882,166 @@ function buildRowData(data) {
     };
 }
 
+// ============================================================================
+// COMPLETENESS DEFAULTS
+// Rellena siempre todas las columnas según familia de filtro
+// ============================================================================
+function ensureRowCompleteness(row) {
+    try {
+        const family = String(row.family || row.filter_type || '').toUpperCase();
+        const isAir = family === 'AIR' || family === 'CABIN';
+        const isLiquid = family === 'FUEL' || family === 'OIL' || family === 'HYDRAULIC' || family === 'COOLANT';
+        const isAirDryer = family === 'AIR DRYER';
+
+        const defIfEmpty = (key, val) => {
+            const cur = row[key];
+            if (cur === undefined || cur === null || (typeof cur === 'string' && cur.trim() === '')) {
+                row[key] = val;
+            }
+        };
+
+        const numericDefaults = [
+            'height_mm','outer_diameter_mm',
+            'gasket_od_mm','gasket_id_mm','bypass_valve_psi','beta_200','hydrostatic_burst_psi','dirt_capacity_grams',
+            'rated_flow_gpm','rated_flow_cfm','operating_pressure_min_psi','operating_pressure_max_psi','weight_grams',
+            'panel_width_mm','panel_depth_mm','water_separation_efficiency_percent','inner_diameter_mm','pleat_count',
+            'iso_main_efficiency_percent','service_life_hours','change_interval_km'
+        ];
+        for (const k of numericDefaults) defIfEmpty(k, 0);
+
+        // Strings neutrales
+        const stringDefaults = [
+            'thread_size','drain_type','seal_material','housing_material','iso_test_method',
+            'manufacturing_standards','certification_standards','equipment_applications','engine_applications'
+        ];
+        for (const k of stringDefaults) defIfEmpty(k, 'N/A');
+
+        // Media y tecnología por familia
+        if (isAir) {
+            defIfEmpty('disposal_method', 'Residuo No Peligroso');
+            defIfEmpty('rated_flow_cfm', 0);
+            defIfEmpty('media_type', getProductMedia('AIR'));
+            defIfEmpty('tecnologia_aplicada', family === 'CABIN' ? 'MICROKAPPA™' : 'MACROCORE™');
+        } else if (isLiquid) {
+            defIfEmpty('disposal_method', 'Residuo Peligroso');
+            defIfEmpty('rated_flow_gpm', 0);
+            defIfEmpty('media_type', getProductMedia('FUEL'));
+            if (family === 'COOLANT') {
+                defIfEmpty('tecnologia_aplicada', 'ThermoRelease™');
+            } else {
+                defIfEmpty('tecnologia_aplicada', 'ELIMTEK™ Estándar');
+            }
+        } else if (isAirDryer) {
+            defIfEmpty('disposal_method', 'Residuo Peligroso');
+            defIfEmpty('media_type', getProductMedia('AIR'));
+            defIfEmpty('tecnologia_aplicada', 'AeroDry Max');
+        } else {
+            // Fallback para familias no clasificadas
+            defIfEmpty('disposal_method', 'N/A');
+            defIfEmpty('media_type', getProductMedia(family || ''));
+            defIfEmpty('tecnologia_aplicada', 'Tecnología Estándar');
+        }
+
+        // Códigos y referencias: siempre texto neutro si faltan
+        defIfEmpty('oem_codes', 'N/A');
+        // Mantener "Multi-Referencia OEM" si ya fue asignado en mapeo; si falta, usar N/A
+        if (!(String(row.cross_reference || '').trim())) {
+            row.cross_reference = 'N/A';
+        }
+
+        // Temperaturas por familia (fallback inteligente controlado por env)
+        const fallbackEnabled = String(process.env.FALLBACK_TEMP_ENABLED || 'true').toLowerCase() === 'true';
+        const numOrZero = (v) => {
+            const n = parseFloat(String(v));
+            return isFinite(n) ? n : 0;
+        };
+        const setTempIfMissing = (minVal, maxVal) => {
+            const minCur = numOrZero(row.operating_temperature_min_c);
+            const maxCur = numOrZero(row.operating_temperature_max_c);
+            if (fallbackEnabled) {
+                if (!minCur || minCur === 0) row.operating_temperature_min_c = minVal;
+                if (!maxCur || maxCur === 0) row.operating_temperature_max_c = maxVal;
+            }
+        };
+        if (fallbackEnabled) {
+            if (family === 'OIL') setTempIfMissing(-20, 150);
+            else if (family === 'FUEL') setTempIfMissing(-20, 120);
+            else if (family === 'AIR' || family === 'CABIN') setTempIfMissing(-40, 120);
+            else if (family === 'HYDRAULIC') setTempIfMissing(-20, 110);
+            else if (family === 'COOLANT') setTempIfMissing(-40, 125);
+            else if (family === 'AIR DRYER') setTempIfMissing(-40, 105);
+        }
+
+        // Garantizar que todos los headers existen
+        for (const h of DESIRED_HEADERS) {
+            if (!(h in row)) {
+                // Asignar por tipo básico
+                if (numericDefaults.includes(h)) row[h] = 0; else row[h] = 'N/A';
+            }
+        }
+    } catch (_) {}
+    return row;
+}
+
+// ============================================================================
+// VALIDACIÓN DE CAMPOS ESENCIALES
+// Bloquea escritura si faltan datos críticos por familia
+// ============================================================================
+function textContainsAny(str, keywords) {
+    const s = String(str || '').toLowerCase();
+    return keywords.some(k => s.includes(String(k).toLowerCase()));
+}
+
+function isFuelWaterSeparator(row) {
+    const family = String(row.family || row.filter_type || '').toUpperCase();
+    if (family !== 'FUEL') return false;
+    const keys = ['subtype','description','media_type'];
+    const kw = ['water','separ','separador','separation','agua'];
+    return keys.some(k => textContainsAny(row[k], kw));
+}
+
+function validateEssentialFields(row) {
+    const missing = [];
+    const family = String(row.family || row.filter_type || '').toUpperCase();
+    const numVal = (v) => {
+        const n = parseFloat(String(v));
+        return isFinite(n) ? n : 0;
+    };
+    const hasText = (v) => {
+        const s = String(v || '').trim();
+        const low = s.toLowerCase();
+        return s.length > 0 && low !== 'sin datos' && low !== 'n/a';
+    };
+
+    if (family === 'OIL') {
+        if (numVal(row.height_mm) <= 0) missing.push('height_mm');
+        if (numVal(row.outer_diameter_mm) <= 0) missing.push('outer_diameter_mm');
+        if (!hasText(row.thread_size)) missing.push('thread_size');
+    } else if (family === 'AIR') {
+        const okHeight = numVal(row.height_mm) > 0 || numVal(row.panel_width_mm) > 0;
+        if (!okHeight) missing.push('height_mm|panel_width_mm');
+        if (numVal(row.outer_diameter_mm) <= 0) missing.push('outer_diameter_mm');
+    } else if (family === 'FUEL') {
+        if (numVal(row.height_mm) <= 0) missing.push('height_mm');
+        if (!hasText(row.thread_size)) missing.push('thread_size');
+        if (isFuelWaterSeparator(row) && numVal(row.water_separation_efficiency_percent) <= 0) {
+            missing.push('water_separation_efficiency_percent');
+        }
+    } else if (family === 'HYDRAULIC') {
+        if (numVal(row.height_mm) <= 0) missing.push('height_mm');
+        if (!hasText(row.thread_size)) missing.push('thread_size');
+        if (numVal(row.micron_rating) <= 0) missing.push('micron_rating');
+    }
+
+    if (missing.length > 0) {
+        const sku = String(row.normsku || row.query || '').toUpperCase();
+        const msg = `Error de Enriquecimiento: Campo esencial [${missing.join(', ')}] vacío para SKU [${sku}]`;
+        const err = new Error(msg);
+        err.code = 'ESSENTIALS_VALIDATION_FAILED';
+        throw err;
+    }
+}
+
 /**
  * Append single filter to Google Sheets Master
  * @param {object} data - Filter data to append
@@ -3863,10 +4052,13 @@ async function appendToSheet(data) {
         const sheet = doc.sheetsByIndex[0];
         await ensureHeaders(sheet);
         const rowData = buildRowData(data);
-        await sheet.addRow(rowData);
-        console.log(`💾 Saved to Google Sheet Master: ${data.sku}`);
+        // Validar antes de completar defaults (bloquea upsert si falta lo esencial)
+        validateEssentialFields(rowData);
+        const finalized = ensureRowCompleteness(rowData);
+        await sheet.addRow(finalized);
+        console.log(`ðŸ’¾ Saved to Google Sheet Master: ${data.sku}`);
     } catch (error) {
-        console.error('❌ Error appending to Google Sheet:', error.message);
+        console.error('âŒ Error appending to Google Sheet:', error.message);
         throw error;
     }
 }
@@ -3884,33 +4076,37 @@ async function upsertBySku(data, options = { deleteDuplicates: true }) {
         const rows = await sheet.getRows();
         const skuNorm = (data.sku || '').toUpperCase().trim();
         // Some environments expose row values directly by header name, avoiding row.get()
-        const matches = rows.filter(r => (r.sku || '').toUpperCase().trim() === skuNorm);
+        const matches = rows.filter(r => (r.normsku || '').toUpperCase().trim() === skuNorm);
 
         const rowData = buildRowData(data);
+        // Validación previa a escritura
+        validateEssentialFields(rowData);
 
         if (matches.length > 0) {
             const row = matches[0];
             // Assign all fields
-            Object.entries(rowData).forEach(([k, v]) => { row[k] = v; });
+            const finalized = ensureRowCompleteness(rowData);
+            Object.entries(finalized).forEach(([k, v]) => { row[k] = v; });
             await row.save();
-            console.log(`♻️ Upserted existing row for ${data.sku}`);
+            console.log(`â™»ï¸ Upserted existing row for ${data.sku}`);
 
             if (options.deleteDuplicates && matches.length > 1) {
                 for (let i = 1; i < matches.length; i++) {
                     try {
                         await matches[i].delete();
-                        console.log(`🧹 Deleted duplicate row for ${data.sku}`);
+                        console.log(`ðŸ§¹ Deleted duplicate row for ${data.sku}`);
                     } catch (e) {
-                        console.warn(`⚠️ Failed to delete duplicate for ${data.sku}: ${e.message}`);
+                        console.warn(`âš ï¸ Failed to delete duplicate for ${data.sku}: ${e.message}`);
                     }
                 }
             }
         } else {
-            await sheet.addRow(rowData);
-            console.log(`➕ Inserted new row for ${data.sku}`);
+            const finalized = ensureRowCompleteness(rowData);
+            await sheet.addRow(finalized);
+            console.log(`âž• Inserted new row for ${data.sku}`);
         }
     } catch (error) {
-        console.error('❌ Error upserting to Google Sheet:', error.message);
+        console.error('âŒ Error upserting to Google Sheet:', error.message);
         throw error;
     }
 }
@@ -3920,10 +4116,10 @@ async function upsertBySku(data, options = { deleteDuplicates: true }) {
  */
 async function syncToSheets(filters) {
     try {
-        console.log('🔄 Starting sync to Google Sheets Master...');
+        console.log('ðŸ”„ Starting sync to Google Sheets Master...');
 
         if (!filters || filters.length === 0) {
-            console.log('⚠️  No filters to sync');
+            console.log('âš ï¸  No filters to sync');
             return { success: false, message: 'No filters provided' };
         }
 
@@ -3931,13 +4127,13 @@ async function syncToSheets(filters) {
         const sheet = doc.sheetsByIndex[0];
         await ensureHeaders(sheet);
 
-        console.log(`📊 Syncing ${filters.length} filters...`);
+        console.log(`ðŸ“Š Syncing ${filters.length} filters...`);
 
         for (const filter of filters) {
             await upsertBySku(filter);
         }
 
-        console.log(`✅ Sync complete: ${filters.length} filters synced`);
+        console.log(`âœ… Sync complete: ${filters.length} filters synced`);
         
         return {
             success: true,
@@ -3946,7 +4142,7 @@ async function syncToSheets(filters) {
         };
 
     } catch (error) {
-        console.error('❌ Sync error:', error.message);
+        console.error('âŒ Sync error:', error.message);
         return {
             success: false,
             error: error.message
@@ -3994,3 +4190,4 @@ module.exports = {
     buildRowData,
     pingSheets
 };
+

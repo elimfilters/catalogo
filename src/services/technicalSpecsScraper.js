@@ -367,14 +367,8 @@ async function extractDonaldsonSpecs(code) {
         // ===== TECHNICAL DETAILS =====
         specs.technical_details = {
             ...specs.technical_details,
-            operating_temperature_min_c: '-40',
-            operating_temperature_max_c: '100',
             manufacturing_standards: specs.certifications.join(', '),
             certification_standards: specs.standards.join(', '),
-            fluid_compatibility: specs.description.toLowerCase().includes('oil') || specs.description.toLowerCase().includes('aceite') ? 'Engine Oil' : 
-                                specs.description.toLowerCase().includes('fuel') || specs.description.toLowerCase().includes('combustible') ? 'Diesel Fuel' :
-                                specs.description.toLowerCase().includes('air') || specs.description.toLowerCase().includes('aire') ? 'Air' : 'Universal',
-            disposal_method: 'Recycle according to local regulations',
             service_life_hours: '500',
             manufactured_by: 'ELIMFILTERS'
         };
@@ -988,15 +982,8 @@ async function extractFramSpecs(code) {
 
         // Technical details
         specs.technical_details = {
-            operating_temperature_min_c: '-40',
-            operating_temperature_max_c: '120',
             manufacturing_standards: 'ISO 9001',
             certification_standards: 'SAE J806, SAE J1858',
-            fluid_compatibility: code.startsWith('PH') || code.startsWith('TG') || code.startsWith('XG') ? 'Motor Oil' :
-                                code.startsWith('CA') ? 'Air' :
-                                code.startsWith('G') || code.startsWith('PS') ? 'Gasoline/Diesel' :
-                                code.startsWith('CF') || code.startsWith('CH') ? 'Air (Cabin)' : 'Universal',
-            disposal_method: 'Recycle according to local regulations',
             service_life_hours: code.startsWith('XG') ? '1000' : '500',
             change_interval_km: code.startsWith('XG') ? '30000' : '15000',
             manufactured_by: 'ELIMFILTERS'
@@ -1072,6 +1059,120 @@ async function extractFramSpecs(code) {
 }
 
 // ============================================================================
+// PARKER/RACOR BASIC SPEC EXTRACTOR (Heuristics)
+// ============================================================================
+
+function gphToLph(gph) {
+    const n = Number(gph);
+    if (!n || isNaN(n)) return '';
+    return (n * 3.78541).toFixed(2);
+}
+
+function parseParkerMicron(code) {
+    const up = String(code || '').toUpperCase();
+    // R‑series suffix: T=10µm, S=2µm
+    const rMatch = up.match(/^R(12|15|20|25|45|60|90|120)(T|S)$/);
+    if (rMatch) return rMatch[2] === 'S' ? '2' : '10';
+    // Elementos 2010/2020/2040: SM=2µm, TM=10µm, PM=30µm
+    const eMatch = up.match(/^(2010|2020|2040)([SPT])M$/);
+    if (eMatch) {
+        const m = eMatch[2];
+        return m === 'S' ? '2' : (m === 'T' ? '10' : '30');
+    }
+    return '';
+}
+
+async function extractParkerSpecs(code) {
+    const up = String(code || '').toUpperCase();
+    const specs = getDefaultSpecs(up, 'PARKER');
+    specs.description = `Parker Racor Fuel/Water Separator ${up}`;
+    specs.technical_details.manufactured_by = 'ELIMFILTERS';
+    specs.technical_details.fluid_compatibility = 'Diesel, Biodiesel up to B20';
+    specs.technical_details.water_separation = 'Yes';
+    specs.technical_details.drain_bowl = 'Yes';
+    specs.technical_details.marine_grade = 'Yes';
+
+    // Micraje heurístico por sufijo
+    const micron = parseParkerMicron(up);
+    if (micron) specs.performance.micron_rating = micron;
+
+    // Caudal para R‑series: el número representa GPH
+    const flowR = up.match(/^R(12|15|20|25|45|60|90|120)(T|S)$/);
+    if (flowR) {
+        const gph = Number(flowR[1]);
+        specs.performance.flow_gph = String(gph);
+        specs.performance.flow_lph = gphToLph(gph);
+    }
+    // Aplicaciones típicas marinas
+    specs.engine_applications = [
+        { name: 'Marine Diesel Engines', years: '' },
+        { name: 'Outboard Engines', years: '' },
+        { name: 'Inboard Engines', years: '' }
+    ];
+    specs.equipment_applications = [
+        { name: 'Boats', years: '' },
+        { name: 'Yachts', years: '' },
+        { name: 'Marine Generators', years: '' }
+    ];
+    // OEM y cross (mínimo: incluir el mismo código)
+    specs.oem_codes = [up];
+    specs.cross_reference = [];
+    specs.found = true;
+    return specs;
+}
+
+// ============================================================================
+// MERCURY/MERCRUISER BASIC SPEC EXTRACTOR (Defaults + Apps)
+// ============================================================================
+async function extractMercurySpecs(code) {
+    const up = String(code || '').toUpperCase();
+    const specs = getDefaultSpecs(up, 'MERCRUISER');
+    specs.description = `Mercury/MerCruiser Marine Filter ${up}`;
+    specs.technical_details.manufactured_by = 'ELIMFILTERS';
+    specs.technical_details.marine_grade = 'Yes';
+    specs.technical_details.fluid_compatibility = 'Gasoline/Diesel (Marine)';
+    // Micraje genérico marino si no hay sufijo
+    if (!specs.performance.micron_rating) specs.performance.micron_rating = '10';
+    specs.engine_applications = [
+        { name: 'MerCruiser Marine Engines', years: '' },
+        { name: 'Mercury Outboard Engines', years: '' }
+    ];
+    specs.equipment_applications = [
+        { name: 'Boats', years: '' },
+        { name: 'Yachts', years: '' }
+    ];
+    specs.oem_codes = [up];
+    specs.cross_reference = [];
+    specs.found = true;
+    return specs;
+}
+
+// ============================================================================
+// SIERRA BASIC SPEC EXTRACTOR (Defaults + Apps)
+// ============================================================================
+async function extractSierraSpecs(code) {
+    const up = String(code || '').toUpperCase();
+    const specs = getDefaultSpecs(up, 'SIERRA');
+    specs.description = `Sierra Marine Filter ${up}`;
+    specs.technical_details.manufactured_by = 'ELIMFILTERS';
+    specs.technical_details.marine_grade = 'Yes';
+    specs.technical_details.fluid_compatibility = 'Gasoline/Diesel (Marine)';
+    if (!specs.performance.micron_rating) specs.performance.micron_rating = '10';
+    specs.engine_applications = [
+        { name: 'MerCruiser Marine Engines', years: '' },
+        { name: 'Yamaha/OMC Marine Engines', years: '' }
+    ];
+    specs.equipment_applications = [
+        { name: 'Boats', years: '' },
+        { name: 'Yachts', years: '' }
+    ];
+    specs.oem_codes = [up];
+    specs.cross_reference = [];
+    specs.found = true;
+    return specs;
+}
+
+// ============================================================================
 // DEFAULT SPECS (Fallback)
 // ============================================================================
 
@@ -1088,7 +1189,6 @@ function getDefaultSpecs(code, source) {
             thread_size: ''
         },
         performance: {
-            micron_rating: isHD ? '10' : '25',
             iso_main_efficiency_percent: isHD ? '99.5' : '98.7',
             beta_200: isHD ? '200' : '75'
         },
@@ -1103,12 +1203,8 @@ function getDefaultSpecs(code, source) {
             { name: 'Light Trucks', years: '' }
         ],
         technical_details: {
-            operating_temperature_min_c: '-40',
-            operating_temperature_max_c: isHD ? '100' : '120',
             manufacturing_standards: isHD ? 'ISO 9001, ISO/TS 16949' : 'ISO 9001',
             certification_standards: isHD ? 'ISO 5011, ISO 4548-12' : 'SAE J806',
-            fluid_compatibility: 'Universal',
-            disposal_method: 'Recycle according to local regulations',
             service_life_hours: isHD ? '500' : '300',
             manufactured_by: 'ELIMFILTERS'
         }
@@ -1122,5 +1218,8 @@ function getDefaultSpecs(code, source) {
 module.exports = {
     extractDonaldsonSpecs,
     extractFramSpecs,
-    getDefaultSpecs
+    getDefaultSpecs,
+    extractParkerSpecs,
+    extractMercurySpecs,
+    extractSierraSpecs
 };

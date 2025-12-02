@@ -1,9 +1,9 @@
 // ============================================================================
 // Script: Populate Google Sheet Master with provided SKUs
 // Usage examples:
-//   SKUS="AF25538,RS5641,AH1135" npm run sheet:populate
-//   node scripts/populate_master_skus.js --skus "AF25538, RS5641, AH1135"
-//   node scripts/populate_master_skus.js AF25538 RS5641 AH1135
+//   SKUS="AF25538,RS5641,AH1135" npm run sheet:populate -- --lang en
+//   node scripts/populate_master_skus.js --skus "AF25538, RS5641, AH1135" --lang en
+//   node scripts/populate_master_skus.js AF25538 RS5641 AH1135 --lang en
 // ----------------------------------------------------------------------------
 // Requires Google Sheets credentials via env:
 //   - GOOGLE_CREDENTIALS (JSON) OR
@@ -26,15 +26,34 @@ try {
 
 function parseSkusFromArgs() {
   const argv = process.argv.slice(2);
-  // Support: --skus "a,b,c" OR positional args
-  const skusFlagIndex = argv.findIndex(a => a === '--skus');
+  // Support: --skus "a,b,c" OR positional args; ignore flags
+  const skusFlagIndex = argv.findIndex(a => String(a).startsWith('--skus'));
   let rawList = [];
-  if (skusFlagIndex !== -1 && argv[skusFlagIndex + 1]) {
-    rawList = argv[skusFlagIndex + 1].split(',');
+  if (skusFlagIndex !== -1) {
+    const flag = argv[skusFlagIndex];
+    const parts = String(flag).split('=');
+    if (parts.length > 1 && parts[1]) {
+      rawList = parts[1].split(',');
+    } else if (argv[skusFlagIndex + 1] && !String(argv[skusFlagIndex + 1]).startsWith('--')) {
+      rawList = String(argv[skusFlagIndex + 1]).split(',');
+    }
   } else if (process.env.SKUS) {
     rawList = String(process.env.SKUS).split(',');
   } else {
-    rawList = argv; // positional
+    // Positional args: filter out flags and skip their values if using --flag value form
+    const filtered = [];
+    for (let i = 0; i < argv.length; i++) {
+      const a = argv[i];
+      if (String(a).startsWith('--')) {
+        const [name, val] = String(a).split('=');
+        if (!val && i + 1 < argv.length && !String(argv[i + 1]).startsWith('--')) {
+          i++; // skip the value token
+        }
+        continue; // skip flag token
+      }
+      filtered.push(a);
+    }
+    rawList = filtered;
   }
   return Array.from(new Set(
     rawList
@@ -47,6 +66,26 @@ function normalizeCode(code) {
   return String(code || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
 }
 
+function parseLangFromArgs() {
+  // Default to English when not provided
+  let lang = 'en';
+  for (const arg of process.argv.slice(2)) {
+    if (arg.startsWith('--lang')) {
+      const parts = arg.split('=');
+      if (parts.length > 1 && parts[1]) {
+        lang = parts[1].trim().toLowerCase();
+      } else {
+        // Next token may be the value
+        const idx = process.argv.indexOf(arg);
+        const maybe = process.argv[idx + 1];
+        if (maybe && !maybe.startsWith('--')) lang = String(maybe).trim().toLowerCase();
+      }
+    }
+  }
+  if (!['en', 'es'].includes(lang)) lang = 'en';
+  return lang;
+}
+
 async function main() {
   const skus = parseSkusFromArgs();
   if (!skus.length) {
@@ -55,6 +94,8 @@ async function main() {
   }
 
   console.log(`📋 SKUs a procesar: ${skus.join(', ')}`);
+  const lang = parseLangFromArgs();
+  console.log(`🌐 Idioma para enriquecimiento/detección: ${lang}`);
 
   // Validate credentials presence early
   const hasJsonCreds = !!process.env.GOOGLE_CREDENTIALS;
@@ -65,12 +106,13 @@ async function main() {
   }
 
   let successCount = 0;
+  const noDetect = process.argv.slice(2).some(a => String(a).toLowerCase() === '--no-detect');
   for (const sku of skus) {
     const queryNorm = normalizeCode(sku);
     try {
-      if (typeof detectFilter === 'function') {
+      if (!noDetect && typeof detectFilter === 'function') {
         // Enriquecer usando el pipeline de detección (guarda en Master internamente)
-        const res = await detectFilter(queryNorm, 'es', { force: false, generateAll: false });
+        const res = await detectFilter(queryNorm, lang, { force: false, generateAll: false });
         if (res && res.status === 'OK') {
           console.log(`✅ Detectado y guardado: ${sku} → ${res.sku}`);
           successCount++;
@@ -80,7 +122,7 @@ async function main() {
       }
 
       // Fallback: upsert mínimo con solo sku y query_norm
-      const data = { sku: sku, query_normalized: queryNorm };
+      const data = { sku: sku, query_normalized: queryNorm, minimal: true };
       await upsertBySku(data, { deleteDuplicates: true });
       console.log(`✅ Upsert mínimo realizado para SKU: ${sku} (query_norm: ${queryNorm})`);
       successCount++;

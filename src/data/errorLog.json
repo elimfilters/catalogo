@@ -1,0 +1,156 @@
+[
+  {
+    "error_timestamp": "2025-12-01T05:01:28.361Z",
+    "failed_query_code": "S11880",
+    "family_inference_signals": "prefix:S|morph:CROSS_REF",
+    "suggested_family_duty": "OIL|LD",
+    "reason": "controlled_fallback_applied:ecogard_s_series"
+  },
+  {
+    "error_timestamp": "2025-12-01T05:08:30.198Z",
+    "failed_query_code": "S_HARNESS_1",
+    "family_inference_signals": "prefix:S|morph:HARNESS",
+    "suggested_family_duty": "OIL|LD",
+    "reason": "test_harness"
+  },
+  {
+    "error_timestamp": "2025-12-01T05:08:30.215Z",
+    "failed_query_code": "S_HARNESS_2",
+    "family_inference_signals": "prefix:S|morph:HARNESS",
+    "suggested_family_duty": "OIL|LD",
+    "reason": "test_harness"
+  },
+  {
+    "error_timestamp": "2025-12-01T05:08:30.216Z",
+    "failed_query_code": "S_HARNESS_3",
+    "family_inference_signals": "prefix:S|morph:HARNESS",
+    "suggested_family_duty": "OIL|LD",
+    "reason": "test_harness"
+  },
+  {
+    "error_timestamp": "2025-12-01T05:21:17.218Z",
+    "failed_query_code": "P_HARNESS_1",
+    "family_inference_signals": "prefix:P|morph:HARNESS",
+    "suggested_family_duty": "OIL|LD",
+    "reason": "test_harness"
+  },
+  {
+    "error_timestamp": "2025-12-01T05:21:17.236Z",
+    "failed_query_code": "P_HARNESS_2",
+    "family_inference_signals": "prefix:P|morph:HARNESS",
+    "suggested_family_duty": "OIL|LD",
+    "reason": "test_harness"
+  },
+  {
+    "error_timestamp": "2025-12-01T05:21:17.237Z",
+    "failed_query_code": "P_HARNESS_3",
+    "family_inference_signals": "prefix:P|morph:HARNESS",
+    "suggested_family_duty": "OIL|LD",
+    "reason": "test_harness"
+  },
+  {
+    "error_timestamp": "2025-12-01T05:21:32.990Z",
+    "failed_query_code": "RE_HARNESS_1",
+    "family_inference_signals": "prefix:RE|morph:HARNESS",
+    "suggested_family_duty": "OIL|LD",
+    "reason": "test_harness"
+  },
+  {
+    "error_timestamp": "2025-12-01T05:21:32.998Z",
+    "failed_query_code": "RE_HARNESS_2",
+    "family_inference_signals": "prefix:RE|morph:HARNESS",
+    "suggested_family_duty": "OIL|LD",
+    "reason": "test_harness"
+  },
+  {
+    "error_timestamp": "2025-12-01T05:21:32.999Z",
+    "failed_query_code": "RE_HARNESS_3",
+    "family_inference_signals": "prefix:RE|morph:HARNESS",
+    "suggested_family_duty": "OIL|LD",
+    "reason": "test_harness"
+  },
+  {
+    "error_timestamp": "2025-12-01T05:21:51.145Z",
+    "failed_query_code": "1R_HARNESS_1",
+    "family_inference_signals": "prefix:1R|morph:HARNESS",
+    "suggested_family_duty": "OIL|LD",
+    "reason": "test_harness"
+  },
+  {
+    "error_timestamp": "2025-12-01T05:21:51.153Z",
+    "failed_query_code": "1R_HARNESS_2",
+    "family_inference_signals": "prefix:1R|morph:HARNESS",
+    "suggested_family_duty": "OIL|LD",
+    "reason": "test_harness"
+  },
+  {
+    "error_timestamp": "2025-12-01T05:21:51.154Z",
+    "failed_query_code": "1R_HARNESS_3",
+    "family_inference_signals": "prefix:1R|morph:HARNESS",
+    "suggested_family_duty": "OIL|LD",
+    "reason": "test_harness"
+  },
+  {
+    "error_timestamp": "2025-12-01T05:27:25.874Z",
+    "failed_query_code": "PF_HARNESS_1",
+    "family_inference_signals": "prefix:PF|morph:HARNESS",
+    "suggested_family_duty": "OIL|LD",
+    "reason": "test_harness"
+  },
+  {
+    "error_timestamp": "2025-12-01T05:27:25.891Z",
+    "failed_query_code": "PF_HARNESS_2",
+    "family_inference_signals": "prefix:PF|morph:HARNESS",
+    "suggested_family_duty": "OIL|LD",
+    "reason": "test_harness"
+  },
+  {
+    "error_timestamp": "2025-12-01T05:27:25.892Z",
+    "failed_query_code": "PF_HARNESS_3",
+    "family_inference_signals": "prefix:PF|morph:HARNESS",
+    "suggested_family_duty": "OIL|LD",
+    "reason": "test_harness"
+  },
+  {
+    "error_timestamp": "2025-12-01T05:27:38.899Z",
+    "failed_query_code": "RE5_HARNESS_1",
+    "family_inference_signals": "prefix:RE5|morph:HARNESS",
+    "suggested_family_duty": "OIL|LD",
+    "reason": "test_harness"
+  },
+  {
+    "error_timestamp": "2025-12-01T05:27:38.909Z",
+    "failed_query_code": "RE5_HARNESS_2",
+    "family_inference_signals": "prefix:RE5|morph:HARNESS",
+    "suggested_family_duty": "OIL|LD",
+    "reason": "test_harness"
+  },
+  {
+    "error_timestamp": "2025-12-01T05:27:38.910Z",
+    "failed_query_code": "RE5_HARNESS_3",
+    "family_inference_signals": "prefix:RE5|morph:HARNESS",
+    "suggested_family_duty": "OIL|LD",
+    "reason": "test_harness"
+  },
+  {
+    "error_timestamp": "2025-12-01T05:27:53.325Z",
+    "failed_query_code": "2R_HARNESS_1",
+    "family_inference_signals": "prefix:2R|morph:HARNESS",
+    "suggested_family_duty": "OIL|LD",
+    "reason": "test_harness"
+  },
+  {
+    "error_timestamp": "2025-12-01T05:27:53.334Z",
+    "failed_query_code": "2R_HARNESS_2",
+    "family_inference_signals": "prefix:2R|morph:HARNESS",
+    "suggested_family_duty": "OIL|LD",
+    "reason": "test_harness"
+  },
+  {
+    "error_timestamp": "2025-12-01T05:27:53.335Z",
+    "failed_query_code": "2R_HARNESS_3",
+    "family_inference_signals": "prefix:2R|morph:HARNESS",
+    "suggested_family_duty": "OIL|LD",
+    "reason": "test_harness"
+  }
+]

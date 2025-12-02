@@ -4,6 +4,7 @@
 // ============================================================================
 
 const { resolveBrandFamilyDutyByPrefix, normalize } = require('../config/prefixMap');
+const { resolveFamilyDutyByOEMPrefix } = require('../config/oemPrefixRules');
 let OEM_XREF = {};
 try { OEM_XREF = require('../data/oem_xref.json'); } catch (_) { OEM_XREF = {}; }
 const { validateDonaldsonCode, findDonaldsonCode } = require('../scrapers/donaldson');
@@ -34,6 +35,14 @@ async function classifyCode(rawCode) {
   const brand = byPrefix.brand || null;
   let family = byPrefix.family || null;
   const duty = byPrefix.duty || null;
+
+  // Fallback universal: OEM prefix → family/duty (CAT 1R*, JD RE*, Toyota 90915, MANN WK*)
+  if (!family) {
+    const oemResolved = resolveFamilyDutyByOEMPrefix(code, duty);
+    if (oemResolved && oemResolved.family) {
+      family = oemResolved.family;
+    }
+  }
 
   // Additional hooks for Donaldson P55/P60 if not resolved by prefixMap
   if (brand === 'DONALDSON' && /^P/.test(code) && !family) {
