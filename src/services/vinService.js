@@ -4,6 +4,7 @@
 // ============================================================================
 
 const axios = require('axios');
+const vinMapService = require('./vinApplicationMapService');
 
 // Import detection service directly
 let detectFilter;
@@ -117,13 +118,28 @@ async function getFilterCodes(vehicleInfo) {
         
         console.log(`🚗 Vehicle duty detected: ${duty}`);
 
-        // Get OEM filter codes based on make/model/year
-        const filterCodes = await lookupFiltersByVehicle(
-            vehicleInfo.make,
-            vehicleInfo.model,
-            vehicleInfo.year,
-            duty
-        );
+        // First try MongoDB vin_application_map
+        const mappedDocs = await vinMapService.findByDecoded(vehicleInfo);
+        let filterCodes = {};
+        if (Array.isArray(mappedDocs) && mappedDocs.length > 0) {
+            for (const doc of mappedDocs) {
+                const key = vinMapService.filterTypeToKey(doc.filter_type);
+                if (key && doc.oem_code_target) {
+                    filterCodes[key] = String(doc.oem_code_target).toUpperCase();
+                }
+            }
+            console.log(`📚 VIN map hit: ${mappedDocs.length} records`);
+        }
+
+        // Fallback to placeholder lookup when DB has no entries
+        if (Object.keys(filterCodes).length === 0) {
+            filterCodes = await lookupFiltersByVehicle(
+                vehicleInfo.make,
+                vehicleInfo.model,
+                vehicleInfo.year,
+                duty
+            );
+        }
 
         return {
             duty,
