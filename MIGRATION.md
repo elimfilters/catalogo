@@ -261,6 +261,28 @@ PORT=8080  # Changed to match Railway/Docker standard
 
 ---
 
+## 6.0 | Actualización Crítica: Flujo de Enriquecimiento (v6.0+)
+
+La lógica para la obtención de datos técnicos (enriquecimiento) ha cambiado de un sistema de fuente única a un sistema dual para garantizar la máxima calidad de datos en los sectores HD y LD.
+
+### 6.1. Separación de Responsabilidades de Enriquecimiento
+
+| Versión Anterior | Versión Actual (v6.0+) |
+| :--- | :--- |
+| **Fuente Única:** Todos los enriquecimientos de especificaciones se gestionaban a través de Fleetguard (aunque la detección fuera Donaldson). | **Fuente Dual:** El enriquecimiento se dirige al servicio más preciso según el `duty` detectado. |
+
+### 6.2. Módulos y Flujos Afectados
+
+La principal modificación es la introducción del flujo de Web Scraping para el enriquecimiento LD:
+
+- **Nuevo Servicio:** Se ha introducido `framEnrichmentService.js` (basado en Playwright/Selenium) para manejar la obtención de especificaciones técnicas del sector LD.
+- **Servicio Modificado:** `detectionServiceFinal.js` ahora contiene una bifurcación (`if/else`) que llama a `fleetguardEnrichmentService.js` (si es HD) o a `framEnrichmentService.js` (si es LD).
+- **Importante:** El `framEnrichmentService.js` no modifica el `SKU_INTERNO`; solo lo enriquece.
+
+➡️ Detalles de Implementación: Revise la lógica de `detectionServiceFinal.js` y `docs/scraper_rules_es.md#flujo-ld-fram-y-responsabilidades-del-enriquecimiento` para ver la implementación del flujo LD.
+
+---
+
 ## 📚 Operativo: Expansión de `oem_xref.json` (Datos OEM/Competidor)
 
 Esta sección define las pautas para añadir las próximas 50–100 entradas al diccionario `oem_xref.json`, asegurando calidad y consistencia.
