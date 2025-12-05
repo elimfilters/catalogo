@@ -57,7 +57,7 @@ async function scraperBridge(code, duty) {
 
         // OEM→FRAM resolución curada (p.e. Toyota 90915-YZZN1 → PH4967)
         // Primero intentar resolver usando listas curadas globales de fram.js
-        let resolvedFram = resolveFramByCuratedOEM(normalizedCode);
+        // let resolvedFram = resolveFramByCuratedOEM(normalizedCode);
         if (!resolvedFram) {
             // Fallback adicional local
             resolvedFram = maybeResolveFramFromOEM(normalizedCode);
