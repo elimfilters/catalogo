@@ -278,6 +278,9 @@ app.get('/health/lt', (req, res) => {
         const rulesPath = path.join(__dirname, 'src', 'config', 'LT_RULES_MASTER.json');
         const raw = fs.readFileSync(rulesPath, 'utf8');
         const rulesHash = crypto.createHash('sha256').update(raw).digest('hex');
+        const rulesHashShort = rulesHash.slice(0, 8);
+        const rulesStat = fs.statSync(rulesPath);
+        const rulesLoadedAt = new Date(rulesStat.mtime).toISOString();
         const rules = JSON.parse(raw);
 
         const securityCfg = rules?.rules?.security || {};
@@ -299,6 +302,8 @@ app.get('/health/lt', (req, res) => {
             version: APP_VERSION,
             git_sha: GIT_SHA,
             rules_hash: rulesHash,
+            rules_hash_short: rulesHashShort,
+            rules_loaded_at: rulesLoadedAt,
             scraping_sources,
             vin_regex,
             tech_allowed_count: tech_allowed.length,
