@@ -533,7 +533,7 @@ async function detectFilter(rawInput, lang = 'en', options = {}) {
         if (skuPolicyConfig.allowLdFramCanonization && (!scraperResult || !scraperResult.last4) && duty === 'LD') {
             try {
                 const { resolveFramByCuratedOEM, validateFramCode } = require('../scrapers/fram');
-                const framResolved = resolveFramByCuratedOEM(query);
+                // const framResolved = resolveFramByCuratedOEM(query);
                 if (framResolved) {
                     const fr2 = await validateFramCode(framResolved);
                     if (fr2 && fr2.last4) {
