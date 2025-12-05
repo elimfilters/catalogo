@@ -27,6 +27,8 @@ const morgan = require('morgan');
 const helmet = require('helmet');
 const compression = require('compression');
 const rateLimit = require('express-rate-limit');
+// LT Validator
+const { validateAll } = require('./src/services/security/validateLtRules');
 
 // Route imports
 const detectRoute = require('./src/api/detect');
@@ -241,6 +243,27 @@ app.get('/health/overall', async (req, res) => {
         sheets,
         mongo
     });
+});
+
+// =============================================
+//  LT VALIDATOR SELF-TEST ENDPOINT
+// =============================================
+app.get('/validate/self-test', (req, res) => {
+    try {
+        const payload = {
+            duty: 'HD',
+            source: 'Fleetguard',
+            columns: ['Contenido del Kit', 'Filtro Principal (Ref)', 'Tecnología'],
+            sku: 'EK5-0123',
+            technology: 'ELIMTEK™ Standard',
+            vin: '1FDWF7DE7JDF12345',
+            kits: { type: 'EK5' },
+        };
+        const ok = validateAll(payload);
+        res.status(200).json({ status: 'OK', ok });
+    } catch (e) {
+        res.status(500).json({ status: 'ERROR', error: e.message });
+    }
 });
 
 // =============================================

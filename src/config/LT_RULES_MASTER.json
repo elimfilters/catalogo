@@ -1,0 +1,46 @@
+{
+  "rules": {
+    "scraping": {
+      "Fleetguard": {
+        "allowed_for": "HD",
+        "columns_allowed": [
+          "Contenido del Kit",
+          "Filtro Principal (Ref)",
+          "Tecnología"
+        ]
+      },
+      "FRAM": {
+        "allowed_for": "LD",
+        "columns_allowed": [
+          "Contenido del Kit",
+          "Filtro Principal (Ref)",
+          "Tecnología"
+        ]
+      },
+      "Donaldson": {
+        "allowed_for": "HD",
+        "columns_allowed": [
+          "Contenido del Kit",
+          "Filtro Principal (Ref)",
+          "Tecnología"
+        ]
+      }
+    },
+    "sku_generation": {
+      "HD": {},
+      "LD": {},
+      "LT_INTERNAL": {}
+    },
+    "technology_assignment": {
+      "allowed_values": [
+        "ELIMTEK™ Standard"
+      ]
+    },
+    "vin_engine": {
+      "validation_regex": "^[A-HJ-NPR-Z0-9]{17}$"
+    },
+    "security": {
+      "block_on_rule_violation": true
+    }
+  }
+}
