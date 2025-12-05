@@ -45,7 +45,7 @@ async function tryOemFallback(oemCode, duty, familyHint) {
   const meta = OEM_XREF[key] || null;
 
   // Fallback: intentar resolver OEM→FRAM con mapa curado solo si el duty es LD
-if (skuPolicyConfig.allowLdFramCanonization && (!scraperResult || !scraperResult.last4) && duty === 'LD') {
+  if (skuPolicyConfig.allowLdFramCanonization && (!scraperResult || !scraperResult.last4) && duty === 'LD') {
     try {
         const { resolveFramByCuratedOEM, validateFramCode } = require('../scrapers/fram');
         const framResolved = resolveFramByCuratedOEM(query);
@@ -61,12 +61,7 @@ if (skuPolicyConfig.allowLdFramCanonization && (!scraperResult || !scraperResult
     } catch (fallbackErr) {
         console.log(`⚠️  Error en fallback OEM→FRAM (LD): ${fallbackErr.message}`);
     }
-}
-
-            } catch (fallbackErr) {
-                console.log(`⚠️  Error en fallback OEM→FRAM (LD): ${fallbackErr.message}`);
-            }
-        }
+  }
 
   // Lógica pura: sin persistencia ni datos por defecto
   const oemClean = [oemCode];
@@ -535,19 +530,16 @@ async function detectFilter(rawInput, lang = 'en', options = {}) {
         // Fallback: intentar resolver OEM→FRAM con mapa curado solo si el duty es LD
         if (skuPolicyConfig.allowLdFramCanonization && (!scraperResult || !scraperResult.last4) && duty === 'LD') {
             try {
-    // const { resolveFramByCuratedOEM, validateFramCode } = require('../scrapers/fram');
-    // const framResolved = resolveFramByCuratedOEM(query);
-    if (framResolved) {
-        const fr2 = await validateFramCode(framResolved);
-        if (fr2 && fr2.last4) {
-            scraperResult = fr2;
-            duty = 'LD';
-            console.log(`✅ Resuelto vía mapa curado OEM→FRAM (LD): ${query} → ${framResolved}`);
-        }
-    }
-} catch (fallbackErr) {
-    console.log(`⚠️  Error en fallback OEM→FRAM (LD): ${fallbackErr.message}`);
-}
+                const { resolveFramByCuratedOEM, validateFramCode } = require('../scrapers/fram');
+                const framResolved = resolveFramByCuratedOEM(query);
+                if (framResolved) {
+                    const fr2 = await validateFramCode(framResolved);
+                    if (fr2 && fr2.last4) {
+                        scraperResult = fr2;
+                        duty = 'LD';
+                        console.log(`✅ Resuelto vía mapa curado OEM→FRAM (LD): ${query} → ${framResolved}`);
+                    }
+                }
             } catch (fallbackErr) {
                 console.log(`⚠️  Error en fallback OEM→FRAM (LD): ${fallbackErr.message}`);
             }
