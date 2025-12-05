@@ -52,10 +52,39 @@ async function resolveBaseData(normCode) {
   };
 }
 
-/**
- * Genera un SKU ELIM a partir de family/duty/last4.
- * Ajusta la lógica a tu convención real.
- */
+console.warn("[DETECT][POLICY] Campos incompletos para SKU", {
+  code,
+  norm,
+  family,
+  duty,
+  last4,
+  policy,
+});
+
+if (!family || !duty || !last4) {
+  return {
+    success: true,
+    query: norm,
+    error: null,
+    details: "Partial resolution: missing family/duty/last4 (policy relaxed).",
+    policy: {
+      ...policy,
+      enforceInviolable: false,
+    },
+    resolution_level: "partial",
+    sku: null,
+    norm,
+    duty_type: duty || null,
+    family: family || null,
+    meta: {
+      family,
+      duty,
+      last4,
+      row,
+    },
+  };
+}
+
 function generateSku({ family, duty, last4 }) {
   if (!family || !duty || !last4) return null;
   return `E-${family}-${duty}-${last4}`;
