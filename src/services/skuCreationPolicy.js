@@ -13,13 +13,26 @@ const { getPrefix, generateEM9SubtypeSKU, generateEM9SSeparatorSKU, generateET9S
 const { resolveFamilyDutyByOEMPrefix } = require('../config/oemPrefixRules');
 
 function readPolicyText() {
-  const p = path.join(__dirname, '..', '..', 'docs', 'SKU_CREATION_POLICY_ES.md');
-  return fs.readFileSync(p, 'utf8');
+  // Prefer master policy docs for hash and public endpoint
+  const files = [
+    path.join(__dirname, '..', '..', 'docs', 'SKU_CREATION_POLICY_MASTER_ES.md'),
+    path.join(__dirname, '..', '..', 'docs', 'SKU_CREATION_POLICY_MASTER_Y_MARINOS_ES.md')
+  ];
+  let acc = '';
+  for (const f of files) {
+    try { acc += fs.readFileSync(f, 'utf8'); } catch (_) {}
+  }
+  return acc || '';
 }
 
 function policyHash() {
-  const txt = readPolicyText();
-  return crypto.createHash('sha256').update(txt).digest('hex');
+  try {
+    const { computePolicyHash } = require('../config/policyGuard');
+    return computePolicyHash();
+  } catch (_) {
+    const txt = readPolicyText();
+    return crypto.createHash('sha256').update(txt).digest('hex');
+  }
 }
 
 async function applySkuPolicyAndUpsert(inputCode, lang = 'es') {
