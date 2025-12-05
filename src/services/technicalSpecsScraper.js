@@ -673,14 +673,20 @@ async function extractFramSpecs(code) {
         const urlPrimary = `https://www.fram.com/products/${code.toLowerCase()}`;
         let $ = null;
         try {
-            const response = await axios.get(urlPrimary, {
+            const response = await fetchWithRetries(urlPrimary, {
                 timeout: 15000,
                 headers: {
                     'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
                 }
-            });
+            }, 3, 1200);
             $ = cheerio.load(response.data);
         } catch (e) {
+            const status = e?.response?.status;
+            const blocked = status === 403 || status === 429;
+            const timedOut = /timeout|ECONNABORTED/i.test(String(e?.message||'')) || e?.code === 'ECONNABORTED';
+            const serverErr = status >= 500 && status < 600;
+            const klass = blocked ? 'blocked' : (timedOut ? 'timeout' : (serverErr ? `http_${status}` : 'other'));
+            console.warn(`⚠️ FRAM primary fetch failed (${klass}): ${e?.message || 'unknown'}`);
             // Primary URL may 404; continue with alternate flows below
             $ = null;
         }
@@ -704,22 +710,49 @@ async function extractFramSpecs(code) {
             specs.description = `${code} Filter`;
         }
 
-        // Dimensions (similar extraction as Donaldson)
+        // Dimensiones: selectores alternativos y parseo tolerante
         if ($) {
-            const specsTable = $('.specifications-table, .product-specs');
+            const convertToMm = (txt='') => {
+                const t = String(txt||'').toLowerCase();
+                const mm = t.match(/([0-9]+(?:\.[0-9]+)?)\s*mm/);
+                if (mm) return Number(mm[1]).toFixed(2);
+                const inch = t.match(/([0-9]+(?:\.[0-9]+)?)\s*(?:in|inch|inches)/);
+                if (inch) return (parseFloat(inch[1])*25.4).toFixed(2);
+                const raw = t.match(/([0-9]+(?:\.[0-9]+)?)/);
+                if (raw) return (parseFloat(raw[1])*25.4).toFixed(2);
+                return '';
+            };
+            const specsTable = $('.specifications-table, .product-specs, .specs, .specs-table, .product-details .table, .product-details__specs');
             specsTable.find('tr').each((i, row) => {
-                const label = $(row).find('td').first().text().trim().toLowerCase();
+                const label = $(row).find('th, td').first().text().trim().toLowerCase();
                 const value = $(row).find('td').last().text().trim();
                 if (label.includes('height')) {
-                    const match = value.match(/([0-9.]+)/);
-                    if (match) specs.dimensions.height_mm = (parseFloat(match[1]) * 25.4).toFixed(2);
+                    const mm = convertToMm(value);
+                    if (mm) specs.dimensions.height_mm = mm;
                 }
-                if (label.includes('diameter')) {
-                    const match = value.match(/([0-9.]+)/);
-                    if (match) specs.dimensions.outer_diameter_mm = (parseFloat(match[1]) * 25.4).toFixed(2);
+                if (label.includes('outer') || label.includes('outside') || label.includes('o.d') || label.includes('od') || label.includes('diameter')) {
+                    const mm = convertToMm(value);
+                    if (mm) specs.dimensions.outer_diameter_mm = mm;
                 }
                 if (label.includes('thread')) {
                     specs.dimensions.thread_size = value;
+                }
+            });
+            // Bullets tipo "Height: 5 in"
+            $('.specifications, .specs, .product-specs, .product-details').find('li').each((i, li) => {
+                const text = $(li).text().trim();
+                const low = text.toLowerCase();
+                if (!specs.dimensions.height_mm && low.includes('height')) {
+                    const mm = convertToMm(text);
+                    if (mm) specs.dimensions.height_mm = mm;
+                }
+                if (!specs.dimensions.outer_diameter_mm && (low.includes('outer diameter') || low.includes('outside diameter') || low.includes('o.d') || low.includes('od') || low.includes('diameter'))) {
+                    const mm = convertToMm(text);
+                    if (mm) specs.dimensions.outer_diameter_mm = mm;
+                }
+                if (!specs.dimensions.thread_size && low.includes('thread')) {
+                    const m = text.match(/thread\s*(?:size)?\s*[:\-]?\s*([A-Za-z0-9\-\/xX]+)/i);
+                    if (m && m[1]) specs.dimensions.thread_size = m[1].trim();
                 }
             });
         }
@@ -800,10 +833,10 @@ async function extractFramSpecs(code) {
         if (specs.equipment_applications.length === 0) {
             try {
                 const urlAlt = `https://www.fram.com/fram-extra-guard-oil-filter-spin-on-${code.toLowerCase()}`;
-                const respAlt = await axios.get(urlAlt, {
+                const respAlt = await fetchWithRetries(urlAlt, {
                     timeout: 15000,
                     headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36' }
-                });
+                }, 3, 1200);
                 const $alt = cheerio.load(respAlt.data);
                 const apps = [];
                 $alt('table').each((ti, tbl) => {
@@ -836,6 +869,12 @@ async function extractFramSpecs(code) {
                     specs.equipment_applications = Array.from(map.values()).slice(0, 20);
                 }
             } catch (altErr) {
+                const status = altErr?.response?.status;
+                const blocked = status === 403 || status === 429;
+                const timedOut = /timeout|ECONNABORTED/i.test(String(altErr?.message||'')) || altErr?.code === 'ECONNABORTED';
+                const serverErr = status >= 500 && status < 600;
+                const klass = blocked ? 'blocked' : (timedOut ? 'timeout' : (serverErr ? `http_${status}` : 'other'));
+                console.warn(`⚠️ FRAM alt apps fetch failed (${klass}): ${altErr?.message || 'unknown'}`);
                 // continuar con fallback
             }
         }
@@ -942,7 +981,7 @@ async function extractFramSpecs(code) {
         if (specs.equipment_applications.length === 0) {
             try {
                 const proxyUrl = `https://r.jina.ai/http://www.fram.com/fram-extra-guard-oil-filter-spin-on-${code.toLowerCase()}`;
-                const prox = await axios.get(proxyUrl, { timeout: 12000, headers: { 'User-Agent': 'Mozilla/5.0' } });
+                const prox = await fetchWithRetries(proxyUrl, { timeout: 12000, headers: { 'User-Agent': 'Mozilla/5.0' } }, 3, 1200);
                 const body = String(prox.data || '');
                 const lines = body.split(/\r?\n/).map(l => l.trim()).filter(Boolean);
                 const rows = [];
@@ -967,7 +1006,14 @@ async function extractFramSpecs(code) {
                     }
                     specs.equipment_applications = Array.from(map.values()).slice(0, 20);
                 }
-            } catch (_) {}
+            } catch (proxyErr) {
+                const status = proxyErr?.response?.status;
+                const blocked = status === 403 || status === 429;
+                const timedOut = /timeout|ECONNABORTED/i.test(String(proxyErr?.message||'')) || proxyErr?.code === 'ECONNABORTED';
+                const serverErr = status >= 500 && status < 600;
+                const klass = blocked ? 'blocked' : (timedOut ? 'timeout' : (serverErr ? `http_${status}` : 'other'));
+                console.warn(`⚠️ FRAM proxy apps fetch failed (${klass}): ${proxyErr?.message || 'unknown'}`);
+            }
         }
 
         // Curado: si PH6607, asegurar que ejemplos representativos estén presentes
@@ -1022,7 +1068,7 @@ async function extractFramSpecs(code) {
                 if (mm) specs.dimensions.height_mm = mm;
             }
             if (!specs.dimensions.outer_diameter_mm && fullText) {
-                const m = fullText.match(/(outer\s*diameter|o\.d\.|od)\s*[:\-]?\s*([0-9]+(?:\.[0-9]+)?\s*(?:in|inch|inches|mm))/i);
+                const m = fullText.match(/(outer\s*diameter|outside\s*diameter|o\.d\.|od|diameter)\s*[:\-]?\s*([0-9]+(?:\.[0-9]+)?\s*(?:in|inch|inches|mm))/i);
                 const mm = mmFromInchesStr(m ? m[2] : '');
                 if (mm) specs.dimensions.outer_diameter_mm = mm;
             }
@@ -1037,7 +1083,7 @@ async function extractFramSpecs(code) {
         if (!specs.dimensions.height_mm || !specs.dimensions.outer_diameter_mm || !specs.dimensions.thread_size) {
             try {
                 const proxyUrl = `https://r.jina.ai/http://www.fram.com/fram-extra-guard-oil-filter-spin-on-${code.toLowerCase()}`;
-                const prox = await axios.get(proxyUrl, { timeout: 12000, headers: { 'User-Agent': 'Mozilla/5.0' } });
+                const prox = await fetchWithRetries(proxyUrl, { timeout: 12000, headers: { 'User-Agent': 'Mozilla/5.0' } }, 3, 1200);
                 const text = String(prox.data || '');
                 function mmFromStr(str, idx=1) {
                     const m = String(str||'').match(/([0-9]+(?:\.[0-9]+)?)\s*(in|inch|inches|mm)/i);
@@ -1053,7 +1099,7 @@ async function extractFramSpecs(code) {
                     if (mm) specs.dimensions.height_mm = mm;
                 }
                 if (!specs.dimensions.outer_diameter_mm) {
-                    const m = text.match(/(outer\s*diameter|o\.d\.|od)\s*[:\-]?\s*([0-9]+(?:\.[0-9]+)?\s*(?:in|inch|inches|mm))/i);
+                    const m = text.match(/(outer\s*diameter|outside\s*diameter|o\.d\.|od|diameter)\s*[:\-]?\s*([0-9]+(?:\.[0-9]+)?\s*(?:in|inch|inches|mm))/i);
                     const mm = mmFromStr(m ? m[2] : '');
                     if (mm) specs.dimensions.outer_diameter_mm = mm;
                 }
@@ -1061,7 +1107,14 @@ async function extractFramSpecs(code) {
                     const m = text.match(/thread\s*size\s*[:\-]?\s*([A-Za-z0-9\-\/xX]+)/i);
                     if (m && m[1]) specs.dimensions.thread_size = m[1].trim();
                 }
-            } catch (_) {}
+            } catch (proxyErr) {
+                const status = proxyErr?.response?.status;
+                const blocked = status === 403 || status === 429;
+                const timedOut = /timeout|ECONNABORTED/i.test(String(proxyErr?.message||'')) || proxyErr?.code === 'ECONNABORTED';
+                const serverErr = status >= 500 && status < 600;
+                const klass = blocked ? 'blocked' : (timedOut ? 'timeout' : (serverErr ? `http_${status}` : 'other'));
+                console.warn(`⚠️ FRAM proxy dimensions fetch failed (${klass}): ${proxyErr?.message || 'unknown'}`);
+            }
         }
 
         specs.found = true;

@@ -3,10 +3,32 @@
 // =============================================
 
 const express = require('express');
+const fs = require('fs');
+const path = require('path');
 const router = express.Router();
 const { detectFilter } = require('../services/detectionServiceFinal');
 const { buildRowData } = require('../services/syncSheetsService');
 const { enforceSkuPolicyInvariant, getPolicyConfig } = require('../services/skuCreationPolicy');
+
+// Telemetría: registro de eventos cuando equipment_applications queda vacío
+const EMPTY_APPS_LOG = path.join(__dirname, '..', '..', 'reports', 'empty_equipment_applications.jsonl');
+function logEmptyAppsEvent(event) {
+    try {
+        const payload = {
+            timestamp: new Date().toISOString(),
+            route: event.route,
+            query: event.query,
+            code: event.code,
+            relaxed: !!event.relaxed,
+            duty: event.duty || null,
+            family: event.family || null,
+            source: event.source || null,
+            sku: event.sku || null,
+            lang: event.lang || 'en'
+        };
+        fs.appendFileSync(EMPTY_APPS_LOG, JSON.stringify(payload) + '\n');
+    } catch (_) { /* swallow logging errors */ }
+}
 
 // =============================================
 //  GET /api/detect/:code
@@ -38,6 +60,34 @@ router.get('/:code', async (req, res) => {
         console.log(`🔎 Detecting filter: ${code} (force=${force}, generate_all=${generateAll}, lang=${lang})`);
 
         const result = await detectFilter(code, lang, { force, generateAll });
+
+        // Stagehand relaxed mode: permitir respuesta aun sin apps de equipo
+        const relaxed = (req?.query?.stagehand === '1' || req?.query?.relaxed === '1' || process.env.STAGEHAND_MODE === 'relaxed');
+        const eqRaw = result?.equipment_applications ?? [];
+        const eqCountImmediate = Array.isArray(eqRaw)
+            ? eqRaw.length
+            : (typeof eqRaw === 'string' ? String(eqRaw).split(',').map(s => s.trim()).filter(Boolean).length : 0);
+        if (eqCountImmediate === 0) {
+            // Log siempre el evento de vacíos para monitoreo
+            logEmptyAppsEvent({
+                route: '/api/detect/:code',
+                query: code,
+                code,
+                relaxed,
+                duty: result?.duty,
+                family: result?.family,
+                source: result?.source,
+                sku: result?.sku,
+                lang
+            });
+        }
+        if (!relaxed && eqCountImmediate === 0) {
+            return res.status(400).json({
+                success: false,
+                error: 'EMPTY_EQUIPMENT_APPS',
+                details: 'No equipment applications found for this code'
+            });
+        }
 
         // Previsualización de fila para Google Sheets (G: oem_codes, H: cross_reference)
         let sheet_preview = {};
@@ -149,6 +199,34 @@ router.get('/search', async (req, res) => {
         console.log(`🔍 Searching: ${query} (force=${force}, generate_all=${generateAll}, lang=${lang})`);
 
         const result = await detectFilter(query, lang, { force, generateAll });
+
+        // Stagehand relaxed mode: permitir respuesta aun sin apps de equipo
+        const relaxed2 = (req?.query?.stagehand === '1' || req?.query?.relaxed === '1' || process.env.STAGEHAND_MODE === 'relaxed');
+        const eqRaw2 = result?.equipment_applications ?? [];
+        const eqCountImmediate2 = Array.isArray(eqRaw2)
+            ? eqRaw2.length
+            : (typeof eqRaw2 === 'string' ? String(eqRaw2).split(',').map(s => s.trim()).filter(Boolean).length : 0);
+        if (eqCountImmediate2 === 0) {
+            // Log siempre el evento de vacíos para monitoreo
+            logEmptyAppsEvent({
+                route: '/api/detect/search',
+                query,
+                code: query,
+                relaxed: relaxed2,
+                duty: result?.duty,
+                family: result?.family,
+                source: result?.source,
+                sku: result?.sku,
+                lang
+            });
+        }
+        if (!relaxed2 && eqCountImmediate2 === 0) {
+            return res.status(400).json({
+                success: false,
+                error: 'EMPTY_EQUIPMENT_APPS',
+                details: 'No equipment applications found for this query'
+            });
+        }
 
         // Previsualización de fila para Google Sheets (G: oem_codes, H: cross_reference)
         let sheet_preview = {};

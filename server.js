@@ -6,6 +6,16 @@
 // Load environment variables (for local development)
 try { require('dotenv').config(); } catch (_) {}
 
+// Enforce inviolable SKU policy at startup (hash + invariants)
+try {
+    const { enforceStartupPolicy } = require('./src/config/policyGuard');
+    enforceStartupPolicy();
+    console.log(`✅ SKU policy guard active. Hash=${process.env.SKU_POLICY_HASH_COMPUTED}`);
+} catch (e) {
+    console.error(`❌ Startup policy guard failed: ${e.message}`);
+    process.exit(1);
+}
+
 // Versioning info
 const { version: pkgVersion } = require('./package.json');
 const APP_VERSION = process.env.APP_VERSION || pkgVersion || 'unknown';

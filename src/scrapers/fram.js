@@ -358,7 +358,7 @@ async function validateFramCode(inputCode) {
                 code: result.code,
                 source: 'FRAM',
                 family,
-                duty: 'HD',
+                duty: 'LD',
                 last4,
                 cross: result.cross || [],
                 applications: result.applications || [],
