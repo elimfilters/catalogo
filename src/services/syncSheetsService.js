@@ -131,7 +131,12 @@ const DESIRED_HEADERS = [
     'certification_standards',
     'service_life_hours',
     'change_interval_km',
-    'tecnologia_aplicada'
+    'tecnologia_aplicada',
+    'technology_name',
+    'technology_tier',
+    'technology_scope',
+    'technology_equivalents',
+    'technology_oem_detected'
 ];
 
 // ----------------------------------------------------------------------------
@@ -187,8 +192,9 @@ const ensureBrandPhrasing = (text) => {
 };
 
 // Medias y lÃ­neas desde util de producto (especificaciÃ³n: usar mediaMapper.js)
-const { getMedia: getProductMedia } = require('../utils/mediaMapper');
-const { getTechnology: getProductTechnology } = require('../utils/elimfiltersTechnologies');
+    const { getMedia: getProductMedia } = require('../utils/mediaMapper');
+    const { getTechnology: getProductTechnology } = require('../utils/elimfiltersTechnologies');
+    const { normalizeTechnology } = require('../utils/technologyNormalizer');
 const { resolveSubtype } = require('../utils/subtypeResolver');
 
 // ============================================================================
@@ -831,7 +837,7 @@ function buildRowData(data) {
             case 'Coolant': return 'COOLANT';
             case 'Hidraulic': return 'HYDRAULIC';
             case 'Air Dryer': return 'AIR_DRYER';
-            case 'Fuel Separator': return 'FUEL'; // clave compartida
+            case 'Fuel Separator': return 'FUEL SEPARATOR';
             case 'Turbine Series': return 'TURBINE';
             case 'Carcazas': return 'HOUSING';
             default: return (String(canon || '').toUpperCase() || 'OIL');
@@ -865,6 +871,7 @@ function buildRowData(data) {
         if (familyPrefix === 'CABIN') return series === 'CF' ? 'PREMIUM' : 'PURE';
         if (familyPrefix === 'OIL') return (duty === 'HD' || series === 'XG') ? 'SYNTHETIC' : 'ADVANCED';
         if (familyPrefix === 'FUEL') return (duty === 'HD' || series === 'PS') ? 'ULTRA' : 'ADVANCED';
+        if (familyPrefix === 'FUEL SEPARATOR') return 'ULTRA';
         if (familyPrefix === 'HYDRAULIC') return 'ULTRA';
         if (familyPrefix === 'COOLANT') return 'SYNTHETIC';
         if (familyPrefix === 'AIR_DRYER') return 'ULTRA';
@@ -1530,6 +1537,21 @@ function buildRowData(data) {
         } catch (_) { return ''; }
     })();
 
+    // Normalizar tecnología detectada por scrapers (FRAM/Donaldson/Fleetguard)
+    const rawTecnologia = (
+        (attrs.tecnologia_aplicada && String(attrs.tecnologia_aplicada).trim()) ||
+        (data.tecnologia_aplicada && String(data.tecnologia_aplicada).trim()) ||
+        ''
+    );
+    // Enriquecer la señal de normalización con códigos OEM y SKU para EM9/ET9
+    const signalStr = [
+        rawTecnologia,
+        Array.isArray(top8Oem) ? top8Oem.join(' ') : '',
+        String(data.sku || ''),
+        String(data.query_normalized || data.code_input || '')
+    ].join(' ').trim();
+    const techInfo = normalizeTechnology(signalStr, familyPrefix, data.duty || '');
+
     return {
         query: data.query_normalized || data.code_input || '',
         normsku: data.sku || '',
@@ -1549,10 +1571,14 @@ function buildRowData(data) {
         cross_reference_indice_mongo: cleanedCR,
         media_type: mediaTypeBase,
         tecnologia_aplicada: (
-            (attrs.tecnologia_aplicada && String(attrs.tecnologia_aplicada).trim()) ||
-            (data.tecnologia_aplicada && String(data.tecnologia_aplicada).trim()) ||
+            (techInfo && techInfo.tecnologia_aplicada) ||
             getProductTechnology(familyPrefix, data.duty, data.sku)
         ),
+        technology_name: (techInfo && techInfo.technology_name) || '',
+        technology_tier: (techInfo && techInfo.technology_tier) || '',
+        technology_scope: (techInfo && techInfo.technology_scope) || '',
+        technology_equivalents: (techInfo && techInfo.technology_equivalents) || '',
+        technology_oem_detected: rawTecnologia,
         equipment_applications: formatApps(data.equipment_applications || attrs.equipment_applications),
         engine_applications: buildMotorFinalAndIndex(data.engine_applications || data.applications || [], data.duty || '').finalList.join(', '),
         height_mm: heightOut,
@@ -4115,7 +4141,8 @@ function ensureRowCompleteness(row) {
         // Strings neutrales
         const stringDefaults = [
             'thread_size','drain_type','seal_material','housing_material','iso_test_method',
-            'manufacturing_standards','certification_standards','equipment_applications','engine_applications'
+            'manufacturing_standards','certification_standards','equipment_applications','engine_applications',
+            'technology_name','technology_tier','technology_scope','technology_equivalents','technology_oem_detected'
         ];
         for (const k of stringDefaults) defIfEmpty(k, 'N/A');
 
@@ -4263,7 +4290,7 @@ function textContainsAny(str, keywords) {
 
 function isFuelWaterSeparator(row) {
     const family = String(row.family || row.filter_type || '').toUpperCase();
-    if (family !== 'FUEL') return false;
+    if (!['FUEL','FUEL SEPARATOR'].includes(family)) return false;
     const keys = ['subtype','description','media_type'];
     const kw = ['water','separ','separador','separation','agua'];
     return keys.some(k => textContainsAny(row[k], kw));
@@ -4272,7 +4299,8 @@ function isFuelWaterSeparator(row) {
 // Heurística: detectar diseño Spin-On por texto
 function isSpinOnDesignHint(row) {
     const keys = ['subtype','description'];
-    const kw = ['spin', 'rosca', 'roscado', 'unf', 'm\"', 'mm x', 'x tpi'];
+    // Palabras clave más estrictas para evitar falsos positivos
+    const kw = ['spin-on', 'spin on', 'rosca', 'roscado', 'unf ', 'm\"', 'mm x', ' x tpi'];
     return keys.some(k => textContainsAny(row[k], kw));
 }
 
@@ -4388,10 +4416,25 @@ async function appendToSheet(data) {
             }
             throw new Error('SKU policy enforcement failed unexpectedly');
         }
-        // Validar antes de completar defaults (bloquea upsert si falta lo esencial)
-        const skipValidationAppend = data && data.minimal === true;
+        // Validar antes de completar defaults. Si faltan esenciales, degradar a modo mínimo.
+        let skipValidationAppend = data && data.minimal === true;
         if (!skipValidationAppend) {
-            validateEssentialFields(rowData);
+            try {
+                validateEssentialFields(rowData);
+            } catch (err) {
+                if (err && err.code === 'ESSENTIALS_VALIDATION_FAILED') {
+                    const fam = String(rowData.family || rowData.filter_type || '').toUpperCase();
+                    const allowedMinimal = new Set(['OIL','FUEL','HYDRAULIC','COOLANT']);
+                    if (allowedMinimal.has(fam)) {
+                        console.warn(`⚠️ Escritura mínima por faltantes esenciales (${fam}): ${err.message}`);
+                        skipValidationAppend = true; // degradar a modo mínimo
+                    } else {
+                        throw err;
+                    }
+                } else {
+                    throw err;
+                }
+            }
         }
         const finalized = ensureRowCompleteness(rowData);
         await sheet.addRow(finalized);
@@ -4427,10 +4470,25 @@ async function upsertBySku(data, options = { deleteDuplicates: true }) {
         const matches = rows.filter(r => (r.normsku || '').toUpperCase().trim() === skuNorm);
 
         const rowData = buildRowData(data);
-        // Validación previa a escritura (permitir modo mínimo sin validar)
-        const skipValidationUpsert = data && data.minimal === true;
+        // Validación previa a escritura. Si faltan esenciales, degradar a modo mínimo automáticamente.
+        let skipValidationUpsert = data && data.minimal === true;
         if (!skipValidationUpsert) {
-            validateEssentialFields(rowData);
+            try {
+                validateEssentialFields(rowData);
+            } catch (err) {
+                if (err && err.code === 'ESSENTIALS_VALIDATION_FAILED') {
+                    const fam = String(rowData.family || rowData.filter_type || '').toUpperCase();
+                    const allowedMinimal = new Set(['OIL','FUEL','HYDRAULIC','COOLANT']);
+                    if (allowedMinimal.has(fam)) {
+                        console.warn(`⚠️ Upsert en modo mínimo por faltantes esenciales (${fam}): ${err.message}`);
+                        skipValidationUpsert = true; // degradar a modo mínimo
+                    } else {
+                        throw err;
+                    }
+                } else {
+                    throw err;
+                }
+            }
             // Enforce inviolable SKU creation policy: no inventar/adivinar fuera de norma
             try {
                 const { enforceSkuPolicyInvariant } = require('./skuCreationPolicy');
