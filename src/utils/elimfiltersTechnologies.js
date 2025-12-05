@@ -73,6 +73,44 @@ const TECHNOLOGY_REGISTRY = {
       'Sistema de liberación controlada de aditivos (DCA) para prevenir corrosión y cavitación, manteniendo la química del refrigerante.',
     reference: 'FleetCool® / Filtros de refrigerante con DCA'
   }
+  ,
+  // IV. Tecnologías MARINE & TURBINE
+  'AQUACORE™ Marine 1000 – Primary Coalescing Stage': {
+    description: 'Primera etapa coalescente de alta capacidad para separación de agua en sistemas marinos.',
+    reference: 'Racor 500FG/900FG/1000FG; Fleetguard FS19594; Donaldson Water Separator'
+  },
+  'AQUACORE™ Marine 2000 – Ultra-Separator Secondary Stage': {
+    description: 'Etapa secundaria HPCR para agua disuelta, emulsiones finas y micro-partículas.',
+    reference: 'Racor S3201/S3209; Fleetguard FH230/FS36231; Donaldson Synteq DRY Marina'
+  },
+  'AQUACORE™ Marine 3000 – Cartridge Marine Series (Reemplazo Racor)': {
+    description: 'Cartuchos equivalentes para cabezales Racor Serie Turbine con mejora de restricción/capacidad.',
+    reference: 'Racor S3206/S3227/S3213/S3214/S3216/S3230; Baldwin BF; Donaldson MAR'
+  },
+  'AQUACORE™ Marine 4000 – High Flow Water Block + Coalescing': {
+    description: 'Sistema dual coalescente + hidrofóbico de alto flujo para aplicaciones marinas comerciales.',
+    reference: 'Racor High Flow; Fleetguard FS1212/FS36200; Donaldson High Flow Water Separator'
+  },
+  'TURBINE X500 – Assembly Replacement': {
+    description: 'Cabezal/carcasa compatibles con Racor 500FG con mejoras en resistencia y drenaje.',
+    reference: 'Racor 500FG; Donaldson MAR500; Fleetguard FS19594 Assembly'
+  },
+  'TURBINE X900 – Assembly Replacement': {
+    description: 'Sistema equivalente al 900FG con mayor capacidad de flujo y AquaCore optimizado.',
+    reference: 'Racor 900FG; Donaldson MAR900; Fleetguard FH234'
+  },
+  'TURBINE X1000 – High-Capacity Assembly': {
+    description: 'Reemplazo completo del 1000FG para motores duales y generadores marinos.',
+    reference: 'Racor 1000FG; Donaldson MAR1000; Fleetguard FH256'
+  },
+  'HYDROFLOW™ TurboMax – Industrial/Marine Turbine Filtration': {
+    description: 'MicroGlass β2000 antiestático para turbinas de gas, compresores y generadores estacionarios.',
+    reference: 'Donaldson High Efficiency Glass; Fleetguard MicroGlass Industrial'
+  },
+  'AQUASENSE™ – Sensor Inteligente de Agua': {
+    description: 'Sensor de agua para bowls transparentes con alertas y mantenimiento predictivo.',
+    reference: 'Racor WIF; Donaldson WIF Kit; Fleetguard WIF Module'
+  }
 };
 
 // Heurísticas de asignación por familia/duty/código
