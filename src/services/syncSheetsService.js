@@ -5,12 +5,24 @@
 
 const { GoogleSpreadsheet } = require('google-spreadsheet');
 const { JWT } = require('google-auth-library');
+// Load env locally; attempt parent resolution if needed
+try { require('dotenv').config(); } catch (_) {}
+const path = require('path');
+if (!process.env.GOOGLE_CREDENTIALS && !process.env.GOOGLE_PRIVATE_KEY) {
+    try {
+        const altEnvPath = path.join(__dirname, '../../../.env');
+        require('dotenv').config({ path: altEnvPath });
+        if (process.env.GOOGLE_CREDENTIALS || process.env.GOOGLE_PRIVATE_KEY) {
+            console.log('🔧 Loaded env from parent .env');
+        }
+    } catch (_) {}
+}
 
 // ============================================================================
 // CONFIGURATION
 // ============================================================================
 
-const SHEET_ID = '1ZYI5c0enkuvWAveu8HMaCUk1cek_VDrX8GtgKW7VP6U';
+const SHEET_ID = process.env.GOOGLE_SHEETS_ID || '1ZYI5c0enkuvWAveu8HMaCUk1cek_VDrX8GtgKW7VP6U';
 
 // Column mapping (exact headers from Sheet Master)
 const COLUMNS = {
@@ -77,15 +89,37 @@ const COLUMNS = {
 
 async function initSheet() {
     try {
-        const serviceAccountAuth = new JWT({
-            email: process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL,
-            key: process.env.GOOGLE_PRIVATE_KEY?.replace(/\\n/g, '\n'),
-            scopes: ['https://www.googleapis.com/auth/spreadsheets'],
-        });
+        const doc = new GoogleSpreadsheet(SHEET_ID);
 
-        const doc = new GoogleSpreadsheet(SHEET_ID, serviceAccountAuth);
+        // Prefer JSON credentials if provided
+        const credsRaw = process.env.GOOGLE_CREDENTIALS;
+        if (credsRaw) {
+            let creds;
+            try {
+                creds = JSON.parse(credsRaw);
+            } catch (e) {
+                throw new Error('Invalid GOOGLE_CREDENTIALS JSON');
+            }
+            if (creds.private_key) {
+                creds.private_key = creds.private_key.replace(/\\n/g, '\n');
+            }
+            await doc.useServiceAccountAuth({
+                client_email: creds.client_email,
+                private_key: creds.private_key
+            });
+        } else if ((process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL || process.env.GOOGLE_CLIENT_EMAIL) && process.env.GOOGLE_PRIVATE_KEY) {
+            // Fallback to explicit env vars (support both GOOGLE_SERVICE_ACCOUNT_EMAIL and GOOGLE_CLIENT_EMAIL)
+            const clientEmail = process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL || process.env.GOOGLE_CLIENT_EMAIL;
+            const privateKey = process.env.GOOGLE_PRIVATE_KEY.replace(/\\n/g, '\n');
+            await doc.useServiceAccountAuth({
+                client_email: clientEmail,
+                private_key: privateKey
+            });
+        } else {
+            throw new Error('Missing Google Sheets credentials: set GOOGLE_CREDENTIALS or GOOGLE_SERVICE_ACCOUNT_EMAIL/GOOGLE_CLIENT_EMAIL + GOOGLE_PRIVATE_KEY');
+        }
+
         await doc.loadInfo();
-        
         console.log(`📊 Google Sheet Master loaded: ${doc.title}`);
         return doc;
 
@@ -112,44 +146,64 @@ async function searchInSheet(code) {
         const rows = await sheet.getRows();
         const normalizedCode = code.toUpperCase().replace(/[^A-Z0-9]/g, '');
 
+        // Safe accessor for environments without row.get()
+        const getCell = (r, key) => {
+            try {
+                if (r && typeof r.get === 'function') return r.get(key);
+                return r ? r[key] : undefined;
+            } catch (_) { return undefined; }
+        };
+
         for (const row of rows) {
-            const queryNorm = row.get('query_norm')?.toUpperCase().replace(/[^A-Z0-9]/g, '');
-            const oemCodes = row.get('oem_codes')?.toUpperCase().replace(/[^A-Z0-9]/g, '');
-            const sku = row.get('sku')?.toUpperCase().replace(/[^A-Z0-9]/g, '');
+            const queryNorm = getCell(row, 'query_norm')?.toUpperCase().replace(/[^A-Z0-9]/g, '');
+            const sku = getCell(row, 'sku')?.toUpperCase().replace(/[^A-Z0-9]/g, '');
+
+            // oem_codes may be a JSON array string; support matching any element
+            const oemRaw = getCell(row, 'oem_codes');
+            let oemMatch = false;
+            try {
+                const arr = typeof oemRaw === 'string' ? JSON.parse(oemRaw) : Array.isArray(oemRaw) ? oemRaw : [];
+                if (Array.isArray(arr)) {
+                    oemMatch = arr.some(v => String(v).toUpperCase().replace(/[^A-Z0-9]/g, '') === normalizedCode);
+                }
+            } catch (_) {
+                const oemStr = String(oemRaw || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+                oemMatch = oemStr === normalizedCode;
+            }
 
             if (queryNorm === normalizedCode || 
-                oemCodes === normalizedCode || 
+                oemMatch || 
                 sku === normalizedCode) {
                 
-                console.log(`📊 Found in Google Sheet Master: ${code} → ${row.get('sku')}`);
+                console.log(`📊 Found in Google Sheet Master: ${code} → ${getCell(row, 'sku')}`);
                 
                 return {
                     found: true,
-                    query_norm: row.get('query_norm'),
-                    sku: row.get('sku'),
-                    description: row.get('description'),
-                    family: row.get('family'),
-                    duty: row.get('duty'),
-                    oem_codes: row.get('oem_codes'),
-                    cross_reference: tryParseJSON(row.get('cross_reference')),
-                    media_type: row.get('media_type'),
-                    filter_type: row.get('filter_type'),
-                    subtype: row.get('subtype'),
-                    engine_applications: tryParseJSON(row.get('engine_applications')),
-                    equipment_applications: tryParseJSON(row.get('equipment_applications')),
+                    query_norm: getCell(row, 'query_norm'),
+                    sku: getCell(row, 'sku'),
+                    description: getCell(row, 'description'),
+                    family: getCell(row, 'family'),
+                    duty: getCell(row, 'duty'),
+                    oem_codes: tryParseJSON(getCell(row, 'oem_codes')),
+                    cross_reference: tryParseJSON(getCell(row, 'cross_reference')),
+                    media_type: getCell(row, 'media_type'),
+                    filter_type: getCell(row, 'filter_type'),
+                    subtype: getCell(row, 'subtype'),
+                    engine_applications: tryParseJSON(getCell(row, 'engine_applications')),
+                    equipment_applications: tryParseJSON(getCell(row, 'equipment_applications')),
                     attributes: {
-                        height_mm: row.get('height_mm'),
-                        outer_diameter_mm: row.get('outer_diameter_mm'),
-                        thread_size: row.get('thread_size'),
-                        gasket_od_mm: row.get('gasket_od_mm'),
-                        gasket_id_mm: row.get('gasket_id_mm'),
-                        bypass_valve_psi: row.get('bypass_valve_psi'),
-                        micron_rating: row.get('micron_rating'),
-                        weight_grams: row.get('weight_grams')
+                        height_mm: getCell(row, 'height_mm'),
+                        outer_diameter_mm: getCell(row, 'outer_diameter_mm'),
+                        thread_size: getCell(row, 'thread_size'),
+                        gasket_od_mm: getCell(row, 'gasket_od_mm'),
+                        gasket_id_mm: getCell(row, 'gasket_id_mm'),
+                        bypass_valve_psi: getCell(row, 'bypass_valve_psi'),
+                        micron_rating: getCell(row, 'micron_rating'),
+                        weight_grams: getCell(row, 'weight_grams')
                     },
-                    source: row.get('source'),
-                    homologated_sku: row.get('homologated_sku'),
-                    all_cross_references: tryParseJSON(row.get('all_cross_references'))
+                    source: getCell(row, 'source'),
+                    homologated_sku: getCell(row, 'homologated_sku'),
+                    all_cross_references: tryParseJSON(getCell(row, 'all_cross_references'))
                 };
             }
         }
@@ -167,6 +221,95 @@ async function searchInSheet(code) {
 // ============================================================================
 
 /**
+ * Build row data according to exact column structure
+ */
+function buildRowData(data) {
+    const attrs = data.attributes || {};
+    // Normalize dimension strings like "10.24 inch (260 mm)" → "260"
+    const normalizeMM = (v) => {
+        const s = String(v || '').trim();
+        if (!s) return '';
+        const mmParen = s.match(/\(([^)]+)\)/); // inside parentheses
+        if (mmParen && /mm/i.test(mmParen[1])) {
+            const num = mmParen[1].match(/([0-9]+(?:\.[0-9]+)?)/);
+            if (num) return num[1];
+        }
+        const mmDirect = s.match(/([0-9]+(?:\.[0-9]+)?)\s*mm\b/i);
+        if (mmDirect) return mmDirect[1];
+        // Fallback: if inches provided, convert to mm
+        const inchMatch = s.match(/([0-9]+(?:\.[0-9]+)?)\s*(?:inch|in)\b/i);
+        if (inchMatch) {
+            const mm = parseFloat(inchMatch[1]) * 25.4;
+            if (!isNaN(mm)) return mm.toFixed(2);
+        }
+        // If only a number, return it
+        const justNum = s.match(/^([0-9]+(?:\.[0-9]+)?)$/);
+        if (justNum) return justNum[1];
+        return s; // leave original if unparsable
+    };
+    return {
+        query_norm: data.query_normalized || data.code_input || '',
+        sku: data.sku || '',
+        description: attrs.description || attrs.type || '',
+        family: data.family || '',
+        duty: data.duty || '',
+        oem_codes: JSON.stringify(
+            Array.isArray(data.oem_codes) ? data.oem_codes :
+            (data.oem_codes ? [data.oem_codes] : (data.code_oem ? [data.code_oem] : []))
+        ),
+        cross_reference: JSON.stringify(data.cross_reference || []),
+        media_type: data.media || '',
+        filter_type: data.filter_type || data.family || '',
+        subtype: attrs.subtype || attrs.style || '',
+        engine_applications: JSON.stringify(data.engine_applications || data.applications || []),
+        equipment_applications: JSON.stringify(data.equipment_applications || []),
+        height_mm: normalizeMM(attrs.height_mm || attrs.height || attrs.length || ''),
+        outer_diameter_mm: normalizeMM(attrs.outer_diameter_mm || attrs.outer_diameter || ''),
+        thread_size: attrs.thread_size || '',
+        gasket_od_mm: attrs.gasket_od_mm || '',
+        gasket_id_mm: attrs.gasket_id_mm || '',
+        bypass_valve_psi: attrs.bypass_valve_psi || '',
+        micron_rating: attrs.micron_rating || attrs.efficiency || '',
+        iso_main_efficiency_percent: attrs.iso_main_efficiency_percent || '',
+        iso_test_method: attrs.iso_test_method || '',
+        beta_200: attrs.beta_200 || '',
+        hydrostatic_burst_psi: attrs.hydrostatic_burst_psi || '',
+        dirt_capacity_grams: attrs.dirt_capacity_grams || '',
+        rated_flow_cfm: attrs.rated_flow_cfm || '',
+        rated_flow_gpm: attrs.rated_flow_gpm || '',
+        panel_width_mm: attrs.panel_width_mm || '',
+        panel_depth_mm: attrs.panel_depth_mm || '',
+        manufacturing_standards: attrs.manufacturing_standards || '',
+        certification_standards: attrs.certification_standards || '',
+        operating_pressure_min_psi: attrs.operating_pressure_min_psi || '',
+        operating_pressure_max_psi: attrs.operating_pressure_max_psi || '',
+        operating_temperature_min_c: attrs.operating_temperature_min_c || '',
+        operating_temperature_max_c: attrs.operating_temperature_max_c || '',
+        fluid_compatibility: attrs.fluid_compatibility || '',
+        disposal_method: attrs.disposal_method || '',
+        weight_grams: attrs.weight_grams || '',
+        service_life_hours: attrs.service_life_hours || '',
+        change_interval_km: attrs.change_interval_km || '',
+        water_separation_efficiency_percent: attrs.water_separation_efficiency_percent || '',
+        drain_type: attrs.drain_type || '',
+        oem_number: data.code_oem || '',
+        cross_brand: data.source || '',
+        cross_part_number: data.code_oem || '',
+        manufactured_by: 'ELIMFILTERS',
+        last4_source: data.source || '',
+        last4_digits: data.last4 || '',
+        source: data.source || '',
+        homologated_sku: data.code_oem || '',
+        review: '',
+        all_cross_references: JSON.stringify(data.cross_reference || []),
+        specs: JSON.stringify(attrs),
+        priority_reference: data.code_oem || '',
+        priority_brand_reference: data.source || '',
+        ok: 'TRUE'
+    };
+}
+
+/**
  * Append single filter to Google Sheets Master
  * @param {object} data - Filter data to append
  */
@@ -174,74 +317,54 @@ async function appendToSheet(data) {
     try {
         const doc = await initSheet();
         const sheet = doc.sheetsByIndex[0];
-
-        // Extract attributes
-        const attrs = data.attributes || {};
-        
-        // Prepare row data according to exact column structure
-        const rowData = {
-            query_norm: data.query_normalized || data.code_input || '',
-            sku: data.sku || '',
-            description: attrs.description || attrs.type || '',
-            family: data.family || '',
-            duty: data.duty || '',
-            oem_codes: data.code_oem || data.oem_equivalent || '',
-            cross_reference: JSON.stringify(data.cross_reference || []),
-            media_type: data.media || '',
-            filter_type: data.filter_type || data.family || '',
-            subtype: attrs.subtype || attrs.style || '',
-            engine_applications: JSON.stringify(data.applications || []),
-            equipment_applications: JSON.stringify(data.equipment_applications || []),
-            height_mm: attrs.height_mm || attrs.height || attrs.length || '',
-            outer_diameter_mm: attrs.outer_diameter_mm || attrs.outer_diameter || '',
-            thread_size: attrs.thread_size || '',
-            gasket_od_mm: attrs.gasket_od_mm || '',
-            gasket_id_mm: attrs.gasket_id_mm || '',
-            bypass_valve_psi: attrs.bypass_valve_psi || '',
-            micron_rating: attrs.micron_rating || attrs.efficiency || '',
-            iso_main_efficiency_percent: attrs.iso_main_efficiency_percent || '',
-            iso_test_method: attrs.iso_test_method || '',
-            beta_200: attrs.beta_200 || '',
-            hydrostatic_burst_psi: attrs.hydrostatic_burst_psi || '',
-            dirt_capacity_grams: attrs.dirt_capacity_grams || '',
-            rated_flow_cfm: attrs.rated_flow_cfm || '',
-            rated_flow_gpm: attrs.rated_flow_gpm || '',
-            panel_width_mm: attrs.panel_width_mm || '',
-            panel_depth_mm: attrs.panel_depth_mm || '',
-            manufacturing_standards: attrs.manufacturing_standards || '',
-            certification_standards: attrs.certification_standards || '',
-            operating_pressure_min_psi: attrs.operating_pressure_min_psi || '',
-            operating_pressure_max_psi: attrs.operating_pressure_max_psi || '',
-            operating_temperature_min_c: attrs.operating_temperature_min_c || '',
-            operating_temperature_max_c: attrs.operating_temperature_max_c || '',
-            fluid_compatibility: attrs.fluid_compatibility || '',
-            disposal_method: attrs.disposal_method || '',
-            weight_grams: attrs.weight_grams || '',
-            service_life_hours: attrs.service_life_hours || '',
-            change_interval_km: attrs.change_interval_km || '',
-            water_separation_efficiency_percent: attrs.water_separation_efficiency_percent || '',
-            drain_type: attrs.drain_type || '',
-            oem_number: data.code_oem || '',
-            cross_brand: data.source || '',
-            cross_part_number: data.code_oem || '',
-            manufactured_by: 'ELIMFILTERS',
-            last4_source: data.source || '',
-            last4_digits: data.last4 || '',
-            source: data.source || '',
-            homologated_sku: data.code_oem || '',
-            review: '',
-            all_cross_references: JSON.stringify(data.cross_reference || []),
-            specs: JSON.stringify(attrs),
-            priority_reference: data.code_oem || '',
-            priority_brand_reference: data.source || '',
-            ok: 'TRUE'
-        };
-
+        const rowData = buildRowData(data);
         await sheet.addRow(rowData);
         console.log(`💾 Saved to Google Sheet Master: ${data.sku}`);
-
     } catch (error) {
         console.error('❌ Error appending to Google Sheet:', error.message);
+        throw error;
+    }
+}
+
+/**
+ * Upsert by SKU: replace existing row(s) for the SKU or insert new
+ * @param {object} data - Filter data to upsert
+ * @param {object} options - { deleteDuplicates?: boolean }
+ */
+async function upsertBySku(data, options = { deleteDuplicates: true }) {
+    try {
+        const doc = await initSheet();
+        const sheet = doc.sheetsByIndex[0];
+        const rows = await sheet.getRows();
+        const skuNorm = (data.sku || '').toUpperCase().trim();
+        // Some environments expose row values directly by header name, avoiding row.get()
+        const matches = rows.filter(r => (r.sku || '').toUpperCase().trim() === skuNorm);
+
+        const rowData = buildRowData(data);
+
+        if (matches.length > 0) {
+            const row = matches[0];
+            // Assign all fields
+            Object.entries(rowData).forEach(([k, v]) => { row[k] = v; });
+            await row.save();
+            console.log(`♻️ Upserted existing row for ${data.sku}`);
+
+            if (options.deleteDuplicates && matches.length > 1) {
+                for (let i = 1; i < matches.length; i++) {
+                    try {
+                        await matches[i].delete();
+                        console.log(`🧹 Deleted duplicate row for ${data.sku}`);
+                    } catch (e) {
+                        console.warn(`⚠️ Failed to delete duplicate for ${data.sku}: ${e.message}`);
+                    }
+                }
+            }
+        } else {
+            await sheet.addRow(rowData);
+            console.log(`➕ Inserted new row for ${data.sku}`);
+        }
+    } catch (error) {
+        console.error('❌ Error upserting to Google Sheet:', error.message);
         throw error;
     }
 }
@@ -264,7 +387,7 @@ async function syncToSheets(filters) {
         console.log(`📊 Syncing ${filters.length} filters...`);
 
         for (const filter of filters) {
-            await appendToSheet(filter);
+            await upsertBySku(filter);
         }
 
         console.log(`✅ Sync complete: ${filters.length} filters synced`);
@@ -297,11 +420,16 @@ function tryParseJSON(str) {
 }
 
 // ============================================================================
-// EXPORTS
+// HEALTH / PING
 // ============================================================================
 
-module.exports = {
-    searchInSheet,
-    appendToSheet,
-    syncToSheets
-};
+async function pingSheets() {
+    try {
+        const doc = await initSheet();
+        const sheetsCount = (doc.sheetsByIndex || []).length;
+        const title = doc.title || 'Unknown';
+        return { ok: true, title, sheetsCount };
+    } catch (error) {
+        return { ok: false, error: error.message };
+    }
+}
