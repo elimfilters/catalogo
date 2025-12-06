@@ -3,6 +3,7 @@ name: LT Health Validation
 on:
   push:
     branches: [ "main" ]
+  workflow_dispatch:
 
 jobs:
   validate:
@@ -13,6 +14,10 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+
+      - name: Manual dispatch context
+        if: ${{ github.event_name == 'workflow_dispatch' }}
+        run: echo "Manual validation triggered by $GITHUB_ACTOR"
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
