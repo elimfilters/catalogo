@@ -21,7 +21,7 @@ jobs:
           cache: 'npm'
 
       - name: Install dependencies
-        run: npm ci
+        run: npm install
 
       - name: Wait for deployment to be reachable
         shell: bash
@@ -30,7 +30,7 @@ jobs:
             echo "BASE_URL secret not set. Please add RAILWAY_BASE_URL to repository secrets.";
             exit 1;
           fi
-          echo "Waiting for ${BASE_URL} to become reachable..."
+          echo "Waiting for service to become reachable..."
           reachable=0
           for i in {1..30}; do
             if curl -sSf "${BASE_URL}/health/overall" > /dev/null; then
