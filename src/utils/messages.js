@@ -25,16 +25,19 @@ const MESSAGES = {
  * @returns {object} - Standardized error response
  */
 function noEquivalentFound(query, lang = 'en') {
+    // Professional message: "No specification certification" instead of generic not found.
     const message = MESSAGES[lang]?.noEquivalent || MESSAGES.en.noEquivalent;
-    
+    const technicalNote = "No fue posible certificar la especificación técnica de este código. Por seguridad y garantía de calidad, se requiere validación manual antes de generar un equivalente ELIMFILTERS.";
+
     return {
         status: 'NOT_FOUND',
+        family: 'UNKNOWN',
         query,
         message,
+        details: technicalNote,
         suggestions: [
-            'Verify the part number is correct',
-            'Try searching without special characters',
-            'Contact ELIMFILTERS support for assistance'
+            'Verifique el número de parte',
+            'Contacte a soporte técnico para una homologación manual certificada'
         ]
     };
 }
@@ -47,7 +50,7 @@ function noEquivalentFound(query, lang = 'en') {
  */
 function invalidCode(query, lang = 'en') {
     const message = MESSAGES[lang]?.invalidCode || MESSAGES.en.invalidCode;
-    
+
     return {
         status: 'INVALID',
         query,
@@ -63,7 +66,7 @@ function invalidCode(query, lang = 'en') {
  */
 function success(data, lang = 'en') {
     const message = MESSAGES[lang]?.success || MESSAGES.en.success;
-    
+
     return {
         status: 'OK',
         message,
@@ -79,7 +82,7 @@ function success(data, lang = 'en') {
  */
 function error(errorMsg, lang = 'en') {
     const message = MESSAGES[lang]?.error || MESSAGES.en.error;
-    
+
     return {
         status: 'ERROR',
         message,
