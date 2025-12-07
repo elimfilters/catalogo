@@ -52,7 +52,7 @@ const FLEETGUARD_DATABASE = {
         cross_references: {},
         applications: ['Heavy Duty Diesel']
     },
-    
+
     // ========== FF-SERIES (Fuel Filters) ==========
     'FF5052': {
         family: 'FUEL',
@@ -76,7 +76,7 @@ const FLEETGUARD_DATABASE = {
         cross_references: {},
         applications: ['Diesel Engines with Water Removal']
     },
-    
+
     // ========== AF-SERIES (Air Filters) ==========
     'AF25139': {
         family: 'AIRE',
@@ -102,7 +102,7 @@ const FLEETGUARD_DATABASE = {
         cross_references: {},
         applications: ['Heavy Duty Air Systems']
     },
-    
+
     // ========== WF-SERIES (Water Filters/Coolant) ==========
     'WF2076': {
         family: 'COOLANT',
@@ -114,7 +114,7 @@ const FLEETGUARD_DATABASE = {
         cross_references: {},
         applications: ['Heavy Duty Cooling Systems']
     },
-    
+
     // ========== HF-SERIES (Hydraulic Filters) ==========
     'HF6001': {
         family: 'HYDRAULIC',
@@ -126,7 +126,7 @@ const FLEETGUARD_DATABASE = {
         cross_references: {},
         applications: ['Heavy Duty Hydraulic Systems']
     },
-    
+
     // ========== FS-SERIES (Fuel/Separator) ==========
     'FS1012': {
         family: 'FUEL',
@@ -146,14 +146,14 @@ const FLEETGUARD_DATABASE = {
  */
 function detectFleetguardSeriesType(code) {
     const normalized = code.toUpperCase();
-    
+
     if (normalized.startsWith('LF')) return 'LF';
     if (normalized.startsWith('FF')) return 'FF';
     if (normalized.startsWith('AF')) return 'AF';
     if (normalized.startsWith('WF')) return 'WF';
     if (normalized.startsWith('HF')) return 'HF';
     if (normalized.startsWith('FS')) return 'FS';
-    
+
     return null;
 }
 
@@ -163,13 +163,13 @@ function detectFleetguardSeriesType(code) {
 function detectFleetguardFamilyFromCode(code) {
     const normalized = code.toUpperCase();
     const series = detectFleetguardSeriesType(normalized);
-    
+
     if (series === 'LF') return 'OIL';
     if (series === 'FF' || series === 'FS') return 'FUEL';
     if (series === 'AF') return 'AIRE';
     if (series === 'WF') return 'COOLANT';
     if (series === 'HF') return 'HYDRAULIC';
-    
+
     return null;
 }
 
@@ -180,12 +180,12 @@ function findFleetguardCode(inputCode) {
     const normalized = String(inputCode || '')
         .toUpperCase()
         .replace(/[^A-Z0-9]/g, '');
-    
+
     // Direct lookup
     if (FLEETGUARD_DATABASE[normalized]) {
         return normalized;
     }
-    
+
     // Search in cross-references
     for (const [fleetguardCode, filterData] of Object.entries(FLEETGUARD_DATABASE)) {
         const xrefs = filterData?.cross_references || {};
@@ -193,13 +193,13 @@ function findFleetguardCode(inputCode) {
             const xrefNormalized = String(xrefCode || '')
                 .toUpperCase()
                 .replace(/[^A-Z0-9]/g, '');
-            
+
             if (xrefNormalized === normalized || xrefNormalized.includes(normalized)) {
                 return fleetguardCode;
             }
         }
     }
-    
+
     return null;
 }
 
@@ -209,18 +209,18 @@ function findFleetguardCode(inputCode) {
 async function scrapeFleetguard(code) {
     try {
         console.log(`📡 Fleetguard scraper: ${code}`);
-        
+
         const normalized = code.toUpperCase().replace(/[^A-Z0-9]/g, '');
-        
+
         // Try cross-reference lookup
         let fleetguardCode = findFleetguardCode(normalized);
-        
+
         if (fleetguardCode && FLEETGUARD_DATABASE[fleetguardCode]) {
             const filter = FLEETGUARD_DATABASE[fleetguardCode];
             const series = detectFleetguardSeriesType(fleetguardCode);
-            
+
             console.log(`✅ Found via cross-reference: ${code} → ${fleetguardCode} (${series}-series)`);
-            
+
             const crossTokens = Object.keys(filter.cross_references || {});
             return {
                 found: true,
@@ -233,14 +233,14 @@ async function scrapeFleetguard(code) {
                 attributes: filter.specifications || {}
             };
         }
-        
+
         // Try direct lookup
         if (FLEETGUARD_DATABASE[normalized]) {
             const filter = FLEETGUARD_DATABASE[normalized];
             const series = detectFleetguardSeriesType(normalized);
-            
+
             console.log(`✅ Found directly: ${normalized} (${series}-series)`);
-            
+
             const crossTokens = Object.keys(filter.cross_references || {});
             return {
                 found: true,
@@ -253,7 +253,7 @@ async function scrapeFleetguard(code) {
                 attributes: filter.specifications || {}
             };
         }
-        
+
         // Pattern detection
         const series = detectFleetguardSeriesType(normalized);
         const detectedFamily = detectFleetguardFamilyFromCode(normalized);
@@ -270,7 +270,7 @@ async function scrapeFleetguard(code) {
                 attributes: { product_type: detectedFamily }
             };
         }
-        
+
         // Not found
         console.log(`⚠️  Fleetguard filter not found: ${code}`);
         return {
@@ -336,5 +336,7 @@ module.exports = {
     findFleetguardCode,
     detectFleetguardSeriesType,
     detectFleetguardFamilyFromCode,
-    validateFleetguardCode
+    validateFleetguardCode,
+    scrapeFleetguardBySearch: require('./fleetguardScraperWeb').scrapeFleetguardBySearch
 };
+
