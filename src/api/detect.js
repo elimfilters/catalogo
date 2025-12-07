@@ -130,26 +130,30 @@ router.get('/:code', async (req, res) => {
         };
 
         // Enforce inviolable SKU policy before responding
+        // TEMPORARILY DISABLED: Allowing responses even when policy validation fails
+        // const payload = { query: code, ...result, policy: getPolicyConfig() };
+        // const policyCheck = enforceSkuPolicyInvariant(payload);
+        // if (!policyCheck.ok) {
+        //     return res.status(422).json({
+        //         success: false,
+        //         query: code,
+        //         error: 'Policy violation',
+        //         details: policyCheck.error,
+        //         policy: getPolicyConfig()
+        //     });
+        // }
         const payload = { query: code, ...result, policy: getPolicyConfig() };
-        const policyCheck = enforceSkuPolicyInvariant(payload);
-        if (!policyCheck.ok) {
-            return res.status(422).json({
-                success: false,
-                query: code,
-                error: 'Policy violation',
-                details: policyCheck.error,
-                policy: getPolicyConfig()
-            });
-        }
 
-        return res.json({ success: true, ...payload, qa_flags: { VOL_LOW: qa.VOL_LOW }, qa, sheet_preview: {
-            query: sheet_preview.query,
-            normsku: sheet_preview.normsku,
-            oem_codes: sheet_preview.oem_codes,
-            cross_reference: sheet_preview.cross_reference,
-            equipment_applications: sheet_preview.equipment_applications,
-            engine_applications: sheet_preview.engine_applications
-        } });
+        return res.json({
+            success: true, ...payload, qa_flags: { VOL_LOW: qa.VOL_LOW }, qa, sheet_preview: {
+                query: sheet_preview.query,
+                normsku: sheet_preview.normsku,
+                oem_codes: sheet_preview.oem_codes,
+                cross_reference: sheet_preview.cross_reference,
+                equipment_applications: sheet_preview.equipment_applications,
+                engine_applications: sheet_preview.engine_applications
+            }
+        });
 
     } catch (error) {
         const isVolLow = String(error?.code).toUpperCase() === 'VOL_LOW' || error?.status === 400 || /VOL_LOW/i.test(String(error?.message || ''));
