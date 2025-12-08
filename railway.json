@@ -1,4 +1,4 @@
-﻿{
+{
   "build": {
     "builder": "DOCKERFILE",
     "dockerfilePath": "Dockerfile"
@@ -12,7 +12,39 @@
   "environments": {
     "production": {
       "variables": {
-        "NODE_ENV": "production"
+        "NODE_ENV": "production",
+
+        "SCRAPER_MODE_FLEETGUARD": "ALL",
+        "FLEETGUARD_SKU_JSON": "[]",
+        "FLEETGUARD_DISCOVERY_URL": "https://www.fleetguard.com/s/search?query=*",
+
+        "SCRAPER_MODE_DONALDSON": "ALL",
+        "DONALDSON_SKU_JSON": "[]",
+        "DONALDSON_DISCOVERY_URL": "https://shop.donaldson.com/store/en-us/search?q=*",
+
+        "SCRAPER_MODE_FRAM": "ALL",
+        "FRAM_SKU_JSON": "[]",
+        "FRAM_DISCOVERY_URL": "https://www.fram.com/parts-search/?search=*",
+
+        "SCRAPER_MODE_RACOR": "ALL",
+        "RACOR_SKU_JSON": "[]",
+        "RACOR_DISCOVERY_URL": "https://www.parker.com/us/en/search?q=*",
+
+        "SCRAPER_MODE_MERCURY": "ALL",
+        "MERCURY_SKU_JSON": "[]",
+        "MERCURY_DISCOVERY_URL": "https://www.mercurymarine.com/en/us/parts/accessories?q=*",
+
+        "SCRAPER_MODE_MERCRUISER": "ALL",
+        "MERCRUISER_SKU_JSON": "[]",
+        "MERCRUISER_DISCOVERY_URL": "https://www.mercurymarine.com/en/us/parts/accessories?q=*",
+
+        "SCRAPER_MODE_SIERRA": "ALL",
+        "SIERRA_SKU_JSON": "[]",
+        "SIERRA_DISCOVERY_URL": "https://www.sierra.com/search?query=*",
+
+        "MONGO_URI": "",
+        "API_TOKEN": "",
+        "LOG_LEVEL": "info"
       }
     }
   }
