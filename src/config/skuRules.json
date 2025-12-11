@@ -1,247 +1,74 @@
 {
-  "version": "2.3.0",
-  "correctionVersion": "2.3.1",
-  "lastUpdate": "2025-12-01",
-  "description": "Reglas oficiales para generación estricta de SKUs ELIMFILTERS",
-  "totalRules": 13,
-  "changes": [
-    "Añadido EM9 (MARINE FILTER — HD & LD)",
-    
-    "Confirmados prefijos base EL8, EF9, EA1, EC1",
-    "Validación estricta: No SKU si no existe equivalente OEM/CROSS",
-    "Ajustes a familias HD-only y HD/LD"
-  ],
-  "rules": [
-    {
-      "id": "RULE_OIL_ALL",
-      "family": "OIL",
-      "duties": [
-        "HD",
-        "LD"
-      ],
-      "prefix": "EL8",
-      "priority": 1,
-      "enabled": true
-    },
-    {
-      "id": "RULE_FUEL_ALL",
-      "family": "FUEL",
-      "duties": [
-        "HD",
-        "LD"
-      ],
-      "prefix": "EF9",
-      "priority": 2,
-      "enabled": true
-    },
-    {
-      "id": "RULE_AIRE_ALL",
-      "family": "AIRE",
-      "duties": [
-        "HD",
-        "LD"
-      ],
-      "prefix": "EA1",
-      "priority": 3,
-      "enabled": true
-    },
-    {
-      "id": "RULE_CABIN_ALL",
-      "family": "CABIN",
-      "duties": [
-        "HD",
-        "LD"
-      ],
-      "prefix": "EC1",
-      "priority": 4,
-      "enabled": true
-    },
-    {
-      "id": "RULE_FUEL_SEPARATOR_HD",
-      "family": "FUEL SEPARATOR",
-      "duties": [
-        "HD"
-      ],
-      "prefix": "ES9",
-      "priority": 5,
-      "enabled": true
-    },
-    {
-      "id": "RULE_AIR_DRYER_HD",
-      "family": "AIR DRYER",
-      "duties": [
-        "HD"
-      ],
-      "prefix": "ED4",
-      "priority": 6,
-      "enabled": true
-    },
-    {
-      "id": "RULE_HYDRAULIC_HD",
-      "family": "HIDRAULIC",
-      "duties": [
-        "HD"
-      ],
-      "prefix": "EH6",
-      "priority": 7,
-      "enabled": true
-    },
-    {
-      "id": "RULE_COOLANT_HD",
-      "family": "COOLANT",
-      "duties": [
-        "HD"
-      ],
-      "prefix": "EW7",
-      "priority": 8,
-      "enabled": true
-    },
-    {
-      "id": "RULE_CARCAZA_HD",
-      "family": "CARCAZA AIR FILTER",
-      "duties": [
-        "HD"
-      ],
-      "prefix": "EA2",
-      "priority": 9,
-      "enabled": true
-    },
-    {
-      "id": "RULE_TURBINE_HD",
-      "family": "TURBINE SERIES",
-      "duties": [
-        "HD"
-      ],
-      "prefix": "ET9",
-      "priority": 10,
-      "enabled": true
-    },
-    {
-      "id": "RULE_KITS_HD",
-      "family": "KITS SERIES HD",
-      "duties": [
-        "HD"
-      ],
-      "prefix": "EK5",
-      "priority": 11,
-      "enabled": true
-    },
-    {
-      "id": "RULE_KITS_LD",
-      "family": "KITS SERIES LD",
-      "duties": [
-        "LD"
-      ],
-      "prefix": "EK3",
-      "priority": 12,
-      "enabled": true
-    },
-    {
-      "id": "RULE_MARINE_ALL",
-      "family": "MARINE",
-      "duties": [
-        "HD",
-        "LD"
-      ],
-      "prefix": "EM9",
-      "priority": 13,
-      "enabled": true
-    }
-  ],
+  "//": "===============================================================================",
+  "//": " ELIMFILTERS — SKU RULES (INMUTABLE)",
+  "//": " Este archivo no genera prefijos. Solo define el mapa corporativo oficial.",
+  "//": " Prefijos definidos únicamente en /src/config/prefixes.js",
+  "//": "===============================================================================",
+
+  "version": "7.0.0",
+
   "decisionTable": {
-    "OIL|HD": "EL8",
+
+    // -----------------------------------------------------------
+    // LIGHT DUTY (LD)
+    // -----------------------------------------------------------
     "OIL|LD": "EL8",
-    "FUEL|HD": "EF9",
     "FUEL|LD": "EF9",
-    "AIRE|HD": "EA1",
     "AIRE|LD": "EA1",
-    "CABIN|HD": "EC1",
     "CABIN|LD": "EC1",
-    "FUEL SEPARATOR|HD": "ES9",
-    "AIR DRYER|HD": "ED4",
-    "HIDRAULIC|HD": "EH6",
+    "HOUSING|LD": "EA2",
+
+    // -----------------------------------------------------------
+    // HEAVY DUTY (HD)
+    // -----------------------------------------------------------
+    "OIL|HD": "EL8",
+    "FUEL|HD": "EF9",
+    "AIRE|HD": "EA1",
+    "CABIN|HD": "EC1",
+    "HOUSING|HD": "EA2",
+
+    // Especializados HD
+    "HYDRAULIC|HD": "EH6",
+    "SEPARATOR|HD": "ES9",
     "COOLANT|HD": "EW7",
-    "CARCAZA AIR FILTER|HD": "EA2",
-    "TURBINE SERIES|HD": "ET9",
-    "KITS SERIES HD|HD": "EK5",
-    "KITS SERIES LD|LD": "EK3",
-    "MARINE|HD": "EM9",
-    "MARINE|LD": "EM9"
-    
+    "TURBINE|HD": "ET9",
+
+    // -----------------------------------------------------------
+    // MARINO
+    // -----------------------------------------------------------
+    "MARINE|LD": "EM9",
+    "MARINE|HD": "EM9"
   },
-  "prefixMapping": {
-    "EL8": [
-      "OIL|HD",
-      "OIL|LD"
-    ],
-    "EF9": [
-      "FUEL|HD",
-      "FUEL|LD"
-    ],
-    "EA1": [
-      "AIRE|HD",
-      "AIRE|LD"
-    ],
-    "EC1": [
-      "CABIN|HD",
-      "CABIN|LD"
-    ],
-    "ES9": [
-      "FUEL SEPARATOR|HD"
-    ],
-    "ED4": [
-      "AIR DRYER|HD"
-    ],
-    "EH6": [
-      "HIDRAULIC|HD"
-    ],
-    "EW7": [
-      "COOLANT|HD"
-    ],
-    "EA2": [
-      "CARCAZA AIR FILTER|HD"
-    ],
-    "ET9": [
-      "TURBINE SERIES|HD"
-    ],
-    "EK5": [
-      "KITS SERIES HD|HD"
-    ],
-    "EK3": [
-      "KITS SERIES LD|LD"
-    ],
-    "EM9": [
-      "MARINE|HD",
-      "MARINE|LD"
-    ]
+
+  // ===========================================================================
+  //  RUTAS ESPECIALES (EM9 / ET9)
+  // ===========================================================================
+  "marine": {
+    "subtypes": {
+      "FUEL": "EM9-F",
+      "OIL": "EM9-O",
+      "AIRE": "EM9-A",
+      "SEPARATOR": "EM9-S"
+    },
+    "allowAlphanumericLast4": true
   },
-  "allPrefixes": [
-    "EL8",
-    "EF9",
-    "EA1",
-    "EC1",
-    "ES9",
-    "ED4",
-    "EH6",
-    "EW7",
-    "EA2",
-    "ET9",
-    "ET9-F",
-    "EK5",
-    "EK3",
-    "EM9",
-    "EM9-A",
-    "EM9-F",
-    "EM9-O",
-    "EM9-S"
-  ],
-  "learnedPrefixes": {
-    "S": "OIL|LD",
-    "P": "OIL|LD",
-    "RE": "OIL|LD",
-    "1R": "OIL|LD",
-    "PF": "OIL|LD",
-    "RE5": "OIL|LD",
-    "2R": "OIL|LD"
+
+  "turbine": {
+    "systemPrefix": "ET9",
+    "elementPrefix": "ET9-F",
+    "elementSuffixRules": {
+      "T": "T",
+      "P": "P",
+      "S": "S"
+    }
+  },
+
+  // ===========================================================================
+  //  VALIDACIONES
+  // ===========================================================================
+  "validation": {
+    "require4Digits": true,
+    "allowOnlyDecisionTableFamilies": true,
+    "rejectUnknownCombinations": true
   }
 }
