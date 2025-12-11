@@ -1,53 +1,5 @@
 {
   "version": "7.0.0",
-
-  "decisionTable": {
-    "OIL|LD": "EL8",
-    "FUEL|LD": "EF9",
-    "AIRE|LD": "EA1",
-    "CABIN|LD": "EC1",
-    "HOUSING|LD": "EA2",
-
-    "OIL|HD": "EL8",
-    "FUEL|HD": "EF9",
-    "AIRE|HD": "EA1",
-    "CABIN|HD": "EC1",
-    "HOUSING|HD": "EA2",
-
-    "HYDRAULIC|HD": "EH6",
-    "SEPARATOR|HD": "ES9",
-    "COOLANT|HD": "EW7",
-    "TURBINE|HD": "ET9",
-
-    "MARINE|LD": "EM9",
-    "MARINE|HD": "EM9"
-  },
-
-  "subtypes": {
-    "marine": {
-      "subtypes": {
-        "FUEL": "EM9-F",
-        "OIL": "EM9-O",
-        "AIRE": "EM9-A",
-        "SEPARATOR": "EM9-S"
-      },
-      "allowAlphanumericLast4": true
-    },
-
-    "turbine": {
-      "systemPrefix": "ET9",
-      "elementPrefix": "ET9-F",
-      "elementSuffixRules": {
-        "T": "T",
-        "P": "P",
-        "S": "S"
-      }
-    }
-  },
-
-  "validation": {
-    "require4Digits": true,
-    "allowOnlyDecisionTableFamilies": true,
-    "rejectUnknownCombinations": true
+  "skuOverrides": {
   }
 }
