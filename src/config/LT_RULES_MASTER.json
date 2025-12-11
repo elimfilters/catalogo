@@ -1,6 +1,7 @@
 {
   "version": "7.0.0",
-  "description": "ELIMFILTERS LT MASTER RULESET – INMUTABLE CONTRACT",
+  "description": "ELIMFILTERS LT MASTER RULES",
+
   "rules": {
     "security": {
       "block_on_rule_violation": true,
@@ -10,23 +11,25 @@
 
     "scraping": {
       "Fleetguard": {
-        "allowed_for": "HD",
+        "allowed_for": ["HD", "LD"],
         "columns_allowed": [
           "Contenido del Kit",
           "Filtro Principal (Ref)",
           "Tecnología"
         ]
       },
+
       "FRAM": {
-        "allowed_for": "LD",
+        "allowed_for": ["HD", "LD"],
         "columns_allowed": [
           "Contenido del Kit",
           "Filtro Principal (Ref)",
           "Tecnología"
         ]
       },
+
       "Donaldson": {
-        "allowed_for": "HD",
+        "allowed_for": ["HD", "LD"],
         "columns_allowed": [
           "Contenido del Kit",
           "Filtro Principal (Ref)",
@@ -35,41 +38,21 @@
       }
     },
 
-    "sku_generation": {
-      "HD": {},
-      "LD": {},
-      "LT_INTERNAL": {},
-      "notes": "SKU prefixes are NOT generated here. Controlled ONLY by /src/config/prefixes.js + /src/sku/generator.js"
+    "vin_engine": {
+      "validation_regex": "^[A-HJ-NPR-Z0-9]{17}$"
     },
 
     "technology_assignment": {
       "allowed_values": [
+        "ELIMTEK™ MultiCore",
+        "ELIMTEK™ Blend",
+        "MACROCORE™ Ultra",
+        "MACROCORE™ Plus",
+        "HYDROFLOW™ 5000",
+        "AQUACORE™ Pro",
+        "NANOMAX™ Media",
         "ELIMTEK™ Standard"
-      ],
-      "notes": "Advanced tiers handled externally (Blend, MultiCore, MacroCore, HydroFlow, AquaCore, NanoMax, etc.)"
-    },
-
-    "vin_engine": {
-      "validation_regex": "^[A-HJ-NPR-Z0-9]{17}$",
-      "notes": "Strict VIN validation required for automotive applications"
-    },
-
-    "compliance": {
-      "prevent_prefix_generation": true,
-      "blocked_actions": [
-        "derive_EA1_from_brand",
-        "derive_EL8_from_brand",
-        "derive_EF9_from_brand",
-        "derive_EC1_from_brand",
-        "derive_EH6_from_brand",
-        "derive_ES9_from_brand",
-        "derive_EW7_from_brand",
-        "derive_ET9_from_brand",
-        "derive_EM9_from_brand",
-        "derive_EK3_from_brand",
-        "derive_EK5_from_brand"
-      ],
-      "notes": "OEM brand detection CANNOT generate ELIMFILTERS prefixes"
+      ]
     }
   }
 }
