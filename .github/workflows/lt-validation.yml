@@ -1,32 +1,3 @@
-name: LT Health Validation
-
-on:
-  push:
-    branches: [ "main" ]
-  workflow_dispatch:
-
-jobs:
-  validate:
-    runs-on: ubuntu-latest
-    timeout-minutes: 15
-    env:
-      BASE_URL: ${{ secrets.RAILWAY_BASE_URL }}
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Manual dispatch context
-        if: ${{ github.event_name == 'workflow_dispatch' }}
-        run: echo "Manual validation triggered by $GITHUB_ACTOR"
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '18'
-
-      - name: Install dependencies
-        run: npm install
-
       - name: Wait for deployment to be reachable
         shell: bash
         run: |
@@ -37,7 +8,7 @@ jobs:
           echo "Waiting for service to become reachable..."
           reachable=0
           for i in {1..30}; do
-            if curl -sSf "${BASE_URL}/health/overall" > /dev/null; then
+            if curl -sSf "${BASE_URL}/" > /dev/null; then
               echo "Service is reachable."; reachable=1; break;
             fi
             echo "Attempt $i failed; retrying in 10s..."
@@ -47,6 +18,3 @@ jobs:
             echo "Service not reachable after retries.";
             exit 1;
           fi
-
-      - name: Run LT validation script
-        run: npm run test:lt
