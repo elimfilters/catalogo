@@ -2,9 +2,13 @@
   "version": "7.0.0",
   "decisionTable": {
     "OIL|HD": "EL8",
+    "OIL|LD": "EL8",               <-- AGREGA ESTA
     "FUEL|HD": "EF9",
+    "FUEL|LD": "EF9",
     "AIR|HD": "EA1",
+    "AIR|LD": "EA1",
     "CABIN|HD": "EC1",
+    "CABIN|LD": "EC1",
     "HYDRAULIC|HD": "E6H",
     "FUEL FILTER SEPARATOR|HD": "ES9",
     "AIR DRYER|HD": "ED4",
