@@ -3,6 +3,8 @@
   "decisionTable": {
     "OIL|HD": "EL8",
     "OIL|LD": "EL8",
+    "FUEL|HD": "EF9",
+    "FUEL|LD": "EF9",
     "FUEL FILTER|HD": "EF9",
     "FUEL FILTER|LD": "EF9",
     "FUEL SEPARATOR|HD": "ES9",
