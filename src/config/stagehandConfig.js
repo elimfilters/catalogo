@@ -1,4 +1,4 @@
-﻿// src/config/stagehandConfig.js
+// src/config/stagehandConfig.js
 const { google } = require('@ai-sdk/google');
 
 module.exports = {

@@ -13,7 +13,7 @@ const prefixMap = require('../config/prefixMap');
  * Other brands (Fleetguard, Baldwin, WIX) must be rejected or cross-referenced
  */
 async function scraperBridge(code, duty) {
-    const normalizedCode = prefixMap.normalize(code);
+    const normalizedCode = normalize.code(code);
     
     console.log(`🌉 Scraper Bridge: ${normalizedCode} | Duty: ${duty}`);
 
@@ -54,7 +54,7 @@ async function scraperBridge(code, duty) {
  * Check if code is Donaldson (any series)
  */
 function isDonaldsonCode(code) {
-    return prefixMap.DONALDSON_STRICT_REGEX.test(prefixMap.normalize(code));
+    return prefixMap.DONALDSON_STRICT_REGEX.test(normalize.code(code));
 }
 
 /**

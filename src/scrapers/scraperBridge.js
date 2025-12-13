@@ -27,7 +27,7 @@ function maybeResolveFramFromOEM(code) {
  * Otras marcas (Fleetguard, Baldwin, WIX) se rechazan o se cruzan
  */
 async function scraperBridge(code, duty) {
-    const normalizedCode = prefixMap.normalize(code);
+    const normalizedCode = normalize.code(code);
     const hint = prefixMap.resolveBrandFamilyDutyByPrefix(normalizedCode) || {};
     // Si hint sugiere duty, preferirlo sobre el proporcionado; si ninguno, duty desconocido
     const effectiveDuty = hint.duty || duty || null;
@@ -99,7 +99,7 @@ async function scraperBridge(code, duty) {
 }
 
 function isDonaldsonCode(code) {
-    return prefixMap.DONALDSON_STRICT_REGEX.test(prefixMap.normalize(code));
+    return prefixMap.DONALDSON_STRICT_REGEX.test(normalize.code(code));
 }
 
 function isFramCode(code) {
