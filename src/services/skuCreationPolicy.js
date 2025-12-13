@@ -37,7 +37,7 @@ function policyHash() {
 
 async function applySkuPolicyAndUpsert(inputCode, lang = 'es') {
   const raw = String(inputCode || '');
-  const normalized = prefixMap.normalize(raw);
+  const normalized = normalize.code(raw);
   const hint = prefixMap.resolveBrandFamilyDutyByPrefix(normalized) || {};
 
   const bridged = await scraperBridge(normalized, hint.duty || null);

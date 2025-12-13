@@ -1,4 +1,4 @@
-﻿// ============================================================================
+// ============================================================================
 // MERCURY SCRAPER - Complete Version with Database
 // Supports: 35-XXXXXX format marine engines
 // ============================================================================
@@ -160,13 +160,13 @@ function findMercuryCode(inputCode) {
 
 async function scrapeMercury(code) {
     try {
-        console.log(\📡 Mercury scraper: \\);
+        console.log(\?? Mercury scraper: \\);
         const normalized = code.toUpperCase().replace(/[^A-Z0-9]/g, '');
         let mercuryCode = findMercuryCode(normalized);
         if (mercuryCode && MERCURY_DATABASE[mercuryCode]) {
             const filter = MERCURY_DATABASE[mercuryCode];
             const series = detectMercurySeriesType(mercuryCode);
-            console.log(\✅ Found via cross-reference: \ → \ (\)\);
+            console.log(\? Found via cross-reference: \ ? \ (\)\);
             const crossTokens = Object.keys(filter.cross_references || {});
             return {
                 found: true,
@@ -182,7 +182,7 @@ async function scrapeMercury(code) {
         if (MERCURY_DATABASE[normalized]) {
             const filter = MERCURY_DATABASE[normalized];
             const series = detectMercurySeriesType(normalized);
-            console.log(\✅ Found directly: \ (\)\);
+            console.log(\? Found directly: \ (\)\);
             const crossTokens = Object.keys(filter.cross_references || {});
             return {
                 found: true,
@@ -198,7 +198,7 @@ async function scrapeMercury(code) {
         const series = detectMercurySeriesType(normalized);
         const detectedFamily = detectMercuryFamilyFromCode(normalized);
         if (series && detectedFamily && /^(35|8M)\d{4,}/.test(normalized)) {
-            console.log(\✅ Pattern accepted: \ → \, \\);
+            console.log(\? Pattern accepted: \ ? \, \\);
             return {
                 found: true,
                 code: normalized,
@@ -210,7 +210,7 @@ async function scrapeMercury(code) {
                 attributes: { product_type: detectedFamily }
             };
         }
-        console.log(\⚠️  Mercury filter not found: \\);
+        console.log(\??  Mercury filter not found: \\);
         return {
             found: false,
             code: code,
@@ -222,7 +222,7 @@ async function scrapeMercury(code) {
             attributes: {}
         };
     } catch (error) {
-        console.error(\❌ Mercury scraper error: \\);
+        console.error(\? Mercury scraper error: \\);
         return {
             found: false,
             code: code,

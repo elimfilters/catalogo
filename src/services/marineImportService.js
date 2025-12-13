@@ -104,7 +104,7 @@ async function getOrCreateMarinosSheet(doc) {
 async function seedMarinosRow(code, doc) {
   const sheet = await getOrCreateMarinosSheet(doc);
   await sheet.addRow({
-    query: prefixMap.normalize(code),
+    query: normalize.code(code),
     normsku: '',
     duty_type: '',
     type: '',
@@ -162,7 +162,7 @@ async function importMarinos({ dryRun = true } = {}) {
     const code = String(row.query || '').trim();
     if (!code) continue;
     // Normaliza y persiste 'query' si difiere
-    const queryNorm = prefixMap.normalize(code);
+    const queryNorm = normalize.code(code);
     if (row.query !== queryNorm) row.query = queryNorm;
     const hint = prefixMap.resolveBrandFamilyDutyByPrefix(code) || {};
     const duty = row.duty_type || hint.duty || 'HD';
@@ -346,7 +346,7 @@ async function upsertMarinosBySku(data) {
   const rowData = {
     // Base normalized fields
     ...base,
-    query: data.query_normalized || prefixMap.normalize(data.code_input || data.code_oem || ''),
+    query: data.query_normalized || normalize.code(data.code_input || data.code_oem || ''),
     normsku: skuNorm,
     // Raw inputs
     oem_codes_raw: formatList(data.oem_codes),

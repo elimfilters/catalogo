@@ -23,7 +23,7 @@ function familyToCanonicalType(fam) {
 // existing puede traer { duty, type, family } ya detectados para no sobreescribir.
 function resolveAToD(codeInput, existing = {}) {
   const query = String(codeInput || '').trim();
-  const normQ = prefixMap.normalize(query);
+  const normQ = normalize.code(query);
   const hint = prefixMap.resolveBrandFamilyDutyByPrefix(normQ);
   const dutyResolved = hint?.brand ? (prefixMap.DUTY_BY_BRAND[hint.brand] || null) : (hint?.duty || null);
   const familyResolved = hint?.family || (existing.family ? String(existing.family).toUpperCase() : null);
