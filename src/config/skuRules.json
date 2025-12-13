@@ -2,7 +2,7 @@
   "version": "7.0.0",
   "decisionTable": {
     "OIL|HD": "EL8",
-    "OIL|LD": "EL8",               <-- AGREGA ESTA
+    "OIL|LD": "EL8",
     "FUEL|HD": "EF9",
     "FUEL|LD": "EF9",
     "AIR|HD": "EA1",
