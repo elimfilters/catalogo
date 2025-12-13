@@ -94,7 +94,7 @@ function generateSKU(family, duty, last4, ctx = {}) {
 //   EM9-FXXXX → fuel marine
 //   EM9-OXXXX → oil marine
 //   EM9-AXXXX → air marine
-//   EM9-SXXXX → separators marinos
+//   EM9-SXXXX → separators MARINEs
 //
 // ============================================================================
 
@@ -103,7 +103,7 @@ function generateEM9SubtypeSKU(subtypeFamily, last4) {
     const map = {
         FUEL: "EM9-F",
         OIL: "EM9-O",
-        AIRE: "EM9-A"
+        AIR: "EM9-A"
     };
 
     const prefix = map[fam] || "EM9-F";
@@ -123,7 +123,7 @@ function generateEM9SSeparatorSKU(originalCode) {
 }
 
 // ============================================================================
-//  BLOQUE ET9 — Turbinas HD (Donaldson/Racor/Parker)
+//  BLOQUE ET9 — TURBINEs HD (Donaldson/Racor/Parker)
 // ============================================================================
 //
 //  Reglas:

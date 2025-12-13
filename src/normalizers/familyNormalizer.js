@@ -26,9 +26,9 @@ function normalize(text) {
 const FAMILY_MAP = Object.freeze({
 
   // -----------------------------
-  // AIRE
+  // AIR
   // -----------------------------
-  AIRE: [
+  AIR: [
     "AIR",
     "AIR FILTER",
     "PRIMARY AIR",
@@ -71,7 +71,7 @@ const FAMILY_MAP = Object.freeze({
   ],
 
   // -----------------------------
-  // FUEL (NO incluye separadores)
+  // FUEL (NO incluye FUEL FILTER SEPARATORes)
   // -----------------------------
   FUEL: [
     "FUEL",

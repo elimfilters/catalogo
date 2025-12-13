@@ -1281,7 +1281,7 @@ async function extractParkerSpecs(code) {
 
         function pushEngineApps(text) {
             const body = String(text || '');
-            // Patrones de marcas y modelos marinos específicos
+            // Patrones de marcas y modelos MARINEs específicos
             const brands = [
                 'VOLVO PENTA', 'YANMAR', 'CUMMINS', 'CATERPILLAR', 'PERKINS', 'MERCRUISER',
                 'YAMAHA', 'SUZUKI', 'HONDA', 'TOHATSU', 'EVINRUDE'
@@ -1345,7 +1345,7 @@ async function extractParkerSpecs(code) {
 
         function pushEquipmentApps(text) {
             const U = String(text || '').toUpperCase();
-            // Generadores y equipos marinos con marca+modelo
+            // Generadores y equipos MARINEs con marca+modelo
             const eqPatterns = [
                 { brand: 'ONAN', regex: /\b(?:MDK[A-Z]|Q[DNT][0-9]{2}|CUMMINS\s*ONAN\s*[A-Z0-9\-]{3,})\b/g },
                 { brand: 'KOHLER', regex: /\b(?:\d{5}GM|\d{2,3}REZ|\d{2,3}EOZ)\b/g },
@@ -1462,14 +1462,14 @@ async function extractMercurySpecs(code) {
     specs.technical_details.manufactured_by = 'ELIMFILTERS';
     specs.technical_details.marine_grade = 'Yes';
     specs.technical_details.fluid_compatibility = 'Gasoline/Diesel (Marine)';
-    // Micraje genérico marino si no hay sufijo
+    // Micraje genérico MARINE si no hay sufijo
     if (!specs.performance.micron_rating) specs.performance.micron_rating = '10';
     // Intento: extraer cross Sierra y aplicaciones detalladas desde fuentes públicas
     try {
         const axios = require('axios');
         const cheerio = require('cheerio');
         const candidates = [
-            // Mayor cobertura en distribuidores marinos
+            // Mayor cobertura en distribuidores MARINEs
             `https://r.jina.ai/http://www.fisheriessupply.com/search?query=${encodeURIComponent(up)}`,
             `https://r.jina.ai/http://www.defender.com/search?search=${encodeURIComponent(up)}`,
             `https://r.jina.ai/http://www.westmarine.com/search?text=${encodeURIComponent(up)}`,
@@ -1539,7 +1539,7 @@ async function extractMercurySpecs(code) {
                 text.replace(/\bPerkins\s+(?:4\.108|M92)\b/gi, (_, m) => extraEng.push(`Perkins ${m}`));
                 text.replace(/\bEvinrude\s+(E-?TEC\s+[0-9]{2,3})\b/g, (_, m) => extraEng.push(`Evinrude ${m}`));
                 extraEng.forEach(s => engSet.add(s));
-                // Generadores/equipos marinos
+                // Generadores/equipos MARINEs
                 (text.match(/\b(?:MDK[A-Z]|Q[DNT][0-9]{2})\b/g) || []).forEach(x => eqSet.add(`ONAN ${x}`));
                 (text.match(/\b(?:\d{5}GM|\d{2,3}REZ|\d{2,3}EOZ)\b/g) || []).forEach(x => eqSet.add(`KOHLER ${x}`));
                 (text.match(/\bM\d{2,3}\b/g) || []).forEach(x => eqSet.add(`NORTHERN LIGHTS ${x}`));
@@ -1573,7 +1573,7 @@ async function extractMercurySpecs(code) {
                 text.replace(/\bPerkins\s+(?:4\.108|M92)\b/gi, (_, m) => extraEng.push(`Perkins ${m}`));
                 text.replace(/\bEvinrude\s+(E-?TEC\s+[0-9]{2,3})\b/g, (_, m) => extraEng.push(`Evinrude ${m}`));
                 extraEng.forEach(s => engSet.add(s));
-                // Generadores/equipos marinos
+                // Generadores/equipos MARINEs
                 (text.match(/\b(?:MDK[A-Z]|Q[DNT][0-9]{2})\b/g) || []).forEach(x => eqSet.add(`ONAN ${x}`));
                 (text.match(/\b(?:\d{5}GM|\d{2,3}REZ|\d{2,3}EOZ)\b/g) || []).forEach(x => eqSet.add(`KOHLER ${x}`));
                 (text.match(/\bM\d{2,3}\b/g) || []).forEach(x => eqSet.add(`NORTHERN LIGHTS ${x}`));

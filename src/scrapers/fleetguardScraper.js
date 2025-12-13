@@ -79,7 +79,7 @@ const FLEETGUARD_DATABASE = {
 
     // ========== AF-SERIES (Air Filters) ==========
     'AF25139': {
-        family: 'AIRE',
+        family: 'AIR',
         type: 'AIR FILTER, PRIMARY RADIALSEAL',
         specifications: {
             efficiency: '99.5% @ 25 micron',
@@ -93,7 +93,7 @@ const FLEETGUARD_DATABASE = {
         applications: ['Heavy Duty Air Filtration', 'Freightliner', 'Cummins']
     },
     'AF26162': {
-        family: 'AIRE',
+        family: 'AIR',
         type: 'AIR FILTER, SECONDARY',
         specifications: {
             efficiency: '99.9% @ 10 micron',
@@ -166,7 +166,7 @@ function detectFleetguardFamilyFromCode(code) {
 
     if (series === 'LF') return 'OIL';
     if (series === 'FF' || series === 'FS') return 'FUEL';
-    if (series === 'AF') return 'AIRE';
+    if (series === 'AF') return 'AIR';
     if (series === 'WF') return 'COOLANT';
     if (series === 'HF') return 'HYDRAULIC';
 

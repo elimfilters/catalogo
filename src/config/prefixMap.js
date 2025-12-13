@@ -22,8 +22,8 @@ const PREFIXES = Object.freeze({
   FUEL_LD: "EF9",
   FUEL_HD: "EF9",
 
-  AIRE_LD: "EA1",
-  AIRE_HD: "EA1",
+  AIR_LD: "EA1",
+  AIR_HD: "EA1",
 
   CABIN_LD: "EC1",
   CABIN_HD: "EC1",
@@ -31,21 +31,21 @@ const PREFIXES = Object.freeze({
   // ------------------------------------------------------------------------
   // HEAVY DUTY — ESPECIALIZADOS
   // ------------------------------------------------------------------------
-  TURBINE_HD: "ET9",          // Turbinas Donaldson / Racor / Parker
+  TURBINE_HD: "ET9",          // TURBINEs Donaldson / Racor / Parker
   HYDRAULIC_HD: "EH6",        // Hidráulicos HD
-  SEPARATOR_HD: "ES9",        // Filtros separadores de agua (Racor/Parker)
+  SEPARATOR_HD: "ES9",        // Filtros FUEL FILTER SEPARATORes de agua (Racor/Parker)
   COOLANT_HD: "EW7",          // Coolant / Extended Life Coolant Filters
 
   // ------------------------------------------------------------------------
-  // AIR HOUSINGS (Carcasas de Aire)
+  // AIR HOUSINGS (AIR HOUSINGs de AIR)
   // ------------------------------------------------------------------------
   AIR_HOUSING_LD: "EA2",
   AIR_HOUSING_HD: "EA2",
 
   // ------------------------------------------------------------------------
-  // MARINOS — TODOS LOS TIPOS
+  // MARINES — TODOS LOS TIPOS
   // ------------------------------------------------------------------------
-  MARINE_ANY: "EM9",          // Marinos general, FUEL/OIL/AIRE
+  MARINE_ANY: "EM9",          // MARINEs general, FUEL/OIL/AIR
   TURBINE_MARINE: "EM9",      // Racor Marine Series
 
   // ------------------------------------------------------------------------

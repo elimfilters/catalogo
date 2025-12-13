@@ -9,7 +9,7 @@
  *   /src/config/prefixes.js
  *
  * Este archivo únicamente:
- *   1. Normaliza sinónimos de family (AIRE, FUEL, OIL, CABIN, MARINE, etc)
+ *   1. Normaliza sinónimos de family (AIR, FUEL, OIL, CABIN, MARINE, etc)
  *   2. Empareja family + duty (LD/HD) → prefijo oficial
  *
  * NUNCA debe deducir prefijos a partir de códigos OEM.
@@ -34,7 +34,7 @@ function clean(text) {
  * Todos mapean a una de las familias corporativas:
  *  - OIL
  *  - FUEL
- *  - AIRE
+ *  - AIR
  *  - CABIN
  *  - HYDRAULIC
  *  - COOLANT
@@ -69,23 +69,23 @@ const FAMILY_SYNONYMS = Object.freeze({
   SEPARATOR: "SEPARATOR",
 
   // ---------------------
-  // AIR FILTER (AIRE)
+  // AIR FILTER (AIR)
   // ---------------------
-  AIRE: "AIRE",
-  AIR: "AIRE",
-  AIR_FILTER: "AIRE",
-  PRIMARY_AIR: "AIRE",
-  SECONDARY_AIR: "AIRE",
-  PANEL: "AIRE",
-  ROUND: "AIRE",
-  RADIALSEAL: "AIRE",
-  SAFETY: "AIRE",
+  AIR: "AIR",
+  AIR: "AIR",
+  AIR_FILTER: "AIR",
+  PRIMARY_AIR: "AIR",
+  SECONDARY_AIR: "AIR",
+  PANEL: "AIR",
+  ROUND: "AIR",
+  RADIALSEAL: "AIR",
+  SAFETY: "AIR",
 
   // ---------------------
   // CABIN FILTER
   // ---------------------
   CABIN: "CABIN",
-  CABINA: "CABIN",
+  CABIN: "CABIN",
   AC: "CABIN",
   AIRCABIN: "CABIN",
   AIRCONDITIONER: "CABIN",
@@ -112,19 +112,19 @@ const FAMILY_SYNONYMS = Object.freeze({
   TURBINE: "TURBINE",
   RACOR: "TURBINE",
   PARKER: "TURBINE",
-  TURBINA: "TURBINE",
+  TURBINE: "TURBINE",
 
   // ---------------------
-  // MARINO
+  // MARINE
   // ---------------------
   MARINE: "MARINE",
-  MARINO: "MARINE",
+  MARINE: "MARINE",
   BOAT: "MARINE",
   OUTBOARD: "MARINE",
   MERCRUISER: "MARINE",
 
   // ---------------------
-  // HOUSING (Carcasa de Aire)
+  // HOUSING (AIR HOUSING de AIR)
   // ---------------------
   HOUSING: "HOUSING",
   AIR_HOUSING: "HOUSING",
@@ -166,8 +166,8 @@ function getPrefix(family, duty) {
     "FUEL|LD": PREFIXES.FUEL_LD,
     "FUEL|HD": PREFIXES.FUEL_HD,
 
-    "AIRE|LD": PREFIXES.AIRE_LD,
-    "AIRE|HD": PREFIXES.AIRE_HD,
+    "AIR|LD": PREFIXES.AIR_LD,
+    "AIR|HD": PREFIXES.AIR_HD,
 
     "CABIN|LD": PREFIXES.CABIN_LD,
     "CABIN|HD": PREFIXES.CABIN_HD,
@@ -182,7 +182,7 @@ function getPrefix(family, duty) {
     "HOUSING|LD": PREFIXES.AIR_HOUSING_LD,
     "HOUSING|HD": PREFIXES.AIR_HOUSING_HD,
 
-    // Marino
+    // MARINE
     "MARINE|LD": PREFIXES.MARINE_ANY,
     "MARINE|HD": PREFIXES.MARINE_ANY,
   };

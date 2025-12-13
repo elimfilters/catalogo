@@ -38,7 +38,7 @@ module.exports = {
     },
     {
       match: /^CA\d{3,5}[A-Z]?$/,
-      family: 'AIRE',
+      family: 'AIR',
       duty: 'LD',
       brand: 'FRAM'
     },
@@ -98,7 +98,7 @@ module.exports = {
     },
     {
       match: /^AF\d{3,5}[A-Z]?$/,
-      family: 'AIRE',
+      family: 'AIR',
       duty: 'HD',
       brand: 'FLEETGUARD'
     },

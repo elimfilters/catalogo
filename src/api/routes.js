@@ -9,13 +9,13 @@ const router = express.Router();
 const SCRAPERS = [
   { name: 'Donaldson', path: '/src/scrapers/donaldson.js', duty: 'HD', description: 'Heavy Duty: Air/Oil/Fuel/Cabin; P-series y variantes.' },
   { name: 'FRAM', path: '/src/scrapers/fram.js', duty: 'LD', description: 'Light Duty: Oil/Air/Cabin; familias PH/TG/XG/HM/CA/CF/CH/G/PS.' },
-  { name: 'Parker/Racor', path: '/src/scrapers/scraperBridge.js', duty: 'Marine', description: 'Validadores marinos para ET9/EM9; Turbine Systems y separadores.' },
+  { name: 'Parker/Racor', path: '/src/scrapers/scraperBridge.js', duty: 'Marine', description: 'Validadores MARINEs para ET9/EM9; Turbine Systems y FUEL FILTER SEPARATORes.' },
   { name: 'MerCruiser', path: '/src/scrapers/scraperBridge.js', duty: 'Marine', description: 'Validador OEM MerCruiser para EM9.' },
   { name: 'Sierra', path: '/src/scrapers/scraperBridge.js', duty: 'Marine', description: 'Validador OEM Sierra para EM9.' }
 ];
 
 const FAMILIES = [
-  { family: 'EA1', label: 'AIRE', routing: { HD: 'Donaldson', LD: 'FRAM' } },
+  { family: 'EA1', label: 'AIR', routing: { HD: 'Donaldson', LD: 'FRAM' } },
   { family: 'EC1', label: 'CABIN', routing: { HD: 'Donaldson', LD: 'FRAM' } },
   { family: 'EA2', label: 'CARCAZA AIR FILTER', routing: { HD: 'Donaldson' } },
   { family: 'EL8', label: 'OIL', routing: { HD: 'Donaldson', LD: 'FRAM' } },

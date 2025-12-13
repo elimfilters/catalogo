@@ -14,7 +14,7 @@
 
 const MEDIA_BY_FAMILY = {
     // Air filters
-    'AIRE': 'MACROCORE™',
+    'AIR': 'MACROCORE™',
     'AIR': 'MACROCORE™',
     
     // Cabin air filters

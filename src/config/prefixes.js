@@ -22,8 +22,8 @@ const PREFIXES = Object.freeze({
   FUEL_LD: "EF9",
   FUEL_HD: "EF9",
 
-  AIRE_LD: "EA1",
-  AIRE_HD: "EA1",
+  AIR_LD: "EA1",
+  AIR_HD: "EA1",
 
   CABIN_LD: "EC1",
   CABIN_HD: "EC1",
@@ -37,13 +37,13 @@ const PREFIXES = Object.freeze({
   COOLANT_HD: "EW7",
 
   // ------------------------------------------------------------------------
-  // Air Housings (Carcasas de Aire)
+  // Air Housings (AIR HOUSINGs de AIR)
   // ------------------------------------------------------------------------
   AIR_HOUSING_LD: "EA2",
   AIR_HOUSING_HD: "EA2",
 
   // ------------------------------------------------------------------------
-  // MARINO — Todos los tipos
+  // MARINE — Todos los tipos
   // ------------------------------------------------------------------------
   MARINE_ANY: "EM9",
   TURBINE_MARINE: "EM9",

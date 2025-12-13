@@ -31,14 +31,14 @@ function normalizeFamily(f) {
     "LUB": "OIL",
 
     // Air
-    "AIR": "AIRE",
-    "AIRE": "AIRE",
-    "PRIMARY AIR": "AIRE",
-    "SECONDARY AIR": "AIRE",
-    "OUTER AIR": "AIRE",
-    "INNER AIR": "AIRE",
-    "AIR CLEANER": "AIRE",
-    "AIR FILTER": "AIRE",
+    "AIR": "AIR",
+    "AIR": "AIR",
+    "PRIMARY AIR": "AIR",
+    "SECONDARY AIR": "AIR",
+    "OUTER AIR": "AIR",
+    "INNER AIR": "AIR",
+    "AIR CLEANER": "AIR",
+    "AIR FILTER": "AIR",
 
     // Cabin
     "CABIN": "CABIN",
@@ -53,7 +53,7 @@ function normalizeFamily(f) {
     "PRIMARY FUEL": "FUEL",
     "SECONDARY FUEL": "FUEL",
 
-    // Separador / Water Separator
+    // FUEL FILTER SEPARATOR / Water Separator
     "SEPARATOR": "SEPARATOR",
     "WATER SEPARATOR": "SEPARATOR",
     "FUEL WATER SEPARATOR": "SEPARATOR",

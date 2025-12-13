@@ -25,7 +25,7 @@ const FAMILY_FORCE_HD = [
 const FAMILY_HD_LD = [
     "OIL",
     "FUEL",
-    "AIRE",
+    "AIR",
     "CABIN",
     "MARINE"
 ];

@@ -53,7 +53,7 @@ function resolveAirSubtype(text, duty) {
 
 function resolveFuelSubtype(text) {
   // Priority 1: Specialized function
-  if (hasAny(text, ['water separator', 'separador', 'separacion de agua', 'separación de agua', 'separator'])) return 'Separador W/F';
+  if (hasAny(text, ['water separator', 'FUEL FILTER SEPARATOR', 'separacion de agua', 'separación de agua', 'separator'])) return 'FUEL FILTER SEPARATOR W/F';
   // Priority 3: General design
   if (hasAny(text, ['spin on', 'spin-on', 'enroscable', 'roscado'])) return 'Spin-on';
   if (hasAny(text, ['cartridge', 'cartucho', 'elemento'])) return 'Cartucho';
@@ -99,12 +99,12 @@ function resolveSubtype(input) {
   const type = String(typeCanon || '').toLowerCase();
 
   let out = '';
-  if (fam === 'AIR' || type.includes('aire')) out = resolveAirSubtype(text, duty);
+  if (fam === 'AIR' || type.includes('AIR')) out = resolveAirSubtype(text, duty);
   else if (fam === 'FUEL' || type.includes('fuel')) out = resolveFuelSubtype(text);
-  else if (fam === 'OIL' || type.includes('oil') || type.includes('aceite')) out = resolveOilSubtype(text);
+  else if (fam === 'OIL' || type.includes('oil') || type.includes('OIL')) out = resolveOilSubtype(text);
   else if (fam === 'COOLANT' || type.includes('coolant') || type.includes('refrigerante')) out = resolveCoolantSubtype(text);
   else if (fam === 'HYDRAULIC' || type.includes('hidra') || type.includes('hydraulic')) out = resolveHydraulicSubtype(text);
-  else if (fam === 'CABIN' || type.includes('cabin') || type.includes('cabina')) out = resolveCabinSubtype(text);
+  else if (fam === 'CABIN' || type.includes('cabin') || type.includes('CABIN')) out = resolveCabinSubtype(text);
 
   return out || '';
 }

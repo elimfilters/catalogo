@@ -6,14 +6,14 @@ async function run() {
     'DBL7349',
     'ELF7349',
     'P552100', // P55xxxx → OIL
-    'P771511', // P77xxxx → AIRE
-    'P782105', // P78xxxx → AIRE
-    'P627763', // P62xxxx → AIRE
+    'P771511', // P77xxxx → AIR
+    'P782105', // P78xxxx → AIR
+    'P627763', // P62xxxx → AIR
     'P561131', // P56xxxx → FUEL
     'P601234', // P60xxxx → COOLANT
-    'P150695', // P15xxxx → AIRE
-    'P171234', // P17xxxx → AIRE
-    'P181234', // P18xxxx → AIRE
+    'P150695', // P15xxxx → AIR
+    'P171234', // P17xxxx → AIR
+    'P181234', // P18xxxx → AIR
     'C105004',
     'ECC12345',
     'FPG12345',

@@ -43,7 +43,7 @@ function detectTechnology(pageText, family) {
   const t = String(pageText || '').toLowerCase();
   if (/ultra\s+synthetic|high\s+mileage/.test(t)) return 'ELIMTEK™ MultiCore';
   if (/extra\s+guard/.test(t)) return 'ELIMTEK™ Standard';
-  if (String(family).toUpperCase().includes('AIRE') || /cabin\s+air|air\s+filter/.test(t)) return 'MACROCORE™';
+  if (String(family).toUpperCase().includes('AIR') || /cabin\s+air|air\s+filter/.test(t)) return 'MACROCORE™';
   return undefined;
 }
 

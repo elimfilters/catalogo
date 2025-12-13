@@ -14,7 +14,7 @@ function pickSubtypePhrase(subtype, family) {
   if (/CARTU?CHO|ELEMENT/.test(up)) return 'tipo cartucho';
   if (/PANEL/.test(up)) return 'tipo panel';
   if (/CONI|CYLIN/.test(up)) return 'tipo cónico/cilíndrico';
-  if (/SEPARADOR|W\/F|WATER\s*SEPARATION/i.test(up)) return 'separador de agua/combustible';
+  if (/FUEL FILTER SEPARATOR|W\/F|WATER\s*SEPARATION/i.test(up)) return 'FUEL FILTER SEPARATOR de agua/FUEL';
   if (/BYPASS|BY[- ]?PASS/i.test(up)) return 'con válvula bypass';
   if (/FULL[- ]?FLOW|FLUJO\s*TOTAL/i.test(up)) return 'de flujo total';
   return '';
@@ -35,13 +35,13 @@ function pickMediaPhrase(media, lang = 'es') {
   return m ? (isEs ? `con medio ${media}` : `with ${media} media`) : '';
 }
 
-function genAirES({ duty, subtype, media_type }) {
+function genAIRS({ duty, subtype, media_type }) {
   const dutyStr = String(duty || '').toUpperCase() === 'HD' ? 'de servicio pesado' : 'de servicio ligero';
   const sub = pickSubtypePhrase(subtype, 'AIR');
   const media = pickMediaPhrase(media_type, 'es');
   const parts = [
-    `Filtro de aire primario ${dutyStr}${sub ? ', ' + sub : ''}`,
-    'diseñado por ELIMFILTERS para mantener un flujo de aire estable y proteger el sistema de admisión',
+    `Filtro de AIR primario ${dutyStr}${sub ? ', ' + sub : ''}`,
+    'diseñado por ELIMFILTERS para mantener un flujo de AIR estable y proteger el sistema de admisión',
     'al capturar contaminantes antes de que alcancen la cámara de combustión',
     media ? media : ''
   ].filter(Boolean);
@@ -53,7 +53,7 @@ function genFuelES({ duty, subtype, media_type }) {
   const sub = pickSubtypePhrase(subtype, 'FUEL');
   const media = pickMediaPhrase(media_type, 'es');
   const parts = [
-    `Filtro de combustible ${dutyStr}${sub ? ', ' + sub : ''}`,
+    `Filtro de FUEL ${dutyStr}${sub ? ', ' + sub : ''}`,
     'ayuda a remover partículas y agua para proteger el sistema de inyección',
     media ? media : ''
   ].filter(Boolean);
@@ -65,8 +65,8 @@ function genOilES({ duty, subtype, media_type }) {
   const sub = pickSubtypePhrase(subtype, 'OIL');
   const media = pickMediaPhrase(media_type, 'es');
   const parts = [
-    `Filtro de aceite ${dutyStr}${sub ? ', ' + sub : ''}`,
-    'retiene impurezas para extender la vida útil del motor y mantener la viscosidad del aceite dentro de rango',
+    `Filtro de OIL ${dutyStr}${sub ? ', ' + sub : ''}`,
+    'retiene impurezas para extender la vida útil del motor y mantener la viscosidad del OIL dentro de rango',
     media ? media : ''
   ].filter(Boolean);
   return parts.join('. ') + '.';
@@ -105,14 +105,14 @@ function genCoolantES({ media_type }) {
 function genCabinES({ media_type }) {
   const media = pickMediaPhrase(media_type, 'es');
   const parts = [
-    'Filtro de cabina mejora la calidad del aire interior',
+    'Filtro de CABIN mejora la calidad del AIR interior',
     'capturando polvo, polen y partículas finas para mayor confort del usuario',
     media ? media : ''
   ].filter(Boolean);
   return parts.join('. ') + '.';
 }
 
-function genAirEN({ duty, subtype, media_type }) {
+function genAIRN({ duty, subtype, media_type }) {
   const dutyStr = String(duty || '').toUpperCase() === 'HD' ? 'heavy‑duty' : 'light‑duty';
   const sub = pickSubtypePhrase(subtype, 'AIR');
   const media = pickMediaPhrase(media_type, 'en');
@@ -193,7 +193,7 @@ function generateDescription({ family, duty, subtype, media_type, lang = 'es' })
   const fam = String(family || '').toUpperCase();
   const isEs = String(lang || 'es').toLowerCase().startsWith('es');
 
-  if (fam === 'AIR') return isEs ? genAirES({ duty, subtype, media_type }) : genAirEN({ duty, subtype, media_type });
+  if (fam === 'AIR') return isEs ? genAIRS({ duty, subtype, media_type }) : genAIRN({ duty, subtype, media_type });
   if (fam === 'FUEL') return isEs ? genFuelES({ duty, subtype, media_type }) : genFuelEN({ duty, subtype, media_type });
   if (fam === 'OIL') return isEs ? genOilES({ duty, subtype, media_type }) : genOilEN({ duty, subtype, media_type });
   if (fam === 'HYDRAULIC') return isEs ? genHydraulicES({ duty, subtype, media_type }) : genHydraulicEN({ duty, subtype, media_type });

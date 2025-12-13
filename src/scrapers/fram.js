@@ -106,7 +106,7 @@ const FRAM_DATABASE = {
     
     // ========== CA-SERIES (Air Filters) ==========
     'CA10896': {
-        family: 'AIRE',
+        family: 'AIR',
         type: 'AIR FILTER, PANEL',
         specifications: {
             efficiency: '99.5% @ 25 micron',
@@ -117,7 +117,7 @@ const FRAM_DATABASE = {
         applications: ['Heavy Duty Engines']
     },
     'CA11003': {
-        family: 'AIRE',
+        family: 'AIR',
         type: 'AIR FILTER, PANEL PRIMARY',
         specifications: {
             efficiency: '99.9% @ 10 micron',
@@ -163,7 +163,7 @@ const FRAM_DATABASE = {
     
     // ========== AF-SERIES (OEM Cross-Reference - Air Filters) ==========
     'AF25139': {
-        family: 'AIRE',
+        family: 'AIR',
         type: 'AIR FILTER, PRIMARY RADIALSEAL',
         specifications: {
             media_type: 'Cellulose',
@@ -209,9 +209,9 @@ function detectFramFamilyFromCode(code) {
     if (series === 'TG') return 'TRANSMISSION';
     if (series === 'XG') return 'OIL';
     if (series === 'CH') return 'COOLANT';
-    if (series === 'CA') return 'AIRE';
+    if (series === 'CA') return 'AIR';
     if (series === 'CF') return 'CABIN AIR';
-    if (series === 'AF') return 'AIRE';
+    if (series === 'AF') return 'AIR';
     if (series === 'PS') return 'POWER STEERING';
     
     return null;

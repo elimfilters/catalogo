@@ -72,7 +72,7 @@ async function scraperBridge(code, duty) {
     }
 
     // =========================================================================
-    // PASO 3: Intentar validadores OEM marinos (Parker/Racor, MerCruiser, Sierra)
+    // PASO 3: Intentar validadores OEM MARINEs (Parker/Racor, MerCruiser, Sierra)
     // =========================================================================
     const racor = validateRacorCode(normalizedCode);
     if (racor && racor.valid) {
@@ -140,7 +140,7 @@ module.exports = {
 
 function validateRacorCode(code) {
     const up = String(code || '').toUpperCase();
-    // Sistemas Turbina (hardware/housing): 900MA, 1000FH, etc.
+    // Sistemas TURBINE (hardware/housing): 900MA, 1000FH, etc.
         if (/^\d{3,5}(MA|FH)\b/.test(up)) {
             return {
                 valid: true,
@@ -151,7 +151,7 @@ function validateRacorCode(code) {
                 source: 'PARKER'
             };
         }
-    // Elementos Turbina (2010/2020/2040 + sufijos de micraje)
+    // Elementos TURBINE (2010/2020/2040 + sufijos de micraje)
         if (/^(2010|2020|2040)[A-Z0-9]*$/.test(up)) {
             return {
                 valid: true,
@@ -162,7 +162,7 @@ function validateRacorCode(code) {
                 source: 'PARKER'
             };
         }
-    // Separadores Parker/Racor (R12/R15/.../R120 con T/S)
+    // FUEL FILTER SEPARATORes Parker/Racor (R12/R15/.../R120 con T/S)
         if (/^R(12|15|20|25|45|60|90|120)(T|S)$/.test(up)) {
             return {
                 valid: true,

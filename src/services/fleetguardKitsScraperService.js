@@ -193,12 +193,12 @@ async function scrapeKitDetailPage(detailUrl) {
 
 function guessFamilyFromText(text) {
   const T = String(text || '').toUpperCase();
-  if (/(OIL|ACEITE|LUBE)/.test(T)) return 'OIL';
-  if (/(FUEL|COMBUSTIBLE|SEPARATOR)/.test(T)) return 'FUEL';
-  if (/(AIR|AIRE)/.test(T)) return 'AIR';
+  if (/(OIL|OIL|LUBE)/.test(T)) return 'OIL';
+  if (/(FUEL|FUEL|SEPARATOR)/.test(T)) return 'FUEL';
+  if (/(AIR|AIR)/.test(T)) return 'AIR';
   if (/(HYDRAULIC|HIDR)/.test(T)) return 'HYDRAULIC';
   if (/(COOLANT|REFRIG)/.test(T)) return 'COOLANT';
-  if (/(CABIN|CABINA)/.test(T)) return 'CABIN';
+  if (/(CABIN|CABIN)/.test(T)) return 'CABIN';
   return 'COMPONENT';
 }
 

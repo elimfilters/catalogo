@@ -14,8 +14,8 @@ const { appendWatch } = require('../utils/pSeriesWatchlist');
 const DONALDSON_DATABASE = {
     // ========== P-SERIES (Standard) ==========
     'P150695': {
-        family: 'AIRE',
-        type: 'FILTRO DE AIRE, PRIMARIO KONEPAC',
+        family: 'AIR',
+        type: 'FILTRO DE AIR, PRIMARIO KONEPAC',
         specifications: {
             height: '18.11 inch',
             outer_diameter: '8.27 inch',
@@ -49,7 +49,7 @@ const DONALDSON_DATABASE = {
     },
     // Specific override: Donaldson P527682 is an Air Filter (Primary Radialseal)
     'P527682': {
-        family: 'AIRE',
+        family: 'AIR',
         type: 'AIR FILTER, PRIMARY RADIALSEAL',
         specifications: {
             length: '14.76 inch',
@@ -86,7 +86,7 @@ const DONALDSON_DATABASE = {
 
     // ========== DBA-SERIES (Donaldson Blue Air) ==========
     'DBA5000': {
-        family: 'AIRE',
+        family: 'AIR',
         type: 'Donaldson Blue® Air Filter',
         specifications: {
             media_type: 'Ultra-Web® Fine Fiber',
@@ -276,8 +276,8 @@ function detectFamilyFromCode(code) {
     // DBL series = always OIL
     if (series === 'DBL') return 'OIL';
 
-    // DBA series = always AIRE
-    if (series === 'DBA') return 'AIRE';
+    // DBA series = always AIR
+    if (series === 'DBA') return 'AIR';
 
     // ELF series = always OIL
     if (series === 'ELF') return 'OIL';
@@ -285,14 +285,14 @@ function detectFamilyFromCode(code) {
     // HFP series = FUEL
     if (series === 'HFP') return 'FUEL';
 
-    // HFA/EAF series = AIRE
-    if (series === 'HFA' || series === 'EAF') return 'AIRE';
+    // HFA/EAF series = AIR
+    if (series === 'HFA' || series === 'EAF') return 'AIR';
 
     // X-series (unknown family until confirmed) → no family
     if (series === 'X') return null;
 
-    // C-series (Duralite Air) = always AIRE
-    if (series === 'C') return 'AIRE';
+    // C-series (Duralite Air) = always AIR
+    if (series === 'C') return 'AIR';
 
     // P-series: reglas curadas y excepciones
     if (series === 'P') {
@@ -306,15 +306,15 @@ function detectFamilyFromCode(code) {
             return 'OIL';
         }
         if (/^P5(0|2|3|4)\d{4}[A-Z]?$/.test(normalized)) return 'OIL';
-        if (/^P62\d{4}[A-Z]?$/.test(normalized)) return 'AIRE';
-        if (/^P77\d{4}[A-Z]?$/.test(normalized)) return 'AIRE';
-        if (/^P78\d{4}[A-Z]?$/.test(normalized)) return 'AIRE';
-        if (/^P82\d{4}[A-Z]?$/.test(normalized)) return 'AIRE';
+        if (/^P62\d{4}[A-Z]?$/.test(normalized)) return 'AIR';
+        if (/^P77\d{4}[A-Z]?$/.test(normalized)) return 'AIR';
+        if (/^P78\d{4}[A-Z]?$/.test(normalized)) return 'AIR';
+        if (/^P82\d{4}[A-Z]?$/.test(normalized)) return 'AIR';
         // P95: Air Dryer spin-on
         if (/^P95\d{4}[A-Z]?$/.test(normalized)) return 'AIR DRYER';
         if (/^P56\d{4}[A-Z]?$/.test(normalized)) return 'FUEL';
         if (/^P60\d{4}[A-Z]?$/.test(normalized)) return 'COOLANT';
-        if (/^P1(5|7|8)\d{4}[A-Z]?$/.test(normalized)) return 'AIRE';
+        if (/^P1(5|7|8)\d{4}[A-Z]?$/.test(normalized)) return 'AIR';
         // Otros P-series no son aceptados en nuestra línea
         return null;
     }
@@ -576,7 +576,7 @@ const KNOWN_BRANDS = [
 
 function inferBrandFromCrossToken(token) {
     const raw = String(token || '').toUpperCase();
-    // Normalizar separadores → espacios
+    // Normalizar FUEL FILTER SEPARATORes → espacios
     const normalized = raw.replace(/[-_]+/g, ' ').replace(/\s+/g, ' ').trim();
     // Buscar la marca de mayor longitud contenida en el token (comparación por includes)
     let best = null;

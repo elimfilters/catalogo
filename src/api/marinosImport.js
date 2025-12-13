@@ -1,14 +1,14 @@
 // =============================================
-//  MARINOS IMPORT ENDPOINT
+//  MARINES IMPORT ENDPOINT
 // =============================================
 
 const express = require('express');
 const router = express.Router();
-const { importMarinos, initSheet, seedMarinosRow } = require('../services/marineImportService');
+const { importMARINEs, initSheet, seedMARINEsRow } = require('../services/marineImportService');
 
 // =============================================
-//  POST /api/import/marinos
-//  Import data from Google Sheet 'Marinos' tab
+//  POST /api/import/MARINEs
+//  Import data from Google Sheet 'MARINEs' tab
 // =============================================
 router.post('/', async (req, res) => {
     try {
@@ -16,12 +16,12 @@ router.post('/', async (req, res) => {
         const seed = typeof req.query.seed === 'string' ? req.query.seed.trim() : null;
         if (seed) {
             const doc = await initSheet();
-            await seedMarinosRow(seed, doc);
+            await seedMARINEsRow(seed, doc);
         }
-        const result = await importMarinos({ dryRun });
+        const result = await importMARINEs({ dryRun });
         res.json({ ok: true, dryRun, ...result });
     } catch (error) {
-        console.error('❌ Error in Marinos import:', error);
+        console.error('❌ Error in MARINEs import:', error);
         res.status(500).json({ ok: false, error: error.message });
     }
 });
