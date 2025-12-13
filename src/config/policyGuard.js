@@ -12,7 +12,7 @@ function readFile(relPath) {
 function computePolicyHash() {
   const docs = [
     path.join('..', '..', 'docs', 'SKU_CREATION_POLICY_MASTER_ES.md'),
-    path.join('..', '..', 'docs', 'SKU_CREATION_POLICY_MASTER_Y_MARINOS_ES.md')
+    path.join('..', '..', 'docs', 'SKU_CREATION_POLICY_MASTER_Y_MARINES_ES.md')
   ];
   let acc = '';
   for (const d of docs) {
@@ -37,8 +37,8 @@ function validateDecisionTableInvariants() {
     'OIL|LD': 'EL8',
     'FUEL|HD': 'EF9',
     'FUEL|LD': 'EF9',
-    'AIRE|HD': 'EA1',
-    'AIRE|LD': 'EA1',
+    'AIR|HD': 'EA1',
+    'AIR|LD': 'EA1',
     'CABIN|HD': 'EC1',
     'CABIN|LD': 'EC1',
     'FUEL SEPARATOR|HD': 'ES9'

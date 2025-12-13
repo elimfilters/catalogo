@@ -162,7 +162,7 @@ const FALLBACK_TEMP_SKU_EXCLUDE_LIST = String(process.env.FALLBACK_TEMP_SKU_EXCL
 // Descripciones ELIMFILTERS - Diccionario (Prefijo + LÃ­nea)
 // ============================================================================
 const STOP_WORDS = [
-    'AIRE', 'AIR', 'OIL', 'ACEITE', 'FUEL', 'COMBUSTIBLE', 'CABINA', 'CABIN',
+    'AIR', 'AIR', 'OIL', 'OIL', 'FUEL', 'FUEL', 'CABIN', 'CABIN',
     'LUBE', 'ELEMENTO', 'FILTRO'
 ];
 
@@ -172,13 +172,13 @@ const DESCRIPCIONES_ELIMFILTERS = {
     OIL_SYNTHETIC: 'ELIMTEKâ„¢ SYNTHETIC: Medio sintÃ©tico de precisiÃ³n 99% @ 20Âµ para HD y series XG con performance extendido. Medio Filtrante Genuino. Desarrollado con IA.',
     OIL_ADVANCED: 'ELIMTEKâ„¢ ADVANCED: Celulosa blend reforzada 97% @ 25Âµ, Ã³ptimo para LD y series TG/HM. Balance entre eficiencia y capacidad. Medio Filtrante Genuino. Desarrollado con IA.',
     FUEL_ULTRA: 'ELIMTEKâ„¢ ULTRA: Multi-capa 99.5% @ 4Âµ con separaciÃ³n de agua >95% para HD/PS-series en sistemas diÃ©sel exigentes. Medio Filtrante Genuino. Desarrollado con IA.',
-    FUEL_ADVANCED: 'ELIMTEKâ„¢ ADVANCED: FiltraciÃ³n de combustible LD con blend reforzada, eficiencia y costo optimizados. Medio Filtrante Genuino. Desarrollado con IA.',
+    FUEL_ADVANCED: 'ELIMTEKâ„¢ ADVANCED: FiltraciÃ³n de FUEL LD con blend reforzada, eficiencia y costo optimizados. Medio Filtrante Genuino. Desarrollado con IA.',
     CABIN_PREMIUM: 'MICROKAPPAâ„¢ PREMIUM: CarbÃ³n activado y sistema multietapa para purificaciÃ³n avanzada del habitÃ¡culo. Medio Filtrante Genuino. Desarrollado con IA.',
-    CABIN_PURE: 'MICROKAPPAâ„¢ PURE: ElectrostÃ¡tico multi-capa de alta eficiencia para aire de cabina estÃ¡ndar. Medio Filtrante Genuino. Desarrollado con IA.',
+    CABIN_PURE: 'MICROKAPPAâ„¢ PURE: ElectrostÃ¡tico multi-capa de alta eficiencia para AIR de CABIN estÃ¡ndar. Medio Filtrante Genuino. Desarrollado con IA.',
     HYDRAULIC_ULTRA: 'ELIMTEKâ„¢ ULTRA: FiltraciÃ³n hidrÃ¡ulica de alta presiÃ³n con nano-fibra multi-capa en lÃ­neas de presiÃ³n/retorno. Medio Filtrante Genuino. Desarrollado con IA.',
     COOLANT_SYNTHETIC: 'ELIMTEKâ„¢ SYNTHETIC: Control de refrigerante con medio sintÃ©tico de precisiÃ³n, compatible con sistemas con o sin aditivos SCA. Medio Filtrante Genuino. Desarrollado con IA.',
-    AIR_DRYER_ULTRA: 'ELIMTEKâ„¢ ULTRA: Cartucho secador de aire con desecante de alto desempeÃ±o para aire comprimido y sistemas de frenado. Medio Filtrante Genuino. Desarrollado con IA.',
-    MARINE_ULTRA: 'ELIMTEKâ„¢ ULTRA: FiltraciÃ³n marina Heavy Duty, separaciÃ³n agua/combustible y protecciÃ³n crÃ­tica de motores. Medio Filtrante Genuino. Desarrollado con IA.'
+    AIR_DRYER_ULTRA: 'ELIMTEKâ„¢ ULTRA: Cartucho secador de AIR con desecante de alto desempeÃ±o para AIR comprimido y sistemas de frenado. Medio Filtrante Genuino. Desarrollado con IA.',
+    MARINE_ULTRA: 'ELIMTEKâ„¢ ULTRA: FiltraciÃ³n marina Heavy Duty, separaciÃ³n agua/FUEL y protecciÃ³n crÃ­tica de motores. Medio Filtrante Genuino. Desarrollado con IA.'
 };
 
 // Garantiza el lenguaje mandatorio en descripciones de fallback
@@ -664,12 +664,12 @@ function buildRowData(data) {
 
     // Canonical type and subtype synonym maps
     const TYPE_SYNONYMS = {
-        'Aire': ['air', 'filtro de aire', 'motor air filter', 'aire motor'],
-        'Cabina': ['cabin', 'cabin air', 'filtro de cabina', 'habitaculo', 'habitÃ¡culo'],
-        'Fuel': ['fuel', 'combustible', 'fuel filter'],
-        'Oil': ['oil', 'aceite', 'oil filter'],
-        'Fuel Separator': ['separador de agua', 'water separator', 'coalescer', 'coalescente', 'pre filter', 'pre-filter'],
-        'Air Dryer': ['air dryer', 'secador de aire', 'desecante aire', 'air desiccant'],
+        'AIR': ['air', 'filtro de AIR', 'motor air filter', 'AIR motor'],
+        'CABIN': ['cabin', 'cabin air', 'filtro de CABIN', 'habitaculo', 'habitÃ¡culo'],
+        'Fuel': ['fuel', 'FUEL', 'fuel filter'],
+        'Oil': ['oil', 'OIL', 'oil filter'],
+        'Fuel Separator': ['FUEL FILTER SEPARATOR de agua', 'water separator', 'coalescer', 'coalescente', 'pre filter', 'pre-filter'],
+        'Air Dryer': ['air dryer', 'secador de AIR', 'desecante AIR', 'air desiccant'],
         'Coolant': ['coolant', 'refrigerante', 'coolant filter'],
         'Hidraulic': ['hydraulic', 'hidraulico', 'hidrÃ¡ulico', 'hidraulica', 'hidrÃ¡ulica'],
         'Turbine Series': ['turbine', 'racor turbine series'],
@@ -715,16 +715,16 @@ function buildRowData(data) {
             if (synonyms.some(syn => s.includes(normText(syn)))) return canon;
         }
         // Fallback regex checks
-        if (/\bcabin\b|cabina/.test(s)) return 'Cabina';
+        if (/\bcabin\b|CABIN/.test(s)) return 'CABIN';
         if (/\bair dryer\b|secador/.test(s)) return 'Air Dryer';
         if (/\bcoolant\b|refrigerante/.test(s)) return 'Coolant';
         if (/hydraulic|hidraulic|hidraulic|hidraul/.test(s)) return 'Hidraulic';
-        if (/fuel separator|separador|water separator|coalescer/.test(s)) return 'Fuel Separator';
-        if (/\bfuel\b|combustible/.test(s)) return 'Fuel';
-        if (/\boil\b|aceite/.test(s)) return 'Oil';
+        if (/fuel separator|FUEL FILTER SEPARATOR|water separator|coalescer/.test(s)) return 'Fuel Separator';
+        if (/\bfuel\b|FUEL/.test(s)) return 'Fuel';
+        if (/\boil\b|OIL/.test(s)) return 'Oil';
         if (/housing|carcaz/.test(s)) return 'Carcazas';
         if (/turbine/.test(s)) return 'Turbine Series';
-        if (/\bair\b|aire/.test(s)) return 'Aire';
+        if (/\bair\b|AIR/.test(s)) return 'AIR';
         return '';
     };
 
@@ -752,13 +752,13 @@ function buildRowData(data) {
     // Helper: build subtype descriptor according to canonical type
     const buildSubtypeDescriptor = (canon) => {
         const templates = {
-            'Aire': {
+            'AIR': {
                 examples: 'Radial Seal (Sello Radial), Axial Seal (Sello Axial), Panel, CÃ³nico/Cylindrical (CilÃ­ndrico), Heavy-Duty',
                 desc: 'Se refiere a la forma fÃ­sica del filtro principal y su mÃ©todo de sellado.'
             },
-            'Cabina': {
+            'CABIN': {
                 examples: 'Standard, CarbÃ³n Activado (Activated Carbon), Filtro Particulado (Particulate Filter)',
-                desc: 'Se refiere al material filtrante utilizado para purificar el aire del habitÃ¡culo.'
+                desc: 'Se refiere al material filtrante utilizado para purificar el AIR del habitÃ¡culo.'
             },
             'Fuel': {
                 examples: 'Spin-On, Cartridge (Elemento), Primary, Secondary, En LÃ­nea (In-Line)',
@@ -766,15 +766,15 @@ function buildRowData(data) {
             },
             'Oil': {
                 examples: 'Spin-On, Cartridge (Elemento), Bypass, Full-Flow, Alta PresiÃ³n',
-                desc: 'Se refiere al diseÃ±o fÃ­sico y a la ruta del aceite filtrado (flujo total o parcial).'
+                desc: 'Se refiere al diseÃ±o fÃ­sico y a la ruta del OIL filtrado (flujo total o parcial).'
             },
             'Fuel Separator': {
                 examples: 'Pre-Filter, Coalescing (Coalescente), TazÃ³n (Bowl Type), Reusable (Reutilizable)',
-                desc: 'Se refiere a su funciÃ³n principal (separar agua del combustible) y su diseÃ±o (a menudo usado como Primary).'
+                desc: 'Se refiere a su funciÃ³n principal (separar agua del FUEL) y su diseÃ±o (a menudo usado como Primary).'
             },
             'Air Dryer': {
                 examples: 'Cartridge, Desecante (Desiccant), Standard, Alta Capacidad',
-                desc: 'Elemento que elimina la humedad del aire comprimido en sistemas de frenos de camiones y maquinaria.'
+                desc: 'Elemento que elimina la humedad del AIR comprimido en sistemas de frenos de camiones y maquinaria.'
             },
             'Coolant': {
                 examples: 'Con QuÃ­mica (With Additive/SCA), Sin QuÃ­mica (Blank), Spin-On',
@@ -785,8 +785,8 @@ function buildRowData(data) {
                 desc: 'UbicaciÃ³n en el circuito hidrÃ¡ulico (diferentes puntos de presiÃ³n y flujo).'
             },
             'Turbine Series': {
-                examples: 'Filtro Primario, Filtro Secundario, Coalescer, Separador de Agua',
-                desc: 'TÃ©rminos internos de la marca Racor (Parker) para clasificar elementos de separaciÃ³n de combustible.'
+                examples: 'Filtro Primario, Filtro Secundario, Coalescer, FUEL FILTER SEPARATOR de Agua',
+                desc: 'TÃ©rminos internos de la marca Racor (Parker) para clasificar elementos de separaciÃ³n de FUEL.'
             },
             'Carcazas': {
                 examples: 'Simple, Doble, Modular, Tipo T (T-Type), Tipo L (L-Type), PresiÃ³n Baja/Media/Alta',
@@ -806,11 +806,11 @@ function buildRowData(data) {
     let typeValue = attrs.type || data.type || data.filter_type || data.family || preResolved.type || '';
     if (!typeValue) {
         const f = String(funcVal).toLowerCase();
-        if (/separador de agua|water separator/.test(f)) typeValue = 'Fuel Separator';
-        else if (/cabina|cabin/.test(f)) typeValue = 'Cabina';
-        else if (/aire|air/.test(f)) typeValue = 'Aire';
-        else if (/aceite|oil/.test(f)) typeValue = 'Oil';
-        else if (/fuel|combustible/.test(f)) typeValue = 'Fuel';
+        if (/FUEL FILTER SEPARATOR de agua|water separator/.test(f)) typeValue = 'Fuel Separator';
+        else if (/CABIN|cabin/.test(f)) typeValue = 'CABIN';
+        else if (/AIR|air/.test(f)) typeValue = 'AIR';
+        else if (/OIL|oil/.test(f)) typeValue = 'Oil';
+        else if (/fuel|FUEL/.test(f)) typeValue = 'Fuel';
         else if (/hidraulic|hidrÃ¡ul|hydraulic/.test(f)) typeValue = 'Hidraulic';
         else if (/coolant|refrigerante/.test(f)) typeValue = 'Coolant';
         else if (/secador|air dryer/.test(f)) typeValue = 'Air Dryer';
@@ -830,8 +830,8 @@ function buildRowData(data) {
     // Derivar PREFIJO_FILTRO (familia canÃ³nica en cÃ³digo)
     const familyPrefixFromCanon = (canon) => {
         switch (canon) {
-            case 'Aire': return 'AIR';
-            case 'Cabina': return 'CABIN';
+            case 'AIR': return 'AIR';
+            case 'CABIN': return 'CABIN';
             case 'Fuel': return 'FUEL';
             case 'Oil': return 'OIL';
             case 'Coolant': return 'COOLANT';
@@ -891,12 +891,12 @@ function buildRowData(data) {
         const fam = String(family || '').toUpperCase();
         const d = String(duty || '').toUpperCase();
         if (fam === 'MARINE') return 'Aplicaciones Marinas y NÃ¡uticas';
-        if (fam === 'AIR_DRYER') return 'Sistemas de Aire Comprimido y Frenos';
-        if (fam === 'TURBINE') return 'Turbinas y GeneraciÃ³n de EnergÃ­a';
+        if (fam === 'AIR_DRYER') return 'Sistemas de AIR Comprimido y Frenos';
+        if (fam === 'TURBINE') return 'TURBINEs y GeneraciÃ³n de EnergÃ­a';
         if (fam === 'HYDRAULIC') return 'Maquinaria Pesada y Equipos Industriales';
-        // Familias lÃ­quidas y combustible tienden a HD si duty es HD
+        // Familias lÃ­quidas y FUEL tienden a HD si duty es HD
         if (d === 'HD') return 'Maquinaria Pesada y Equipos Industriales';
-        // LD y cabina/aire tienden a vehÃ­culos de pasajeros
+        // LD y CABIN/AIR tienden a vehÃ­culos de pasajeros
         return 'VehÃ­culos de Pasajeros y SUVs';
     };
 
@@ -1259,7 +1259,7 @@ function buildRowData(data) {
     // Normalize fluid compatibility to controlled list (Spanish labels)
     const normalizeFluidCompatibility = (rawList) => {
         const CONTROLLED = [
-            'Aceite de Motor',
+            'OIL de Motor',
             'DiÃ©sel',
             'Gasolina',
             'ATF (Fluido de TransmisiÃ³n)',
@@ -1274,13 +1274,13 @@ function buildRowData(data) {
             const cleaned = lower
                 .replace(/compatible con|apto para|adequado para|adequate for|suitable for|for use with/g, '')
                 .replace(/todos los|all|full|100%/g, '')
-                .replace(/aceites sintÃ©ticos|synthetic oils|synthetic/g, 'motor oil')
+                .replace(/OILs sintÃ©ticos|synthetic oils|synthetic/g, 'motor oil')
                 .replace(/biodi[eÃ©]sel/g, 'diesel')
                 .replace(/petrol/g, 'gasoline')
                 .replace(/antifreeze|glycol/g, 'coolant')
                 .trim();
             // Mapping
-            if (/\b(engine|motor)\s*oil\b|\baceite\b/.test(cleaned)) return 'Aceite de Motor';
+            if (/\b(engine|motor)\s*oil\b|\bOIL\b/.test(cleaned)) return 'OIL de Motor';
             if (/\bdiesel\b|\bgaso[Ã³]leo\b/.test(cleaned)) return 'DiÃ©sel';
             if (/\bgasoline\b|\bgas\b|\bpetrol\b|\bgasolina\b/.test(cleaned)) return 'Gasolina';
             if (/\batf\b|transmission\s*fluid|fluido de transmisi[Ã³o]n/.test(cleaned)) return 'ATF (Fluido de TransmisiÃ³n)';
@@ -1310,20 +1310,20 @@ function buildRowData(data) {
     const heightQualityFlag = (() => {
         if (isNaN(heightVal)) return '';
         if (isSpinOnOil && (heightVal < 70 || heightVal > 200)) {
-            return 'âš ï¸ Altura fuera de rango tÃ­pico para filtro de aceite Spin-On (70â€“200 mm).';
+            return 'âš ï¸ Altura fuera de rango tÃ­pico para filtro de OIL Spin-On (70â€“200 mm).';
         }
         if (familyPrefix === 'AIR' && String(data.duty || '').toUpperCase() === 'HD' && heightVal < 150) {
-            return 'âš ï¸ Altura inusualmente baja para elemento de aire Heavy Duty (>150 mm recomendado).';
+            return 'âš ï¸ Altura inusualmente baja para elemento de AIR Heavy Duty (>150 mm recomendado).';
         }
         return '';
     })();
     const outerDiameterQualityFlag = (() => {
         if (isNaN(odVal)) return '';
         if (isSpinOnOil && (odVal < 70 || odVal > 100)) {
-            return 'âš ï¸ DiÃ¡metro exterior fuera de rango tÃ­pico para filtro de aceite Spin-On (70â€“100 mm).';
+            return 'âš ï¸ DiÃ¡metro exterior fuera de rango tÃ­pico para filtro de OIL Spin-On (70â€“100 mm).';
         }
         if (familyPrefix === 'AIR' && String(data.duty || '').toUpperCase() === 'HD' && odVal < 120) {
-            return 'âš ï¸ DiÃ¡metro exterior inusualmente bajo para elemento de aire Heavy Duty (>120 mm recomendado).';
+            return 'âš ï¸ DiÃ¡metro exterior inusualmente bajo para elemento de AIR Heavy Duty (>120 mm recomendado).';
         }
         return '';
     })();
@@ -1413,8 +1413,8 @@ function buildRowData(data) {
             if (familyPrefix === 'AIR' || familyPrefix === 'CABIN') return '';
             return 'âš ï¸ Compatibilidad de fluidos vacÃ­a; verificar fuente.';
         }
-        if (familyPrefix === 'OIL' && !fluidCompatArr.includes('Aceite de Motor')) {
-            return 'âš ï¸ Falta "Aceite de Motor" para familia OIL.';
+        if (familyPrefix === 'OIL' && !fluidCompatArr.includes('OIL de Motor')) {
+            return 'âš ï¸ Falta "OIL de Motor" para familia OIL.';
         }
         if (familyPrefix === 'FUEL' && !(fluidCompatArr.includes('DiÃ©sel') || fluidCompatArr.includes('Gasolina'))) {
             return 'âš ï¸ FUEL debe incluir "DiÃ©sel" o "Gasolina".';
@@ -1426,7 +1426,7 @@ function buildRowData(data) {
         }
         if ((familyPrefix === 'AIR' || familyPrefix === 'CABIN') && fluidCompatArr.some(v => v !== '')) {
             // If we ever map a liquid for AIR/CABIN, warn
-            const liquids = ['Aceite de Motor', 'DiÃ©sel', 'Gasolina', 'ATF (Fluido de TransmisiÃ³n)', 'LÃ­quido HidrÃ¡ulico (HV/HL)', 'Refrigerante (Glicol/Agua)'];
+            const liquids = ['OIL de Motor', 'DiÃ©sel', 'Gasolina', 'ATF (Fluido de TransmisiÃ³n)', 'LÃ­quido HidrÃ¡ulico (HV/HL)', 'Refrigerante (Glicol/Agua)'];
             if (fluidCompatArr.some(v => liquids.includes(v))) return 'âš ï¸ Incompatible: AIR/CABIN no lleva lÃ­quidos.';
         }
         return '';
@@ -1434,7 +1434,7 @@ function buildRowData(data) {
     // Disposal method normalization
     const normalizeDisposalMethod = (raw, family) => {
         const input = String(raw || '').toLowerCase();
-        const hazardousHints = /(hazardous|peligroso|hazmat|aceite usado|used oil|diesel|fuel|coolant|hydraulic|glycol)/i;
+        const hazardousHints = /(hazardous|peligroso|hazmat|OIL usado|used oil|diesel|fuel|coolant|hydraulic|glycol)/i;
         const nonHazardHints = /(non[- ]?hazardous|no peligroso|general waste|reciclable|recyclable|common)/i;
         if (hazardousHints.test(input)) return 'Residuo Peligroso (GestiÃ³n Controlada)';
         if (nonHazardHints.test(input)) return 'Residuo No Peligroso (Reciclable/ComÃºn)';
@@ -1765,7 +1765,7 @@ function buildRowData(data) {
             if (skuUp === 'P552100') return 0;
             // Solo aplica para FUEL; en otras familias, devolver 0 o vacío según política
             if (familyPrefix !== 'FUEL') return useZero ? 0 : '';
-            const isSeparator = /separator|separador|separaciÃ³n/i.test(String(subtypeDescriptor || ''));
+            const isSeparator = /separator|FUEL FILTER SEPARATOR|separaciÃ³n/i.test(String(subtypeDescriptor || ''));
             const raw = (
                 attrs.water_separation_efficiency_percent ||
                 attrs.water_separation_efficiency ||
@@ -1841,10 +1841,10 @@ function buildRowData(data) {
         seal_material: (() => {
             const subtypeRaw = String((attrs.subtype || data.subtype || '')).trim().toLowerCase();
             const isSpinOn = /\bspin\s*-?on\b|\broscado\b|\benroscado\b|\benroscable\b/.test(subtypeRaw);
-            const isSeparator = /\bseparator\b|\bseparador\b/.test(subtypeRaw);
+            const isSeparator = /\bseparator\b|\bFUEL FILTER SEPARATOR\b/.test(subtypeRaw);
             const isRadialSeal = /\bradial\s*seal\b|\bsello\s*radial\b/.test(subtypeRaw);
             const isPanel = /\bpanel\b/.test(subtypeRaw);
-            const isCabin = /\bcabin\b|\bcabina\b/.test(subtypeRaw);
+            const isCabin = /\bcabin\b|\bCABIN\b/.test(subtypeRaw);
 
             const raw = (
                 attrs.seal_material ||
@@ -1866,7 +1866,7 @@ function buildRowData(data) {
                 return '';
             };
             const normalized = mapSeal(s);
-            if (isPanel || isCabin) return ''; // Panel/Cabina: debe ser vacÃ­o
+            if (isPanel || isCabin) return ''; // Panel/CABIN: debe ser vacÃ­o
             return normalized;
         })(),
         housing_material: (() => {
@@ -1875,7 +1875,7 @@ function buildRowData(data) {
                 attrs['Housing Material'] ||
                 attrs['Body Composition'] ||
                 attrs['Material de Envoltura'] ||
-                attrs['Material de la Carcasa'] ||
+                attrs['Material de la AIR HOUSING'] ||
                 ''
             );
             const s = String(raw).trim().toLowerCase();
@@ -1892,8 +1892,8 @@ function buildRowData(data) {
         })(),
         iso_main_efficiency_percent: (() => {
             const typeRaw = String((data.type || attrs.type || '')).trim().toLowerCase();
-            const isAir = /\bair\b|\baire\b/.test(typeRaw);
-            const isCabin = /\bcabin\b|\bcabina\b/.test(typeRaw);
+            const isAir = /\bair\b|\bAIR\b/.test(typeRaw);
+            const isCabin = /\bcabin\b|\bCABIN\b/.test(typeRaw);
             // Política general: datos funcionales no primarios → 0% o NULO según env
             const policy = String(process.env.NONPRIMARY_FUNCTIONAL_POLICY || 'null').toLowerCase();
             const useZero = policy === 'zero';
@@ -1950,8 +1950,8 @@ function buildRowData(data) {
         })(),
         iso_test_method: (() => {
             const typeRaw = String((data.type || attrs.type || '')).trim().toLowerCase();
-            const isAir = /\bair\b|\baire\b/.test(typeRaw);
-            const isCabin = /\bcabin\b|\bcabina\b/.test(typeRaw);
+            const isAir = /\bair\b|\bAIR\b/.test(typeRaw);
+            const isCabin = /\bcabin\b|\bCABIN\b/.test(typeRaw);
             if (isAir || isCabin) return '';
 
             const candidates = [
@@ -2513,8 +2513,8 @@ function buildRowData(data) {
         })(),
         iso_test_method_indice_mongo: (() => {
             const typeRaw = String((data.type || attrs.type || '')).trim().toLowerCase();
-            const isAir = /\bair\b|\baire\b/.test(typeRaw);
-            const isCabin = /\bcabin\b|\bcabina\b/.test(typeRaw);
+            const isAir = /\bair\b|\bAIR\b/.test(typeRaw);
+            const isCabin = /\bcabin\b|\bCABIN\b/.test(typeRaw);
             if (isAir || isCabin) return undefined;
             const rawList = [
                 attrs.iso_test_method,
@@ -2543,11 +2543,11 @@ function buildRowData(data) {
         })(),
         iso_test_method_quality_flag: (() => {
             const typeRaw = String((data.type || attrs.type || '')).trim().toLowerCase();
-            const isOil = /\boil\b|\baceite\b/.test(typeRaw);
+            const isOil = /\boil\b|\bOIL\b/.test(typeRaw);
             const isHydraulic = /\bhydraulic\b|\bhidr[aÃ¡]ulic[oa]\b/.test(typeRaw);
-            const isFuel = /\bfuel\b|\bcombustible\b|\bdi[eÃ©]sel|gasolina/.test(typeRaw);
-            const isAir = /\bair\b|\baire\b/.test(typeRaw);
-            const isCabin = /\bcabin\b|\bcabina\b/.test(typeRaw);
+            const isFuel = /\bfuel\b|\bFUEL\b|\bdi[eÃ©]sel|gasolina/.test(typeRaw);
+            const isAir = /\bair\b|\bAIR\b/.test(typeRaw);
+            const isCabin = /\bcabin\b|\bCABIN\b/.test(typeRaw);
 
             const rawMethod = [
                 attrs.iso_test_method,
@@ -2591,8 +2591,8 @@ function buildRowData(data) {
         })(),
         iso_main_efficiency_percent_indice_mongo: (() => {
             const typeRaw = String((data.type || attrs.type || '')).trim().toLowerCase();
-            const isAir = /\bair\b|\baire\b/.test(typeRaw);
-            const isCabin = /\bcabin\b|\bcabina\b/.test(typeRaw);
+            const isAir = /\bair\b|\bAIR\b/.test(typeRaw);
+            const isCabin = /\bcabin\b|\bCABIN\b/.test(typeRaw);
             const policy = String(process.env.NONPRIMARY_FUNCTIONAL_POLICY || 'null').toLowerCase();
             const useZero = policy === 'zero';
             if (isAir || isCabin) return useZero ? 0 : undefined;
@@ -2639,10 +2639,10 @@ function buildRowData(data) {
         })(),
         iso_main_efficiency_quality_flag: (() => {
             const typeRaw = String((data.type || attrs.type || '')).trim().toLowerCase();
-            const isOil = /\boil\b|\baceite\b/.test(typeRaw);
+            const isOil = /\boil\b|\bOIL\b/.test(typeRaw);
             const isHydraulic = /\bhydraulic\b|\bhidr[aÃ¡]ulic[oa]\b/.test(typeRaw);
-            const isAir = /\bair\b|\baire\b/.test(typeRaw);
-            const isCabin = /\bcabin\b|\bcabina\b/.test(typeRaw);
+            const isAir = /\bair\b|\bAIR\b/.test(typeRaw);
+            const isCabin = /\bcabin\b|\bCABIN\b/.test(typeRaw);
             const valStr = String(
                 (attrs.iso_main_efficiency_percent ||
                     attrs['ISO Efficiency'] ||
@@ -2675,7 +2675,7 @@ function buildRowData(data) {
         seal_material_indice_mongo: (() => {
             const subtypeRaw = String((attrs.subtype || data.subtype || '')).trim().toLowerCase();
             const isPanel = /\bpanel\b/.test(subtypeRaw);
-            const isCabin = /\bcabin\b|\bcabina\b/.test(subtypeRaw);
+            const isCabin = /\bcabin\b|\bCABIN\b/.test(subtypeRaw);
             if (isPanel || isCabin) return undefined;
             const raw = (
                 attrs.seal_material ||
@@ -2701,10 +2701,10 @@ function buildRowData(data) {
         seal_material_quality_flag: (() => {
             const subtypeRaw = String((attrs.subtype || data.subtype || '')).trim().toLowerCase();
             const isSpinOn = /\bspin\s*-?on\b|\broscado\b|\benroscado\b|\benroscable\b/.test(subtypeRaw);
-            const isSeparator = /\bseparator\b|\bseparador\b/.test(subtypeRaw);
+            const isSeparator = /\bseparator\b|\bFUEL FILTER SEPARATOR\b/.test(subtypeRaw);
             const isRadialSeal = /\bradial\s*seal\b|\bsello\s*radial\b/.test(subtypeRaw);
             const isPanel = /\bpanel\b/.test(subtypeRaw);
-            const isCabin = /\bcabin\b|\bcabina\b/.test(subtypeRaw);
+            const isCabin = /\bcabin\b|\bCABIN\b/.test(subtypeRaw);
             const mat = String((attrs.seal_material || attrs['Seal Material'] || attrs['Gasket Material'] || attrs['Seal Composition'] || attrs['Material de la Junta'] || attrs['Material del Sello'] || '')).trim();
             const normalized = (() => {
                 const s = mat.toLowerCase();
@@ -2716,10 +2716,10 @@ function buildRowData(data) {
                 return '';
             })();
             if ((isSpinOn || isSeparator || isRadialSeal) && !normalized) {
-                return 'âš ï¸ Falta Material del Sello (AK) para diseÃ±o spin-on/separador/sello radial.';
+                return 'âš ï¸ Falta Material del Sello (AK) para diseÃ±o spin-on/FUEL FILTER SEPARATOR/sello radial.';
             }
             if ((isPanel || isCabin) && normalized) {
-                return 'âš ï¸ Panel/Cabina: material del sello debe ser vacÃ­o; revisar.';
+                return 'âš ï¸ Panel/CABIN: material del sello debe ser vacÃ­o; revisar.';
             }
             // Coherencia con temperatura y quÃ­micos
             if (normalized === 'Nitrilo (NBR) / Buna-N' && Number(tempMaxCVal) >= 130) {
@@ -2747,7 +2747,7 @@ function buildRowData(data) {
                 attrs['Housing Material'] ||
                 attrs['Body Composition'] ||
                 attrs['Material de Envoltura'] ||
-                attrs['Material de la Carcasa'] ||
+                attrs['Material de la AIR HOUSING'] ||
                 ''
             );
             const s = String(raw).trim().toLowerCase();
@@ -2765,14 +2765,14 @@ function buildRowData(data) {
         housing_material_quality_flag: (() => {
             const subtypeRaw = String((attrs.subtype || data.subtype || '')).trim().toLowerCase();
             const isSpinOn = /\bspin\s*-?on\b|\broscado\b|\benroscado\b|\benroscable\b/.test(subtypeRaw);
-            const isSeparator = /\bseparator\b|\bseparador\b/.test(subtypeRaw);
+            const isSeparator = /\bseparator\b|\bFUEL FILTER SEPARATOR\b/.test(subtypeRaw);
             const isCartridge = /\b(cartridge|elemento|cartucho)\b/.test(subtypeRaw);
             const matRaw = (
                 attrs.housing_material ||
                 attrs['Housing Material'] ||
                 attrs['Body Composition'] ||
                 attrs['Material de Envoltura'] ||
-                attrs['Material de la Carcasa'] ||
+                attrs['Material de la AIR HOUSING'] ||
                 ''
             );
             const s = String(matRaw).trim().toLowerCase();
@@ -2790,7 +2790,7 @@ function buildRowData(data) {
                 !isNaN(parseFloat(String(attrs.operating_pressure_max_psi || '').replace(/[^0-9\.]/g, '')))
             );
             if ((isSpinOn || isSeparator || (isCartridge && hasHousingSignals)) && !normalized) {
-                return 'âš ï¸ Falta Material de Carcasa (AL) para diseÃ±o requerido (spin-on/separador/cartucho con carcasa).';
+                return 'âš ï¸ Falta Material de AIR HOUSING (AL) para diseÃ±o requerido (spin-on/FUEL FILTER SEPARATOR/cartucho con AIR HOUSING).';
             }
             return '';
         })(),
@@ -2925,7 +2925,7 @@ function buildRowData(data) {
         })(),
         water_separation_efficiency_quality_flag: (() => {
             if (familyPrefix !== 'FUEL') return '';
-            const isSeparator = /separator|separador|separaciÃ³n/i.test(String(subtypeDescriptor || ''));
+            const isSeparator = /separator|FUEL FILTER SEPARATOR|separaciÃ³n/i.test(String(subtypeDescriptor || ''));
             const raw = (
                 attrs.water_separation_efficiency_percent ||
                 attrs.water_separation_efficiency ||
@@ -2939,7 +2939,7 @@ function buildRowData(data) {
             const lower = String(raw).toLowerCase().replace(/,/g, '.');
             const m = lower.match(/([0-9]+(?:\.[0-9]+)?)/);
             const hasNum = !!m && !isNaN(parseFloat(m[1]));
-            if (isSeparator && !hasNum) return 'âš ï¸ Falta Eficiencia de SeparaciÃ³n de Agua (%) para separador.';
+            if (isSeparator && !hasNum) return 'âš ï¸ Falta Eficiencia de SeparaciÃ³n de Agua (%) para FUEL FILTER SEPARATOR.';
             if (!hasNum) return '';
             let n = parseFloat(m[1]);
             if (isNaN(n)) return '';
@@ -3100,7 +3100,7 @@ function buildRowData(data) {
             if (isNaN(val)) return 'âš ï¸ Falta presiÃ³n de vÃ¡lvula de derivaciÃ³n (Bypass) para Spin-On Full-Flow en OIL/FUEL.';
             // Sanity bounds for LD oil filters (typical 8â€“30 PSI)
             if (val < 5) return 'âš ï¸ Bypass muy bajo; podrÃ­a derivar flujo sin filtrar prematuramente.';
-            if (val > 35) return 'âš ï¸ Bypass muy alto; riesgo de hambre de aceite si el filtro se obstruye.';
+            if (val > 35) return 'âš ï¸ Bypass muy alto; riesgo de hambre de OIL si el filtro se obstruye.';
             return '';
         })(),
         hydrostatic_burst_psi: (() => {
@@ -3565,8 +3565,8 @@ function buildRowData(data) {
                 attrs['Flow Rate'] ||
                 attrs['Rated CFM'] ||
                 attrs['SCFM'] ||
-                attrs['Caudal de Aire'] ||
-                attrs['Caudal de Aire Nominal'] ||
+                attrs['Caudal de AIR'] ||
+                attrs['Caudal de AIR Nominal'] ||
                 attrs['m3/min'] ||
                 attrs['mÂ³/min'] ||
                 attrs['L/s'] ||
@@ -3602,8 +3602,8 @@ function buildRowData(data) {
                 attrs['Flow Rate'] ||
                 attrs['Rated CFM'] ||
                 attrs['SCFM'] ||
-                attrs['Caudal de Aire'] ||
-                attrs['Caudal de Aire Nominal'] ||
+                attrs['Caudal de AIR'] ||
+                attrs['Caudal de AIR Nominal'] ||
                 attrs['m3/min'] ||
                 attrs['mÂ³/min'] ||
                 attrs['L/s'] ||
@@ -3638,8 +3638,8 @@ function buildRowData(data) {
                 attrs['Flow Rate'] ||
                 attrs['Rated CFM'] ||
                 attrs['SCFM'] ||
-                attrs['Caudal de Aire'] ||
-                attrs['Caudal de Aire Nominal'] ||
+                attrs['Caudal de AIR'] ||
+                attrs['Caudal de AIR Nominal'] ||
                 attrs['m3/min'] ||
                 attrs['mÂ³/min'] ||
                 attrs['L/s'] ||
@@ -3653,7 +3653,7 @@ function buildRowData(data) {
             const lower = s.toLowerCase().replace(/,/g, '.');
             const numMatch = lower.match(/([0-9]+(?:\.[0-9]+)?)/);
             const hasValue = !!numMatch && parseFloat(numMatch[1]) > 0;
-            if (!hasValue) return 'âš ï¸ Falta Flujo Nominal de Aire (CFM).';
+            if (!hasValue) return 'âš ï¸ Falta Flujo Nominal de AIR (CFM).';
             const mediaRaw = (
                 attrs.media_type ||
                 attrs.media ||
@@ -3677,7 +3677,7 @@ function buildRowData(data) {
             })();
             const isMacrocore = media.includes('macrocore');
             if (!isNaN(cfm) && isMacrocore && cfm < 250) {
-                return 'âš ï¸ Flujo de Aire bajo para MACROCOREâ„¢.';
+                return 'âš ï¸ Flujo de AIR bajo para MACROCOREâ„¢.';
             }
             return '';
         })(),
@@ -4168,52 +4168,52 @@ function ensureRowCompleteness(row) {
             row['tecnologia_aplicada'] = getProductTechnology(family || '', row.duty_type, row.normsku || '');
         }
 
-        // Regla canónica para AIRE Radial Seal (HD): estandarizar media y descripción
+        // Regla canónica para AIR Radial Seal (HD): estandarizar media y descripción
         try {
             const dutyUp = String(row.duty_type || row.duty || '').toUpperCase();
             const subtypeUp = String(row.subtype || '').toUpperCase();
             const familyUp = String(row.family || row.filter_type || '').toUpperCase();
             // Aplicar solo a familia AIR (excluir CABIN)
             if (familyUp === 'AIR' && dutyUp === 'HD' && /RADIAL/.test(subtypeUp)) {
-                // Media y tecnología ELIMFILTERS para aire HD
+                // Media y tecnología ELIMFILTERS para AIR HD
                 row.media_type = 'MACROCORE™';
                 row.tecnologia_aplicada = 'MACROCORE™ NanoMax';
                 // Descripción canónica en español
-                row.description = 'Filtro de aire primario de servicio pesado, con sello radial. diseñado por ELIMFILTERS para mantener un flujo de aire estable y proteger el sistema de admisión. al capturar contaminantes antes de que alcancen la cámara de combustión. con tecnología MACROCORE™ diseñada con algoritmos inteligentes.';
+                row.description = 'Filtro de AIR primario de servicio pesado, con sello radial. diseñado por ELIMFILTERS para mantener un flujo de AIR estable y proteger el sistema de admisión. al capturar contaminantes antes de que alcancen la cámara de combustión. con tecnología MACROCORE™ diseñada con algoritmos inteligentes.';
             }
 
-            // Regla canónica por tipo CABIN (Cabina)
+            // Regla canónica por tipo CABIN (CABIN)
             if (/\bCABIN(A)?\b/.test(familyUp)) {
                 const isCarbon = /CARBON|CARBÓN|ACTIVATED|ACTIVADO/.test(subtypeUp);
                 row.media_type = 'MICROKAPPA™';
                 row.tecnologia_aplicada = isCarbon ? 'MICROKAPPA™ Carbon' : 'MICROKAPPA™ Particulate';
                 row.description = isCarbon
-                    ? 'Filtro de cabina con carbón activado para purificar el aire del habitáculo, captura partículas ultrafinas y neutraliza olores y gases.'
-                    : 'Filtro de cabina particulado para purificar el aire del habitáculo, captura polvo, polen y partículas finas para mayor confort.';
+                    ? 'Filtro de CABIN con carbón activado para purificar el AIR del habitáculo, captura partículas ultrafinas y neutraliza olores y gases.'
+                    : 'Filtro de CABIN particulado para purificar el AIR del habitáculo, captura polvo, polen y partículas finas para mayor confort.';
             }
 
-            // Regla canónica por tipo FUEL (Combustible)
+            // Regla canónica por tipo FUEL (FUEL)
             if (familyUp === 'FUEL') {
-                const isSeparator = /SEPARADOR|SEPARATOR|COALESC|WATER/.test(subtypeUp);
+                const isSeparator = /FUEL FILTER SEPARATOR|SEPARATOR|COALESC|WATER/.test(subtypeUp);
                 if (isSeparator) {
                     row.media_type = 'AquaCore Pro';
                     row.tecnologia_aplicada = 'AquaCore Pro';
-                    row.description = 'Filtro separador/coalescente de combustible, maximiza la separación de agua y protege el sistema de inyección de alta presión.';
+                    row.description = 'Filtro FUEL FILTER SEPARATOR/coalescente de FUEL, maximiza la separación de agua y protege el sistema de inyección de alta presión.';
                 } else {
                     row.media_type = 'ELIMTEK™';
                     row.tecnologia_aplicada = dutyUp === 'HD' ? 'ELIMTEK™ MultiCore' : 'ELIMTEK™ Blend';
-                    row.description = 'Filtro de combustible de servicio ' + (dutyUp === 'HD' ? 'pesado' : 'ligero') + ', diseñado para eficiencia estable y protección del sistema de inyección.';
+                    row.description = 'Filtro de FUEL de servicio ' + (dutyUp === 'HD' ? 'pesado' : 'ligero') + ', diseñado para eficiencia estable y protección del sistema de inyección.';
                 }
             }
 
-            // Regla canónica por tipo OIL (Aceite)
+            // Regla canónica por tipo OIL (OIL)
             if (familyUp === 'OIL') {
                 const isBypass = /BYPASS/.test(subtypeUp);
                 row.media_type = 'ELIMTEK™';
                 row.tecnologia_aplicada = dutyUp === 'HD' ? 'ELIMTEK™ MultiCore' : 'ELIMTEK™ Blend';
                 row.description = isBypass
-                    ? 'Filtro de aceite tipo bypass para limpieza fina del lubricante, optimiza la vida del motor en servicio ' + (dutyUp === 'HD' ? 'pesado' : 'ligero') + '.'
-                    : 'Filtro de aceite de flujo total para protección del motor, mantiene limpieza y desempeño en servicio ' + (dutyUp === 'HD' ? 'pesado' : 'ligero') + '.';
+                    ? 'Filtro de OIL tipo bypass para limpieza fina del lubricante, optimiza la vida del motor en servicio ' + (dutyUp === 'HD' ? 'pesado' : 'ligero') + '.'
+                    : 'Filtro de OIL de flujo total para protección del motor, mantiene limpieza y desempeño en servicio ' + (dutyUp === 'HD' ? 'pesado' : 'ligero') + '.';
             }
 
             // Regla canónica por tipo HYDRAULIC (Hidráulico)
@@ -4230,11 +4230,11 @@ function ensureRowCompleteness(row) {
                 row.description = 'Filtro de refrigerante con sistema de liberación controlada de aditivos, previene corrosión y cavitación en el sistema.';
             }
 
-            // Regla canónica por tipo AIR DRYER (Secador de Aire)
+            // Regla canónica por tipo AIR DRYER (Secador de AIR)
             if (familyUp === 'AIR DRYER') {
                 row.media_type = 'AeroDry Max';
                 row.tecnologia_aplicada = 'AeroDry Max';
-                row.description = 'Cartucho desecante para sistemas de frenos, remueve humedad del aire comprimido y mejora la fiabilidad del sistema.';
+                row.description = 'Cartucho desecante para sistemas de frenos, remueve humedad del AIR comprimido y mejora la fiabilidad del sistema.';
             }
         } catch (_) { }
 
@@ -4292,7 +4292,7 @@ function isFuelWaterSeparator(row) {
     const family = String(row.family || row.filter_type || '').toUpperCase();
     if (!['FUEL', 'FUEL SEPARATOR'].includes(family)) return false;
     const keys = ['subtype', 'description', 'media_type'];
-    const kw = ['water', 'separ', 'separador', 'separation', 'agua'];
+    const kw = ['water', 'separ', 'FUEL FILTER SEPARATOR', 'separation', 'agua'];
     return keys.some(k => textContainsAny(row[k], kw));
 }
 

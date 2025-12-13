@@ -16,7 +16,7 @@ function readPolicyText() {
   // Prefer master policy docs for hash and public endpoint
   const files = [
     path.join(__dirname, '..', '..', 'docs', 'SKU_CREATION_POLICY_MASTER_ES.md'),
-    path.join(__dirname, '..', '..', 'docs', 'SKU_CREATION_POLICY_MASTER_Y_MARINOS_ES.md')
+    path.join(__dirname, '..', '..', 'docs', 'SKU_CREATION_POLICY_MASTER_Y_MARINES_ES.md')
   ];
   let acc = '';
   for (const f of files) {

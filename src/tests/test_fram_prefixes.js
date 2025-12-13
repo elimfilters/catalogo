@@ -7,7 +7,7 @@ async function run() {
     'TG7317',
     'XG7317',
     'HM3614',
-    // AIRE
+    // AIR
     'CA4309',
     // CABIN
     'CF9719',

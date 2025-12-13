@@ -7,7 +7,7 @@ const { searchInSheet, buildRowData } = require('./syncSheetsService');
 const { extractParkerSpecs, extractMercurySpecs, extractSierraSpecs } = require('./technicalSpecsScraper');
 
 const SHEET_ID = process.env.GOOGLE_SHEETS_ID || '1ZYI5c0enkuvWAveu8HMaCUk1cek_VDrX8GtgKW7VP6U';
-const MARINOS_TITLE = 'Marinos';
+const MARINES_TITLE = 'MARINEs';
 
 function toArray(value) {
   if (Array.isArray(value)) return value.filter(Boolean);
@@ -36,7 +36,7 @@ async function initSheet() {
   return doc;
 }
 
-// Esquema de encabezados para la pestaña 'Marinos' ajustado a la lista solicitada
+// Esquema de encabezados para la pestaña 'MARINEs' ajustado a la lista solicitada
 const INPUT_HEADERS = [
   'query',
   'normsku',
@@ -84,10 +84,10 @@ const INPUT_HEADERS = [
   'change_interval_km'
 ];
 
-async function getOrCreateMarinosSheet(doc) {
-  let sheet = doc.sheetsByTitle[MARINOS_TITLE] || null;
+async function getOrCreateMARINEsSheet(doc) {
+  let sheet = doc.sheetsByTitle[MARINES_TITLE] || null;
   if (!sheet) {
-    sheet = await doc.addSheet({ title: MARINOS_TITLE, headerValues: INPUT_HEADERS });
+    sheet = await doc.addSheet({ title: MARINES_TITLE, headerValues: INPUT_HEADERS });
   } else {
     // Ensure headers (non-destructive)
     try {
@@ -101,8 +101,8 @@ async function getOrCreateMarinosSheet(doc) {
   return sheet;
 }
 
-async function seedMarinosRow(code, doc) {
-  const sheet = await getOrCreateMarinosSheet(doc);
+async function seedMARINEsRow(code, doc) {
+  const sheet = await getOrCreateMARINEsSheet(doc);
   await sheet.addRow({
     query: normalize.code(code),
     normsku: '',
@@ -150,9 +150,9 @@ function decideSkuAndFamily(codeRaw, duty, familyHint) {
   return { sku, family: family || 'FUEL' };
 }
 
-async function importMarinos({ dryRun = true } = {}) {
+async function importMARINEs({ dryRun = true } = {}) {
   const doc = await initSheet();
-  const sheet = await getOrCreateMarinosSheet(doc);
+  const sheet = await getOrCreateMARINEsSheet(doc);
   const rows = await sheet.getRows();
   const results = [];
   // Umbral mínimo para considerar una lista "rica" y permitir sobrescritura
@@ -296,8 +296,8 @@ async function importMarinos({ dryRun = true } = {}) {
     // Solo persistimos campos con valor; los crudos ya están en la hoja
     await row.save();
 
-    // Nota: No escribir en Hoja Master desde el importador de Marinos.
-    // Todas las operaciones quedan limitadas a la pestaña 'Marinos'.
+    // Nota: No escribir en Hoja Master desde el importador de MARINEs.
+    // Todas las operaciones quedan limitadas a la pestaña 'MARINEs'.
 
     results.push({ code, sku, media_type, duty, family: famFinal, duplicate: isDuplicate });
   }
@@ -305,17 +305,17 @@ async function importMarinos({ dryRun = true } = {}) {
   return { ok: true, processed: results.length, results };
 }
 
-module.exports = { importMarinos, initSheet, getOrCreateMarinosSheet, seedMarinosRow, INPUT_HEADERS };
+module.exports = { importMARINEs, initSheet, getOrCreateMARINEsSheet, seedMARINEsRow, INPUT_HEADERS };
 
 /**
- * Upsert a detected Marine SKU into the 'Marinos' sheet (not Master).
- * Maps detection payload into Marinos output columns.
+ * Upsert a detected Marine SKU into the 'MARINEs' sheet (not Master).
+ * Maps detection payload into MARINEs output columns.
  * @param {object} data - detection masterData payload
  * @returns {Promise<void>}
  */
-async function upsertMarinosBySku(data) {
+async function upsertMARINEsBySku(data) {
   const doc = await initSheet();
-  const sheet = await getOrCreateMarinosSheet(doc);
+  const sheet = await getOrCreateMARINEsSheet(doc);
   const rows = await sheet.getRows();
 
   const skuNorm = String(data.sku || '').toUpperCase().trim();
@@ -361,11 +361,11 @@ async function upsertMarinosBySku(data) {
   if (match) {
     Object.entries(clean).forEach(([k, v]) => { match[k] = v; });
     await match.save();
-    console.log(`✅ Upserted to Google Sheet 'Marinos': ${skuNorm}`);
+    console.log(`✅ Upserted to Google Sheet 'MARINEs': ${skuNorm}`);
   } else {
     await sheet.addRow(clean);
-    console.log(`➕ Inserted into Google Sheet 'Marinos': ${skuNorm}`);
+    console.log(`➕ Inserted into Google Sheet 'MARINEs': ${skuNorm}`);
   }
 }
 
-module.exports.upsertMarinosBySku = upsertMarinosBySku;
+module.exports.upsertMARINEsBySku = upsertMARINEsBySku;

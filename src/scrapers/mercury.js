@@ -102,7 +102,7 @@ const MERCURY_DATABASE = {
         applications: ['Mercury Engine Cooling']
     },
     '35-818662T': {
-        family: 'AIRE',
+        family: 'AIR',
         type: 'AIR FILTER, MARINE ENGINE',
         specifications: {
             efficiency: '99.5% @ 25 micron',
@@ -138,7 +138,7 @@ function detectMercuryFamilyFromCode(code) {
     if (normalized.includes('864808') || normalized.includes('192102') || normalized.includes('38814T')) return 'FUEL';
     if (normalized.includes('864001')) return 'TRANSMISSION';
     if (normalized.includes('804201') || normalized.includes('58516')) return 'COOLANT';
-    if (normalized.includes('818662')) return 'AIRE';
+    if (normalized.includes('818662')) return 'AIR';
     if (normalized.includes('42038R')) return 'HYDRAULIC';
     return null;
 }

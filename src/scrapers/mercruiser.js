@@ -86,7 +86,7 @@ const MERCRUISER_DATABASE = {
     
     // ========== AIR FILTERS (Marine) ==========
     '35-818662T': {
-        family: 'AIRE',
+        family: 'AIR',
         type: 'AIR FILTER, MARINE ENGINE',
         specifications: {
             efficiency: '99.5% @ 25 micron',
@@ -130,7 +130,7 @@ function detectMercruiserFamilyFromCode(code) {
     if (normalized.includes('864808')) return 'FUEL';
     if (normalized.includes('864001')) return 'TRANSMISSION';
     if (normalized.includes('804201')) return 'COOLANT';
-    if (normalized.includes('818662')) return 'AIRE';
+    if (normalized.includes('818662')) return 'AIR';
     
     return null;
 }

@@ -192,10 +192,10 @@ function computeElimfiltersTechnology(dj, familyRaw) {
 
   const hasAny = (arr) => arr.some(k => textPool.includes(k.toLowerCase()));
 
-  const isAir = /\bAIR\b|\bAIRE\b/.test(family);
+  const isAir = /\bAIR\b|\bAIR\b/.test(family);
   const isCabin = /\bCABIN\b/.test(family);
-  const isFuel = /\bFUEL\b|\bCOMBUSTIBLE\b/.test(family);
-  const isOil = /\bOIL\b|\bACEITE\b|\bLUBE\b/.test(family);
+  const isFuel = /\bFUEL\b|\bFUEL\b/.test(family);
+  const isOil = /\bOIL\b|\bOIL\b|\bLUBE\b/.test(family);
   const isHydraulic = /\bHYDRAULIC\b|\bHIDRAULIC\b|\bHIDRAULICO\b|\bHIDRAULICO\b/.test(family);
   const isCoolant = /\bCOOLANT\b|\bREFRIGERANT(E)?\b/.test(family);
   const isAirDryer = /\bAIR DRYER\b|\bSECADOR\b/.test(family);
@@ -212,7 +212,7 @@ function computeElimfiltersTechnology(dj, familyRaw) {
   }
 
   // 2) Sistemas Especializados
-  if (isFuel && hasAny(['water separator', 'separador de agua', 'coalescing', 'coalescente'])) {
+  if (isFuel && hasAny(['water separator', 'FUEL FILTER SEPARATOR de agua', 'coalescing', 'coalescente'])) {
     return 'AquaCore Pro';
   }
   if (isCoolant && hasAny(['dca', 'chemical release', 'refrigerante', 'coolant additive', 'fleetcool'])) {
@@ -522,7 +522,7 @@ module.exports = {
     const tecnologia = (function deriveTecnologia() {
       const fam = String(md.filter_type || md.family || '').toUpperCase();
       const txt = `${mapped.technical.style || ''} ${mapped.technical.media_type || ''}`.toUpperCase();
-      if (fam.includes('AIRE')) {
+      if (fam.includes('AIR')) {
         if (txt.includes('ULTRA-WEB') || txt.includes('SYNTEQ')) return 'ULTRA-WEB AIR';
         return 'CELLULOSE AIR';
       }

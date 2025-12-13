@@ -7,7 +7,7 @@
 
 // Registro de tecnologías: nombre → { description, reference }
 const TECHNOLOGY_REGISTRY = {
-  // I. Tecnologías líquidas (Aceite, Combustible, Hidráulico)
+  // I. Tecnologías líquidas (OIL, FUEL, Hidráulico)
   'ELIMTEK™ MultiCore': {
     description:
       'Medio de profundidad de densidad graduada. Estructura multi-capa que incrementa capacidad de retención de suciedad y mantiene alta eficiencia Beta (β) constante.',
@@ -30,11 +30,11 @@ const TECHNOLOGY_REGISTRY = {
   },
   'AquaCore Pro': {
     description:
-      'Medio coalescente mejorado. Maximiza separación de agua y contaminantes del combustible, protegiendo inyectores de alta presión.',
+      'Medio coalescente mejorado. Maximiza separación de agua y contaminantes del FUEL, protegiendo inyectores de alta presión.',
     reference: 'Tecnologías de separación de agua de alta eficiencia'
   },
 
-  // II. Filtración de aire y sistemas secos
+  // II. Filtración de AIR y sistemas secos
   'MACROCORE™ NanoMax': {
     description:
       'Medio de nanofibra sintética avanzada. Atrapa partículas submicrónicas en superficie con alta eficiencia, menor restricción y vida útil prolongada.',
@@ -42,28 +42,28 @@ const TECHNOLOGY_REGISTRY = {
   },
   'MACROCORE™': {
     description:
-      'Medio de alta capacidad para aire. Gran retención de polvo, flujo óptimo y protección consistente en operación.',
-    reference: 'Medios de aire convencionales / Direct Flow™'
+      'Medio de alta capacidad para AIR. Gran retención de polvo, flujo óptimo y protección consistente en operación.',
+    reference: 'Medios de AIR convencionales / Direct Flow™'
   },
   'MICROKAPPA™': {
     description:
-      'Medio multicapa con carbón activado. Filtra partículas ultrafinas, polen y gases; neutraliza olores en cabina.',
-    reference: 'Filtros de cabina de carbón activado'
+      'Medio multicapa con carbón activado. Filtra partículas ultrafinas, polen y gases; neutraliza olores en CABIN.',
+    reference: 'Filtros de CABIN de carbón activado'
   },
-  // Variantes específicas de cabina
+  // Variantes específicas de CABIN
   'MICROKAPPA™ Carbon': {
     description:
-      'Medio de carbón activado para cabina. Enfoque en adsorción de olores y gases nocivos, con filtración particulada estándar.',
+      'Medio de carbón activado para CABIN. Enfoque en adsorción de olores y gases nocivos, con filtración particulada estándar.',
     reference: 'Cabin Air con carbón activado (Fleetguard/Cummins)'
   },
   'MICROKAPPA™ Particulate': {
     description:
-      'Medio particulado de alta eficiencia para cabina. Captura polen, polvo fino y bacterias sin capa de carbón.',
+      'Medio particulado de alta eficiencia para CABIN. Captura polen, polvo fino y bacterias sin capa de carbón.',
     reference: 'Cabin Air particulado estándar (Fleetguard/Cummins)'
   },
   'AeroDry Max': {
     description:
-      'Desecante de alto rendimiento con pre-filtración. Cartuchos para remover humedad y vapor del sistema de aire de frenos.',
+      'Desecante de alto rendimiento con pre-filtración. Cartuchos para remover humedad y vapor del sistema de AIR de frenos.',
     reference: 'Cartuchos de Air Dryer estándar'
   },
 
@@ -76,7 +76,7 @@ const TECHNOLOGY_REGISTRY = {
   ,
   // IV. Tecnologías MARINE & TURBINE
   'AQUACORE™ Marine 1000 – Primary Coalescing Stage': {
-    description: 'Primera etapa coalescente de alta capacidad para separación de agua en sistemas marinos.',
+    description: 'Primera etapa coalescente de alta capacidad para separación de agua en sistemas MARINEs.',
     reference: 'Racor 500FG/900FG/1000FG; Fleetguard FS19594; Donaldson Water Separator'
   },
   'AQUACORE™ Marine 2000 – Ultra-Separator Secondary Stage': {
@@ -92,7 +92,7 @@ const TECHNOLOGY_REGISTRY = {
     reference: 'Racor High Flow; Fleetguard FS1212/FS36200; Donaldson High Flow Water Separator'
   },
   'TURBINE X500 – Assembly Replacement': {
-    description: 'Cabezal/carcasa compatibles con Racor 500FG con mejoras en resistencia y drenaje.',
+    description: 'Cabezal/AIR HOUSING compatibles con Racor 500FG con mejoras en resistencia y drenaje.',
     reference: 'Racor 500FG; Donaldson MAR500; Fleetguard FS19594 Assembly'
   },
   'TURBINE X900 – Assembly Replacement': {
@@ -100,11 +100,11 @@ const TECHNOLOGY_REGISTRY = {
     reference: 'Racor 900FG; Donaldson MAR900; Fleetguard FH234'
   },
   'TURBINE X1000 – High-Capacity Assembly': {
-    description: 'Reemplazo completo del 1000FG para motores duales y generadores marinos.',
+    description: 'Reemplazo completo del 1000FG para motores duales y generadores MARINEs.',
     reference: 'Racor 1000FG; Donaldson MAR1000; Fleetguard FH256'
   },
   'HYDROFLOW™ TurboMax – Industrial/Marine Turbine Filtration': {
-    description: 'MicroGlass β2000 antiestático para turbinas de gas, compresores y generadores estacionarios.',
+    description: 'MicroGlass β2000 antiestático para TURBINEs de gas, compresores y generadores estacionarios.',
     reference: 'Donaldson High Efficiency Glass; Fleetguard MicroGlass Industrial'
   },
   'AQUASENSE™ – Sensor Inteligente de Agua': {
@@ -119,15 +119,15 @@ function getTechnology(family, duty = '', code = '') {
   const dy = String(duty || '').toUpperCase();
   const c = String(code || '').toUpperCase();
 
-  // Aceite
+  // OIL
   if (fam === 'OIL') {
     return dy === 'LD' ? 'ELIMTEK™ Blend' : 'ELIMTEK™ MultiCore';
   }
 
-  // Combustible
+  // FUEL
   if (fam === 'FUEL') {
     // Indicadores de separación de agua/coalescente
-    const waterSepHint = /(WS|SEPARATOR|WATER|SEPARADOR)/.test(c);
+    const waterSepHint = /(WS|SEPARATOR|WATER|FUEL FILTER SEPARATOR)/.test(c);
     return waterSepHint ? 'AquaCore Pro' : (dy === 'LD' ? 'ELIMTEK™ Blend' : 'ELIMTEK™ MultiCore');
   }
 
@@ -136,12 +136,12 @@ function getTechnology(family, duty = '', code = '') {
     return 'HydroFlow 5000';
   }
 
-  // Aire
-  if (fam === 'AIR' || fam === 'AIRE') {
+  // AIR
+  if (fam === 'AIR' || fam === 'AIR') {
     return dy === 'LD' ? 'MACROCORE™' : 'MACROCORE™ NanoMax';
   }
 
-  // Cabina
+  // CABIN
   if (fam === 'CABIN' || fam === 'CABIN AIR') {
     return 'MICROKAPPA™';
   }
@@ -156,7 +156,7 @@ function getTechnology(family, duty = '', code = '') {
     return 'ThermoRelease™';
   }
 
-  // Marinos: usar tecnologías líquidas por defecto
+  // MARINEs: usar tecnologías líquidas por defecto
   if (fam === 'MARINE' || fam === 'MARINE FILTER') {
     return dy === 'LD' ? 'ELIMTEK™ Blend' : 'ELIMTEK™ MultiCore';
   }

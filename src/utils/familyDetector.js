@@ -39,12 +39,12 @@ function detectFamily(scraperFamily, scraperSubtype) {
     }
 
     // ------------------------------
-    // AIR / AIRE
+    // AIR / AIR
     // ------------------------------
-    if (f.includes("AIR") || f.includes("AIRE")) {
+    if (f.includes("AIR") || f.includes("AIR")) {
         // Housing detection
         if (f.includes("HOUSING")) return "CARCAZA AIR FILTER";
-        return "AIRE";
+        return "AIR";
     }
 
     // ------------------------------

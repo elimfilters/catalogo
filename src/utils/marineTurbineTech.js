@@ -9,14 +9,14 @@ const TECH_DEF = {
     technology_description: 'Medio coalescente de alta capacidad para captura de agua libre y emulsificada en primera etapa marina.',
     technology_equivalents: [
       'Racor/Parker: 500FG / 900FG / 1000FG (primaria)',
-      'Fleetguard: FS19594 (primario marino)',
-      'Donaldson: Kit primario marino Water Separator'
+      'Fleetguard: FS19594 (primario MARINE)',
+      'Donaldson: Kit primario MARINE Water Separator'
     ],
     technology_scope: 'Marine'
   },
   'AQUACORE™ Marine 2000 – Ultra-Separator Secondary Stage': {
     technology_name: 'AQUACORE™ Marine 2000 – Ultra-Separator Secondary Stage',
-    technology_description: 'Etapa secundaria para HPCR, filtra agua disuelta y emulsiones finas; protege inyectores marinos modernos.',
+    technology_description: 'Etapa secundaria para HPCR, filtra agua disuelta y emulsiones finas; protege inyectores MARINEs modernos.',
     technology_equivalents: [
       'Racor/Parker: S3201 / S3209 (secundaria)',
       'Fleetguard: FH230 / FS36231',
@@ -29,7 +29,7 @@ const TECH_DEF = {
     technology_description: 'Cartuchos equivalentes para cabezales Racor Serie Turbine; mejor restricción, capacidad y eficiencia coalescente.',
     technology_equivalents: [
       'Racor: S3206, S3227, S3213, S3214, S3216, S3230',
-      'Baldwin: BF Series (marinos)',
+      'Baldwin: BF Series (MARINEs)',
       'Donaldson: MAR Series (coalescing cartridges)'
     ],
     technology_scope: 'Marine'
@@ -46,7 +46,7 @@ const TECH_DEF = {
   },
   'TURBINE X500 – Assembly Replacement': {
     technology_name: 'TURBINE X500 – Assembly Replacement',
-    technology_description: 'Cabezal y carcasa equivalentes a Racor 500FG con mejoras en UV y drenaje.',
+    technology_description: 'Cabezal y AIR HOUSING equivalentes a Racor 500FG con mejoras en UV y drenaje.',
     technology_equivalents: [
       'Racor/Parker: 500FG',
       'Donaldson: MAR500 Assembly',
@@ -76,9 +76,9 @@ const TECH_DEF = {
   },
   'HYDROFLOW™ TurboMax – Industrial/Marine Turbine Filtration': {
     technology_name: 'HYDROFLOW™ TurboMax – Industrial/Marine Turbine Filtration',
-    technology_description: 'MicroGlass β2000 con estructura antiestática y carcasa reforzada para vibración marina.',
+    technology_description: 'MicroGlass β2000 con estructura antiestática y AIR HOUSING reforzada para vibración marina.',
     technology_equivalents: [
-      'Racor/Parker: Sistema de turbina industrial',
+      'Racor/Parker: Sistema de TURBINE industrial',
       'Donaldson: High Efficiency Glass Turbine Filters',
       'Fleetguard: MicroGlass Industrial'
     ],

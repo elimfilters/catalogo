@@ -6,8 +6,8 @@ const prefixMap = require('../config/prefixMap');
 function familyToCanonicalType(fam) {
   const f = String(fam || '').toUpperCase();
   switch (f) {
-    case 'AIRE': return 'Aire';
-    case 'CABIN': return 'Cabina';
+    case 'AIR': return 'AIR';
+    case 'CABIN': return 'CABIN';
     case 'FUEL': return 'Fuel';
     case 'OIL': return 'Oil';
     case 'HYDRAULIC': return 'Hidraulic';

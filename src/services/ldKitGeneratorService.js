@@ -12,10 +12,10 @@ const { saveKitToSheetLD } = require('./syncSheetsService');
 const KIT_PREFIX_LD = 'EK3';
 
 const FAMILY_MAP_LD = {
-  OIL: 'Filtro de Aceite',
-  AIR: 'Filtro de Aire',
-  CABIN: 'Filtro de Cabina',
-  FUEL: 'Filtro de Combustible',
+  OIL: 'Filtro de OIL',
+  AIR: 'Filtro de AIR',
+  CABIN: 'Filtro de CABIN',
+  FUEL: 'Filtro de FUEL',
   TRANSMISSION: 'Filtro de Transmisión',
 };
 

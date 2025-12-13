@@ -247,7 +247,7 @@ const FRAM_DATABASE = {
     
     // ========== CA-SERIES (Air Filters) ==========
     'CA10262': {
-        family: 'AIRE',
+        family: 'AIR',
         type: 'Extra Guard Air Filter',
         series: 'CA',
         specifications: {
@@ -331,7 +331,7 @@ function detectFamilyFromCode(code) {
     // Series-based detection
     if (series === 'PH' || series === 'TG' || series === 'XG' || series === 'HM') return 'OIL';
     if (series === 'CH' || series === 'CF') return 'CABIN';
-    if (series === 'CA') return 'AIRE';
+    if (series === 'CA') return 'AIR';
     if (series === 'G' || series === 'PS') return 'FUEL';
     
     return null;
@@ -450,7 +450,7 @@ async function scrapeFram(code) {
                 const content = response.data.toLowerCase();
                 
                 if (content.includes('oil filter')) familyFromWeb = 'OIL';
-                else if (content.includes('air filter') && !content.includes('cabin')) familyFromWeb = 'AIRE';
+                else if (content.includes('air filter') && !content.includes('cabin')) familyFromWeb = 'AIR';
                 else if (content.includes('cabin')) familyFromWeb = 'CABIN';
                 else if (content.includes('fuel')) familyFromWeb = 'FUEL';
                 
