@@ -469,9 +469,49 @@ async function detectFilter(rawInput, lang = 'en', options = {}) {
         }
 
         // ---------------------------------------------------------------------
-        // PASO 3: GENERAR SKU
+        // PASO 2.5: BUSCAR EN MONGODB CACHE (si no existe en Sheet)
         // ---------------------------------------------------------------------
-        console.log(`🔧 Step 3: Generating SKU...`);
+        console.log(`🔊 Step 2.5: Checking MongoDB cache...`);
+        
+        try {
+            const { getFromCache } = require('./mongoService');
+            const cachedData = await getFromCache(query);
+            
+            if (cachedData && cachedData.sku) {
+                console.log(`✅ SKU found in MongoDB cache: ${query} → ${cachedData.sku}`);
+                
+                // Retornar datos desde MongoDB
+                return {
+                    status: 'OK',
+                    found_in_master: false,
+                    found_in_cache: true,
+                    query_normalized: query,
+                    code_input: query,
+                    code_oem: cachedData.code_oem || cachedData.donaldson_code || cachedData.fram_code,
+                    oem_codes: cachedData.oem_codes || [],
+                    duty: cachedData.duty,
+                    family: cachedData.family,
+                    sku: cachedData.sku,
+                    media: cachedData.media || getMedia(cachedData.family, cachedData.duty),
+                    source: cachedData.source || 'CACHE',
+                    cross_reference: cachedData.cross_reference || [],
+                    applications: cachedData.engine_applications || cachedData.applications || [],
+                    equipment_applications: cachedData.equipment_applications || [],
+                    attributes: cachedData.attributes || {},
+                    message: 'SKU encontrado en MongoDB cache'
+                };
+            }
+            
+            console.log(`⚠️  SKU not found in MongoDB cache`);
+        } catch (cacheError) {
+            console.log(`⚠️  MongoDB cache lookup error: ${cacheError.message}`);
+            // Continuar si MongoDB falla - no es crítico
+        }
+
+        // ---------------------------------------------------------------------
+        // PASO 3: GENERAR SKU (solo si NO existe en Sheet ni MongoDB)
+        // ---------------------------------------------------------------------
+        console.log(`🔧 Step 3: Generating new SKU...`);
 
         const codeForFamily = String(scraperResult?.code || query || '').toUpperCase();
         let family = null;
