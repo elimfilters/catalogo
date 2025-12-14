@@ -2,7 +2,7 @@
 // DETECTION SERVICE FINAL - v5.3.4 SELF-CONTAINED
 // ============================================================================
 
-const { scraperBridge } = require('../scrapers/scraperBridge');
+const scraperBridge = require('../scrapers/scraperBridge');
 const { detectDuty } = require('../utils/dutyDetector');
 const { detectFamilyHD, detectFamilyLD } = require('../utils/familyDetector');
 const { generateSKU } = require('../sku/generator');
