@@ -1,8 +1,7 @@
 // ============================================================================
-// DETECTION SERVICE FINAL - v5.3.3 CLEAN
+// DETECTION SERVICE FINAL - v5.3.4 SELF-CONTAINED
 // ============================================================================
 
-const normalize = require('../utils/normalize');
 const { scraperBridge } = require('../scrapers/scraperBridge');
 const { detectDuty } = require('../utils/dutyDetector');
 const { detectFamilyHD, detectFamilyLD } = require('../utils/familyDetector');
@@ -11,8 +10,14 @@ const { extract4Digits, extract4Alnum } = require('../utils/digitExtractor');
 const { noEquivalentFound } = require('../utils/messages');
 const { saveToCache } = require('./mongoService');
 
+// Normalize function inline para evitar problemas de import
+function normalizeCode(rawCode) {
+  if (!rawCode) return '';
+  return String(rawCode).toUpperCase().replace(/[^A-Z0-9]/g, '').trim();
+}
+
 async function detectFilter(code, opts = {}) {
-  const codeNorm = normalize.code(code);
+  const codeNorm = normalizeCode(code);
   const raw = await scraperBridge(codeNorm, opts);
   if (!raw) throw noEquivalentFound(codeNorm);
   const duty = detectDuty(raw);
