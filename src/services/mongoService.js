@@ -4,7 +4,19 @@
 // If `MONGODB_URI` is not set, functions degrade gracefully.
 // ============================================================================
 
-const { MongoClient } = require('mongodb');
+let MongoClient = null;
+function ensureMongoDriver() {
+  if (MongoClient) return true;
+  try {
+    // Carga diferida del driver para tolerar entornos sin mongodb instalado
+    const mod = require('mongodb');
+    MongoClient = mod && mod.MongoClient ? mod.MongoClient : null;
+    return !!MongoClient;
+  } catch (e) {
+    console.log('⚠️  MongoDB driver no disponible:', e.message);
+    return false;
+  }
+}
 
 let client = null;
 let db = null;
@@ -19,6 +31,10 @@ function hasMongoEnv() {
 async function connect() {
   if (!hasMongoEnv()) {
     console.log('ℹ️  MongoDB disabled: MONGODB_URI not set');
+    return null;
+  }
+  if (!ensureMongoDriver()) {
+    console.log('ℹ️  Persistencia degradada: mongodb no instalado');
     return null;
   }
   if (client && client.topology && client.topology.isConnected()) {

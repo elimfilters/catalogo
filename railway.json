@@ -42,7 +42,7 @@
         "SIERRA_SKU_JSON": "[]",
         "SIERRA_DISCOVERY_URL": "https://www.sierra.com/search?query=*",
 
-        "MONGO_URI": "",
+        "MONGODB_URI": "mongodb+srv://elimfilters:AtlasPass123@cluster0.vairwow.mongodb.net/elimfilters?appName=Cluster0",
         "API_TOKEN": "",
         "LOG_LEVEL": "info"
       }
