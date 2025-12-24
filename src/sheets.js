@@ -1,97 +1,74 @@
-require('dotenv').config();
-const { google } = require('googleapis');
+import { google } from 'googleapis';
 
-// Configurar autenticacion
-let credentials;
-try {
-  const credString = process.env.GOOGLE_SERVICE_ACCOUNT_KEY || '{}';
-  
-  // Detectar si es Base64 o JSON directo
-  if (credString.trim().startsWith('{')) {
-    // Es JSON directo
-    credentials = JSON.parse(credString);
-    console.log('✅ Credenciales cargadas como JSON directo');
-  } else {
-    // Es Base64
-    credentials = JSON.parse(
-      Buffer.from(credString, 'base64').toString('utf8')
-    );
-    console.log('✅ Credenciales cargadas desde Base64');
-  }
-} catch (error) {
-  console.error('❌ Error parseando credenciales:', error.message);
-  credentials = {};
-}
+const SCOPES = ['https://www.googleapis.com/auth/spreadsheets'];
+const SPREADSHEET_ID = '1S2hu2r0EzilEq_lQpXW2aNsd0lf_EQNbLa_eQxg-LXo';
+const SHEET_NAME = 'MASTER_UNIFIED_V5';
 
-const auth = new google.auth.GoogleAuth({
-  credentials: credentials,
-  scopes: ['https://www.googleapis.com/auth/spreadsheets'],
-});
+let auth = null;
 
-const sheets = google.sheets({ version: 'v4', auth });
+export async function initializeAuth() {
+  if (auth) return auth;
 
-/**
- * Escribir datos en Google Sheets
- */
-async function writeToSheet(data, range = 'Sheet1!A1') {
   try {
-    const response = await sheets.spreadsheets.values.update({
-      spreadsheetId: process.env.SPREADSHEET_ID,
-      range: range,
-      valueInputOption: 'RAW',
-      resource: {
-        values: data,
-      },
+    const credentials = JSON.parse(process.env.GOOGLE_SHEETS_CREDENTIALS);
+    
+    auth = new google.auth.GoogleAuth({
+      credentials,
+      scopes: SCOPES,
     });
-    console.log(response.data.updatedCells + ' celdas actualizadas');
-    return response.data;
+
+    console.log('✅ Google Sheets auth initialized');
+    return auth;
   } catch (error) {
-    console.error('Error escribiendo en Google Sheets:', error.message);
+    console.error('❌ Error initializing Google Sheets auth:', error.message);
     throw error;
   }
 }
 
-/**
- * Agregar datos al final de la hoja
- */
-async function appendToSheet(data, range = 'Sheet1!A:D') {
+export async function appendToSheet(values) {
   try {
+    const authClient = await initializeAuth();
+    const sheets = google.sheets({ version: 'v4', auth: authClient });
+
     const response = await sheets.spreadsheets.values.append({
-      spreadsheetId: process.env.SPREADSHEET_ID,
-      range: range,
-      valueInputOption: 'RAW',
-      resource: {
-        values: data,
-      },
+      spreadsheetId: SPREADSHEET_ID,
+      range: `${SHEET_NAME}!A:Z`,
+      valueInputOption: 'USER_ENTERED',
+      resource: { values },
     });
-    console.log(response.data.updates.updatedCells + ' celdas agregadas');
+
     return response.data;
   } catch (error) {
-    console.error('Error agregando a Google Sheets:', error.message);
+    console.error('❌ Error appending to sheet:', error.message);
     throw error;
   }
 }
 
-/**
- * Leer datos de Google Sheets
- */
-async function readFromSheet(range = 'Sheet1!A1:D10') {
+export async function writeToGoogleSheets(products) {
   try {
-    const response = await sheets.spreadsheets.values.get({
-      spreadsheetId: process.env.SPREADSHEET_ID,
-      range: range,
-    });
-    const rows = response.data.values;
-    console.log((rows ? rows.length : 0) + ' filas leidas');
-    return rows;
+    if (!products || products.length === 0) {
+      console.log('⚠️ No products to write');
+      return { success: true, rowsWritten: 0 };
+    }
+
+    console.log(`📊 Writing ${products.length} products to Google Sheets...`);
+
+    const rows = products.map(p => [
+      p.query || '',
+      p.normsku || '',
+      p.description || '',
+      p.oem || '',
+      p.donaldson || '',
+      p.fram || '',
+      new Date().toISOString()
+    ]);
+
+    await appendToSheet(rows);
+    console.log(`✅ Successfully wrote ${rows.length} rows to ${SHEET_NAME}`);
+    
+    return { success: true, rowsWritten: rows.length };
   } catch (error) {
-    console.error('Error leyendo Google Sheets:', error.message);
+    console.error('❌ Error writing to Google Sheets:', error.message);
     throw error;
   }
 }
-
-module.exports = {
-  writeToSheet,
-  appendToSheet,
-  readFromSheet,
-};
