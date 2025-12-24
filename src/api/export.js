@@ -24,21 +24,21 @@ router.post('/sheets', async (req, res) => {
       });
     }
 
-    console.log(📊 Exportando ${products.length} productos a Google Sheets...);
+    console.log('Exportando ' + products.length + ' productos a Google Sheets...');
     
     const result = await writeToGoogleSheets(products);
     
-    console.log(✅ ${result.rowsWritten} productos exportados exitosamente);
+    console.log('Exportados ' + result.rowsWritten + ' productos exitosamente');
     
     res.json({
       success: true,
-      message: ` productos exportados exitosamente,
+      message: result.rowsWritten + ' productos exportados exitosamente',
       count: result.rowsWritten,
       timestamp: new Date().toISOString()
     });
     
   } catch (error) {
-    console.error('❌ Error exportando a Google Sheets:', error.message);
+    console.error('Error exportando a Google Sheets:', error.message);
     res.status(500).json({
       success: false,
       error: 'Error al exportar a Google Sheets',
