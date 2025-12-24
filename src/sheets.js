@@ -1,74 +1,60 @@
-import { google } from 'googleapis';
+/**
+ * EXPORT API - Export filtered products to Google Sheets
+ */
+import express from 'express';
+import { writeToGoogleSheets } from '../sheets.js';
 
-const SCOPES = ['https://www.googleapis.com/auth/spreadsheets'];
-const SPREADSHEET_ID = '1S2hu2r0EzilEq_lQpXW2aNsd0lf_EQNbLa_eQxg-LXo';
-const SHEET_NAME = 'MASTER_UNIFIED_V5';
+const router = express.Router();
 
-let auth = null;
-
-export async function initializeAuth() {
-  if (auth) return auth;
-
+router.post('/sheets', async (req, res) => {
   try {
-    const credentials = JSON.parse(process.env.GOOGLE_SHEETS_CREDENTIALS);
+    const { products } = req.body;
     
-    auth = new google.auth.GoogleAuth({
-      credentials,
-      scopes: SCOPES,
-    });
-
-    console.log('✅ Google Sheets auth initialized');
-    return auth;
-  } catch (error) {
-    console.error('❌ Error initializing Google Sheets auth:', error.message);
-    throw error;
-  }
-}
-
-export async function appendToSheet(values) {
-  try {
-    const authClient = await initializeAuth();
-    const sheets = google.sheets({ version: 'v4', auth: authClient });
-
-    const response = await sheets.spreadsheets.values.append({
-      spreadsheetId: SPREADSHEET_ID,
-      range: `${SHEET_NAME}!A:Z`,
-      valueInputOption: 'USER_ENTERED',
-      resource: { values },
-    });
-
-    return response.data;
-  } catch (error) {
-    console.error('❌ Error appending to sheet:', error.message);
-    throw error;
-  }
-}
-
-export async function writeToGoogleSheets(products) {
-  try {
-    if (!products || products.length === 0) {
-      console.log('⚠️ No products to write');
-      return { success: true, rowsWritten: 0 };
+    if (!products || !Array.isArray(products)) {
+      return res.status(400).json({
+        success: false,
+        error: 'Se requiere un array de productos'
+      });
     }
 
-    console.log(`📊 Writing ${products.length} products to Google Sheets...`);
+    if (products.length === 0) {
+      return res.status(400).json({
+        success: false,
+        error: 'El array de productos está vacío'
+      });
+    }
 
-    const rows = products.map(p => [
-      p.query || '',
-      p.normsku || '',
-      p.description || '',
-      p.oem || '',
-      p.donaldson || '',
-      p.fram || '',
-      new Date().toISOString()
-    ]);
-
-    await appendToSheet(rows);
-    console.log(`✅ Successfully wrote ${rows.length} rows to ${SHEET_NAME}`);
+    console.log(`📊 Exportando ${products.length} productos a Google Sheets...`);
     
-    return { success: true, rowsWritten: rows.length };
+    const result = await writeToGoogleSheets(products);
+    
+    console.log(`✅ ${result.rowsWritten} productos exportados exitosamente`);
+    
+    res.json({
+      success: true,
+      message: `${result.rowsWritten} productos exportados exitosamente`,
+      count: result.rowsWritten,
+      timestamp: new Date().toISOString()
+    });
+    
   } catch (error) {
-    console.error('❌ Error writing to Google Sheets:', error.message);
-    throw error;
+    console.error('❌ Error exportando a Google Sheets:', error.message);
+    res.status(500).json({
+      success: false,
+      error: 'Error al exportar a Google Sheets',
+      details: error.message
+    });
   }
-}
+});
+
+router.get('/status', (req, res) => {
+  res.json({
+    success: true,
+    service: 'Google Sheets Export',
+    status: 'operational',
+    spreadsheet_id: process.env.SPREADSHEET_ID || 'not configured',
+    sheet_name: 'MASTER_UNIFIED_V5'
+  });
+});
+
+export default router;
