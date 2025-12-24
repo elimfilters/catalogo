@@ -1,4 +1,4 @@
-const { google } = require('googleapis');
+﻿const { google } = require('googleapis');
 
 const SCOPES = ['https://www.googleapis.com/auth/spreadsheets'];
 const SPREADSHEET_ID = '1S2hu2r0EzilEq_lQpXW2aNsd0lf_EQNbLa_eQxg-LXo';
@@ -10,17 +10,18 @@ async function initializeAuth() {
   if (auth) return auth;
 
   try {
-    const credentials = JSON.parse(process.env.GOOGLE_SERVICE_ACCOUNT_KEY);
+    const credentialsStr = process.env.GOOGLE_SERVICE_ACCOUNT_KEY.replace(/\\\\n/g, '\n');
+    const credentials = JSON.parse(credentialsStr);
     
     auth = new google.auth.GoogleAuth({
       credentials,
       scopes: SCOPES,
     });
 
-    console.log('? Google Sheets auth initialized');
+    console.log('✅ Google Sheets auth initialized');
     return auth;
   } catch (error) {
-    console.error('? Error initializing Google Sheets auth:', error.message);
+    console.error('❌ Error initializing Google Sheets auth:', error.message);
     throw error;
   }
 }
@@ -39,7 +40,7 @@ async function appendToSheet(values) {
 
     return response.data;
   } catch (error) {
-    console.error('? Error appending to sheet:', error.message);
+    console.error('❌ Error appending to sheet:', error.message);
     throw error;
   }
 }
@@ -47,7 +48,7 @@ async function appendToSheet(values) {
 async function writeToGoogleSheets(products) {
   try {
     if (!products || products.length === 0) {
-      console.log('?? No products to write');
+      console.log('⚠️ No products to write');
       return { success: true, rowsWritten: 0 };
     }
 
@@ -111,7 +112,7 @@ async function writeToGoogleSheets(products) {
     
     return { success: true, rowsWritten: rows.length };
   } catch (error) {
-    console.error('? Error writing to Google Sheets:', error.message);
+    console.error('❌ Error writing to Google Sheets:', error.message);
     throw error;
   }
 }
