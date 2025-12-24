@@ -10,15 +10,16 @@ async function initializeAuth() {
   if (auth) return auth;
 
   try {
-    const credentialsStr = process.env.GOOGLE_SERVICE_ACCOUNT_KEY.replace(/\\\\n/g, '\n');
-    const credentials = JSON.parse(credentialsStr);
+    const base64Creds = process.env.GOOGLE_CREDENTIALS_BASE64;
+    const jsonString = Buffer.from(base64Creds, 'base64').toString('utf8');
+    const credentials = JSON.parse(jsonString);
     
     auth = new google.auth.GoogleAuth({
       credentials,
       scopes: SCOPES,
     });
 
-    console.log('✅ Google Sheets auth initialized');
+    console.log('✅ Google Sheets auth initialized (Base64)');
     return auth;
   } catch (error) {
     console.error('❌ Error initializing Google Sheets auth:', error.message);
