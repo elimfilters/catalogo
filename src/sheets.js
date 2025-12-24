@@ -1,4 +1,4 @@
-﻿import { google } from 'googleapis';
+﻿const { google } = require('googleapis');
 
 const SCOPES = ['https://www.googleapis.com/auth/spreadsheets'];
 const SPREADSHEET_ID = '1S2hu2r0EzilEq_lQpXW2aNsd0lf_EQNbLa_eQxg-LXo';
@@ -6,7 +6,7 @@ const SHEET_NAME = 'MASTER_UNIFIED_V5';
 
 let auth = null;
 
-export async function initializeAuth() {
+async function initializeAuth() {
   if (auth) return auth;
 
   try {
@@ -25,7 +25,7 @@ export async function initializeAuth() {
   }
 }
 
-export async function appendToSheet(values) {
+async function appendToSheet(values) {
   try {
     const authClient = await initializeAuth();
     const sheets = google.sheets({ version: 'v4', auth: authClient });
@@ -44,7 +44,7 @@ export async function appendToSheet(values) {
   }
 }
 
-export async function writeToGoogleSheets(products) {
+async function writeToGoogleSheets(products) {
   try {
     if (!products || products.length === 0) {
       console.log('⚠️ No products to write');
@@ -115,3 +115,9 @@ export async function writeToGoogleSheets(products) {
     throw error;
   }
 }
+
+module.exports = {
+  initializeAuth,
+  appendToSheet,
+  writeToGoogleSheets
+};

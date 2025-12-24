@@ -1,10 +1,9 @@
 ﻿/**
  * EXPORT API - Export filtered products to Google Sheets
  */
-import express from 'express';
-import { writeToGoogleSheets } from '../sheets.js';
-
+const express = require('express');
 const router = express.Router();
+const { writeToGoogleSheets } = require('../sheets');
 
 router.post('/sheets', async (req, res) => {
   try {
@@ -57,4 +56,4 @@ router.get('/status', (req, res) => {
   });
 });
 
-export default router;
+module.exports = router;
