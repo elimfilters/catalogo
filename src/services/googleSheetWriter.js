@@ -7,6 +7,7 @@ const { google } = require('googleapis');
 const { detectPartNumber } = require('./detectionServiceFinal');
 const technologyMapper = require('../utils/technologyMapper');
 const skuGenerator = require('../sku/generator');
+const { extract4Digits } = require('../utils/digitExtractor');
 
 class GoogleSheetWriter {
   constructor() {
@@ -55,10 +56,14 @@ class GoogleSheetWriter {
       
       if (!sku && detectionResult.source && detectionResult.family && detectionResult.duty) {
         const homologatedCode = detectionResult.normalized_query || inputCode;
+        const last4 = extract4Digits(homologatedCode);
+        if (!last4) {
+          throw new Error('Unable to extract 4 digits from code: ' + homologatedCode);
+        }
         sku = skuGenerator.generateSKU(
           detectionResult.family,
           detectionResult.duty,
-          homologatedCode
+          last4
         );
         console.log('✅ Generated SKU: ' + sku);
       }
