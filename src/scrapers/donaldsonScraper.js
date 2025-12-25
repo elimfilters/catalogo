@@ -1,149 +1,187 @@
 ﻿// ============================================================================
-// DONALDSON SCRAPER – AUTORIDAD TÉCNICA HD
-// Valida códigos Donaldson reales, cruces OEM y reglas estrictas de serie
+// DONALDSON SCRAPER – SCRAPING REAL DE PÁGINA OFICIAL
+// Extrae el tipo de filtro directamente de https://shop.donaldson.com
+// NO usa patrones de prefijos - Lee el tipo exacto del sitio web
 // ============================================================================
 
+const axios = require('axios');
+const cheerio = require('cheerio');
 const { extract4Digits } = require('../utils/digitExtractor');
-const prefixMap = require('../config/prefixMap');
-const { appendWatch } = require('../utils/pSeriesWatchlist');
 
-const DONALDSON_DATABASE = {
-  'P552100': {
-    family: 'OIL',
-    specifications: {
-      media_type: 'Cellulose',
-      style: 'Spin-On',
-      height_mm: '136',
-      outer_diameter_mm: '93',
-      thread_size: '3/4-16 UNF'
-    },
-    cross_references: {
-      'FLEETGUARD-LF3620': 'P552100',
-      'BALDWIN-B495': 'P552100',
-      'FRAM-PH7405': 'P552100',
-      'CATERPILLAR-3I1882': 'P552100'
-    }
-  },
-
-  'P527682': {
-    family: 'AIR',
-    specifications: {
-      style: 'Radialseal'
-    },
-    cross_references: {
-      'AF25139': 'P527682',
-      'WIX-46556': 'P527682'
-    }
-  },
-
-  'P551808': {
-    family: 'OIL',
-    specifications: {},
-    cross_references: {
-      '1R-1808': 'P551808',
-      'CATERPILLAR-1R1808': 'P551808'
-    }
-  }
+// Base de datos de respaldo para códigos conocidos (solo para fallback)
+const DONALDSON_FALLBACK = {
+  'P552100': { family: 'OIL', duty: 'HD' },
+  'P527682': { family: 'AIR', duty: 'HD' },
+  'P551808': { family: 'OIL', duty: 'HD' },
+  'P551329': { family: 'FUEL SEPARATOR', duty: 'HD' } // ← CORRECTO
 };
 
-function detectSeriesType(code) {
-  const c = code.toUpperCase();
-  if (c.startsWith('DBL')) return 'DBL';
-  if (c.startsWith('DBA')) return 'DBA';
-  if (c.startsWith('ELF')) return 'ELF';
-  if (c.startsWith('P')) return 'P';
-  return null;
-}
+/**
+ * Extrae el tipo de filtro del HTML de Donaldson
+ */
+function extractFilterTypeFromHTML(html, code) {
+  try {
+    const $ = cheerio.load(html);
+    
+    // Buscar en diferentes posibles ubicaciones del tipo de filtro
+    const possibleSelectors = [
+      '.product-type',
+      '.product-category',
+      '.breadcrumb',
+      'h1.product-title',
+      '.product-description',
+      '[class*="category"]',
+      '[class*="type"]'
+    ];
 
-function detectFamilyFromCode(code) {
-  const c = code.toUpperCase();
-  const series = detectSeriesType(c);
+    let filterType = null;
 
-  if (series === 'DBL' || series === 'ELF') return 'OIL';
-  if (series === 'DBA') return 'AIR';
+    // Intentar extraer de breadcrumbs
+    const breadcrumbs = $('.breadcrumb a, .breadcrumb span').text().toLowerCase();
+    if (breadcrumbs.includes('fuel')) {
+      if (breadcrumbs.includes('separator') || breadcrumbs.includes('water')) {
+        filterType = 'FUEL SEPARATOR';
+      } else {
+        filterType = 'FUEL';
+      }
+    } else if (breadcrumbs.includes('oil') || breadcrumbs.includes('lube')) {
+      filterType = 'OIL';
+    } else if (breadcrumbs.includes('air')) {
+      if (breadcrumbs.includes('dryer')) {
+        filterType = 'AIR DRYER';
+      } else {
+        filterType = 'AIR';
+      }
+    } else if (breadcrumbs.includes('hydraulic')) {
+      filterType = 'HYDRAULIC';
+    } else if (breadcrumbs.includes('coolant')) {
+      filterType = 'COOLANT';
+    }
 
-  if (series === 'P') {
-    if (/^P55\d{4}$/.test(c)) return 'OIL';
-    if (/^P56\d{4}$/.test(c)) return 'FUEL';
-    if (/^P62\d{4}$/.test(c)) return 'AIR';
-    if (/^P95\d{4}$/.test(c)) return 'AIR DRYER';
-    if (/^P60\d{4}$/.test(c)) return 'COOLANT';
-    return null;
-  }
-
-  return null;
-}
-
-function findDonaldsonCode(inputCode) {
-  const normalized = inputCode.toUpperCase().replace(/[^A-Z0-9]/g, '');
-
-  if (DONALDSON_DATABASE[normalized]) return normalized;
-
-  for (const [donCode, data] of Object.entries(DONALDSON_DATABASE)) {
-    for (const xref of Object.keys(data.cross_references || {})) {
-      const x = xref.toUpperCase().replace(/[^A-Z0-9]/g, '');
-      if (x === normalized || x.includes(normalized) || normalized.includes(x)) {
-        return donCode;
+    // Si no encontró en breadcrumbs, buscar en el título del producto
+    if (!filterType) {
+      const title = $('h1').first().text().toLowerCase();
+      
+      if (title.includes('fuel water separator') || title.includes('fuel/water separator')) {
+        filterType = 'FUEL SEPARATOR';
+      } else if (title.includes('fuel')) {
+        filterType = 'FUEL';
+      } else if (title.includes('oil') || title.includes('lube')) {
+        filterType = 'OIL';
+      } else if (title.includes('air dryer')) {
+        filterType = 'AIR DRYER';
+      } else if (title.includes('air')) {
+        filterType = 'AIR';
+      } else if (title.includes('hydraulic')) {
+        filterType = 'HYDRAULIC';
+      } else if (title.includes('coolant')) {
+        filterType = 'COOLANT';
+      } else if (title.includes('cabin')) {
+        filterType = 'CABIN';
       }
     }
-  }
 
-  return null;
+    // Buscar en la descripción del producto
+    if (!filterType) {
+      const description = $('.product-description, .description').first().text().toLowerCase();
+      
+      if (description.includes('fuel water separator') || description.includes('fuel/water separator')) {
+        filterType = 'FUEL SEPARATOR';
+      } else if (description.includes('fuel filter')) {
+        filterType = 'FUEL';
+      } else if (description.includes('oil filter') || description.includes('lube filter')) {
+        filterType = 'OIL';
+      } else if (description.includes('air dryer')) {
+        filterType = 'AIR DRYER';
+      } else if (description.includes('air filter')) {
+        filterType = 'AIR';
+      }
+    }
+
+    return filterType;
+  } catch (error) {
+    console.error(`❌ Error extracting filter type from HTML: ${error.message}`);
+    return null;
+  }
 }
 
-async function scrapeDonaldson(code) {
-  const normalized = String(code || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+/**
+ * Hace scraping REAL de la página de Donaldson
+ */
+async function scrapeDonaldsonWebsite(code) {
+  try {
+    const normalized = String(code || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+    const url = `https://shop.donaldson.com/store/es-us/search?text=${normalized}`;
 
-  const resolved = findDonaldsonCode(normalized);
-  if (resolved && DONALDSON_DATABASE[resolved]) {
-    const data = DONALDSON_DATABASE[resolved];
-    
-    const crossRefs = Object.keys(data.cross_references || {}).map(xref => ({
-      brand: xref.split('-')[0],
-      code: xref.split('-')[1] || xref,
-      type: 'CROSS'
-    }));
+    console.log(`🌐 Scraping Donaldson: ${url}`);
+
+    const response = await axios.get(url, {
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+      },
+      timeout: 10000
+    });
+
+    const filterType = extractFilterTypeFromHTML(response.data, normalized);
+
+    if (!filterType) {
+      console.log(`⚠️  Could not extract filter type from Donaldson page for ${normalized}`);
+      return null;
+    }
+
+    console.log(`✅ Donaldson ${normalized} → Type: ${filterType}`);
 
     return {
       confirmed: true,
-      source: 'DONALDSON',
+      source: 'DONALDSON_WEBSITE',
       facts: {
-        code: resolved,
-        family: data.family,
+        code: normalized,
+        family: filterType,
         duty: 'HD',
-        attributes: data.specifications || {},
-        cross: crossRefs,
+        attributes: {},
+        cross: [],
+        applications: []
+      }
+    };
+  } catch (error) {
+    console.error(`❌ Error scraping Donaldson website: ${error.message}`);
+    return null;
+  }
+}
+
+/**
+ * Scraper principal con fallback a base de datos
+ */
+async function scrapeDonaldson(code) {
+  const normalized = String(code || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+
+  // 1. Intentar scraping REAL del sitio web
+  const webResult = await scrapeDonaldsonWebsite(normalized);
+  if (webResult && webResult.confirmed) {
+    return webResult;
+  }
+
+  // 2. Fallback a base de datos local (solo para códigos conocidos)
+  if (DONALDSON_FALLBACK[normalized]) {
+    const data = DONALDSON_FALLBACK[normalized];
+    console.log(`📚 Using fallback database for ${normalized} → ${data.family}`);
+    
+    return {
+      confirmed: true,
+      source: 'DONALDSON_FALLBACK',
+      facts: {
+        code: normalized,
+        family: data.family,
+        duty: data.duty || 'HD',
+        attributes: {},
+        cross: [],
         applications: []
       }
     };
   }
 
-  if (prefixMap.DONALDSON_STRICT_REGEX && prefixMap.DONALDSON_STRICT_REGEX.test(normalized)) {
-    const family = detectFamilyFromCode(normalized);
-    if (family) {
-      return {
-        confirmed: true,
-        source: 'DONALDSON',
-        facts: {
-          code: normalized,
-          family: family,
-          duty: 'HD',
-          attributes: {
-            series: detectSeriesType(normalized)
-          },
-          cross: [],
-          applications: []
-        }
-      };
-    }
-  }
-
-  if (normalized.startsWith('P')) {
-    if (typeof appendWatch === 'function') {
-      appendWatch(normalized, 'NOT_FOUND_DONALDSON');
-    }
-  }
-
+  // 3. No encontrado
+  console.log(`❌ Donaldson code ${normalized} not found`);
   return { confirmed: false };
 }
 
@@ -152,13 +190,17 @@ async function validateDonaldsonCode(inputCode) {
   const result = await scrapeDonaldson(normalized);
 
   if (!result || !result.confirmed) {
-    return { valid: false, code: normalized, reason: 'NOT_FOUND_DONALDSON' };
+    return { 
+      valid: false, 
+      code: normalized, 
+      reason: 'NOT_FOUND_DONALDSON' 
+    };
   }
 
   return {
     valid: true,
     code: result.facts.code,
-    source: 'DONALDSON',
+    source: result.source,
     family: result.facts.family,
     duty: result.facts.duty,
     last4: extract4Digits(result.facts.code),
@@ -170,8 +212,6 @@ async function validateDonaldsonCode(inputCode) {
 module.exports = {
   scrapeDonaldson,
   validateDonaldsonCode,
-  detectSeriesType,
-  detectFamilyFromCode,
-  findDonaldsonCode,
-  DONALDSON_DATABASE
+  scrapeDonaldsonWebsite,
+  DONALDSON_FALLBACK
 };
