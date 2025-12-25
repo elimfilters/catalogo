@@ -1,5 +1,5 @@
 FROM node:20-alpine
-# Force rebuild: 2025-12-07T11:23:00
+# Force rebuild: 2025-12-25T02:00:24
 
 WORKDIR /app
 
@@ -24,3 +24,4 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
 
 # Start application
 CMD ["node", "server.js"]
+
