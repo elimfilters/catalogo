@@ -269,8 +269,6 @@ app.post('/api/export/sheets', async (req, res) => {
 });
 module.exports = app;
 
-module.exports = app;
-
 // Start server
 if (require.main === module) {
   app.listen(PORT, () => {
@@ -289,5 +287,6 @@ if (require.main === module) {
     console.log('✅ Export functionality: ENABLED');
   });
 }
+
 
 
