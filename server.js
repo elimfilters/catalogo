@@ -200,4 +200,6 @@ app.post('/api/process', async (req, res) => {
 app.listen(PORT, '0.0.0.0', () => {
   console.log(`🚀 Servidor en puerto ${PORT}`);
   console.log('📊 Google Sheets:', sheetsInitialized ? '✅' : '❌');
-});
+});git add server.js
+git commit -m "Trigger redeploy"
+git push
