@@ -1,67 +1,81 @@
-﻿/**
- * ELIMFILTERS API Server - v5.0.2
- * Servidor principal con detección, escritura y exportación a Google Sheets
- */
-const express = require('express');
+﻿const express = require('express');
 const cors = require('cors');
-const detectRouter = require('./src/api/detect');
-const processRouter = require('./src/api/process');
-const metricsMarineRouter = require('./src/api/metricsMarine');
-const exportRouter = require('./src/api/export');
-const { checkMarineAlerts } = require('./src/services/marineAlerts');
-const { isEnabled: isSheetsEnabled } = require('./src/sheets');
+const { GoogleGenerativeAI } = require('@google/generative-ai');
+const { google } = require('googleapis');
 
 const app = express();
-const PORT = process.env.PORT || 8080;
+const PORT = process.env.PORT || 3000;
 
-app.use(cors({
-  origin: '*',
-  methods: ['GET', 'POST', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Accept']
-}));
-
+// Middleware
+app.use(cors());
 app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
 
-app.use((req, res, next) => {
-  console.log('📥 ' + req.method + ' ' + req.path + ' - ' + new Date().toISOString());
-  next();
-});
+// Inicializar Gemini AI
+const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
 
-app.get('/', (req, res) => {
-  res.status(200).json({
-    name: 'ELIMFILTERS API',
-    version: '5.0.2',
-    status: 'running',
-    endpoints: {
-      health: 'GET /health',
-      search: 'POST /search',
-      searchLegacy: 'GET /search?partNumber=XXX',
-      process: 'POST /api/process',
-      processGet: 'GET /api/process/:code',
-      processBatch: 'POST /api/process/batch',
-      export: 'POST /api/export/sheets',
-      exportStatus: 'GET /api/export/status',
-      metrics: 'GET /metrics/marine'
-    },
-    features: [
-      'Filter Detection (HD/LD/MARINE)',
-      'SKU Generation',
-      'Google Sheets Integration',
-      'Multi-manufacturer Support'
-    ]
-  });
-});
+// Inicializar Google Sheets
+let sheets = null;
+let auth = null;
 
+function initializeGoogleSheets() {
+  try {
+    console.log('=== Inicializando Google Sheets ===');
+    
+    // Buscar credenciales con el nombre correcto que tienes en Railway
+    const base64Creds = process.env.GOOGLE_SHEETS_CREDENTIALS || process.env.GOOGLE_SERVICE_ACCOUNT_KEY_BASE64;
+    
+    if (!base64Creds) {
+      throw new Error('No credentials found. Set GOOGLE_SHEETS_CREDENTIALS or GOOGLE_SERVICE_ACCOUNT_KEY_BASE64');
+    }
+
+    console.log('Variable usada:', process.env.GOOGLE_SHEETS_CREDENTIALS ? 'GOOGLE_SHEETS_CREDENTIALS' : 'GOOGLE_SERVICE_ACCOUNT_KEY_BASE64');
+
+    // Decodificar Base64
+    const credentialsJson = Buffer.from(base64Creds, 'base64').toString('utf-8');
+    console.log('✅ Base64 decodificado, longitud:', credentialsJson.length);
+    
+    const credentials = JSON.parse(credentialsJson);
+    console.log('✅ JSON parseado correctamente');
+    console.log('Client email:', credentials.client_email);
+    console.log('Private key presente:', !!credentials.private_key);
+    console.log('Private key length:', credentials.private_key?.length);
+
+    // Verificar que el private key tiene formato correcto
+    if (!credentials.private_key.includes('BEGIN PRIVATE KEY')) {
+      throw new Error('Private key format invalid - missing BEGIN marker');
+    }
+
+    // Crear autenticación JWT
+    auth = new google.auth.JWT(
+      credentials.client_email,
+      null,
+      credentials.private_key,
+      ['https://www.googleapis.com/auth/spreadsheets']
+    );
+
+    sheets = google.sheets({ version: 'v4', auth });
+    console.log('✅ Google Sheets API inicializada correctamente');
+    return true;
+  } catch (error) {
+    console.error('❌ Error inicializando Google Sheets:', error.message);
+    console.error('Stack:', error.stack);
+    return false;
+  }
+}
+
+// Inicializar al arrancar
+const sheetsInitialized = initializeGoogleSheets();
+
+// Health check
 app.get('/health', (req, res) => {
-  res.status(200).json({
+  res.json({
     status: 'healthy',
     timestamp: new Date().toISOString(),
-    uptime: Math.floor(process.uptime()),
+    uptime: process.uptime(),
     memory: process.memoryUsage(),
     features: {
-      detection: true,
-      googleSheets: isSheetsEnabled(),
+      detection: !!process.env.GEMINI_API_KEY,
+      googleSheets: sheetsInitialized,
       export: true,
       batch: true,
       marine: true
@@ -69,71 +83,121 @@ app.get('/health', (req, res) => {
   });
 });
 
-app.use('/search', detectRouter);
-app.use('/api/process', processRouter);
-app.use('/api/export', exportRouter);
-app.use('/metrics/marine', metricsMarineRouter);
-
-app.use((req, res) => {
-  console.log('❌ 404 - Route not found: ' + req.method + ' ' + req.path);
-  res.status(404).json({
-    success: false,
-    error: 'Endpoint not found',
-    requestedPath: req.path,
-    availableEndpoints: [
-      'POST /search',
-      'GET /search?partNumber=XXX',
-      'POST /api/process',
-      'GET /api/process/:code',
-      'POST /api/process/batch',
-      'POST /api/export/sheets',
-      'GET /api/export/status',
-      'GET /health',
-      'GET /metrics/marine'
-    ]
-  });
-});
-
-app.use((err, req, res, next) => {
-  console.error('💥 [SERVER ERROR]:', err);
-  res.status(500).json({
-    success: false,
-    error: 'Internal server error',
-    message: err.message
-  });
-});
-
-setInterval(() => {
-  try {
-    const alerts = checkMarineAlerts();
-    if (alerts && Array.isArray(alerts) && alerts.length > 0) {
-      console.warn('🚨 MARINE ALERTS:', alerts);
-    }
-  } catch (e) {
-    console.error('❌ Error in MARINE alerts:', e.message);
-  }
-}, 60000);
-
-app.listen(PORT, () => {
-  console.log('────────────────────────────────────────────────────────');
-  console.log('🚀 ELIMFILTERS API v5.0.2');
-  console.log('📡 Running on port ' + PORT);
-  console.log('🌎 Environment: ' + (process.env.NODE_ENV || 'development'));
-  console.log('────────────────────────────────────────────────────────');
-  console.log('📍 Health: http://localhost:' + PORT + '/health');
-  console.log('🔍 Search: POST http://localhost:' + PORT + '/search');
-  console.log('📝 Process: POST http://localhost:' + PORT + '/api/process');
-  console.log('📝 Batch: POST http://localhost:' + PORT + '/api/process/batch');
-  console.log('📤 Export: POST http://localhost:' + PORT + '/api/export/sheets');
-  console.log('────────────────────────────────────────────────────────');
+// Detectar tipo de pieza
+async function detectPieceType(code) {
+  console.log('Detectando tipo de pieza para:', code);
   
-  if (isSheetsEnabled()) {
-    console.log('✅ Google Sheets integration: ENABLED');
-    console.log('✅ Export functionality: ENABLED');
-  } else {
-    console.log('⚠️  Google Sheets integration: DISABLED (missing credentials)');
-    console.log('⚠️  Export functionality: DISABLED');
+  const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+  
+  const prompt = `Analiza este código de pieza marina: ${code}
+
+Determina el tipo de pieza basándote en:
+- Letras del código (FS, FF, WS, etc.)
+- Números que indican características
+
+Responde SOLO con UNA de estas categorías:
+- FUEL SEPARATOR
+- FUEL FILTER
+- WATER SEPARATOR
+- OIL FILTER
+- AIR FILTER
+- HYDRAULIC FILTER
+- OTHER
+
+Responde solo con el nombre de la categoría, sin explicaciones.`;
+
+  const result = await model.generateContent(prompt);
+  const detectedType = result.response.text().trim().toUpperCase();
+  
+  console.log('Tipo detectado:', detectedType);
+  return detectedType;
+}
+
+// Generar SKU
+function generateSKU(code, pieceType) {
+  console.log(`Generando SKU para ${code} (${pieceType})`);
+  
+  const typeMap = {
+    'FUEL SEPARATOR': 'ES',
+    'FUEL FILTER': 'EF', 
+    'WATER SEPARATOR': 'WS',
+    'OIL FILTER': 'OF',
+    'AIR FILTER': 'AF',
+    'HYDRAULIC FILTER': 'HF'
+  };
+  
+  const prefix = typeMap[pieceType] || 'XX';
+  const numbers = code.match(/\d+/g)?.join('') || '0000';
+  const lastFive = numbers.slice(-5).padStart(5, '0');
+  
+  const sku = `${prefix}${lastFive}`;
+  console.log('SKU generado:', sku);
+  return sku;
+}
+
+// Guardar en Google Sheets
+async function saveToGoogleSheets(code, sku, description) {
+  if (!sheetsInitialized) {
+    throw new Error('Google Sheets no inicializado');
+  }
+
+  console.log('Guardando en Google Sheets:', { code, sku, description });
+  
+  const spreadsheetId = process.env.GOOGLE_SHEET_ID;
+  const range = 'Hoja1!A:C';
+  
+  const values = [[code, sku, description]];
+  
+  const result = await sheets.spreadsheets.values.append({
+    spreadsheetId,
+    range,
+    valueInputOption: 'USER_ENTERED',
+    resource: { values }
+  });
+  
+  console.log('✅ Guardado en fila:', result.data.updates.updatedRows);
+  return result.data.updates.updatedRows;
+}
+
+// Endpoint principal
+app.post('/api/process', async (req, res) => {
+  try {
+    const { code } = req.body;
+    
+    if (!code) {
+      return res.status(400).json({ 
+        success: false, 
+        error: 'Código requerido' 
+      });
+    }
+
+    console.log('\n=== Procesando código:', code, '===');
+
+    const pieceType = await detectPieceType(code);
+    const sku = generateSKU(code, pieceType);
+    const row = await saveToGoogleSheets(code, sku, pieceType);
+
+    console.log('✅ Proceso completado');
+    
+    res.json({
+      success: true,
+      sku,
+      description: pieceType,
+      row
+    });
+
+  } catch (error) {
+    console.error('❌ Error:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Internal server error',
+      message: error.message,
+      code: req.body.code
+    });
   }
 });
 
-module.exports = app;
+app.listen(PORT, '0.0.0.0', () => {
+  console.log(`🚀 Servidor en puerto ${PORT}`);
+  console.log('📊 Google Sheets:', sheetsInitialized ? '✅' : '❌');
+});
