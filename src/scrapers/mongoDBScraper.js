@@ -1,16 +1,16 @@
-// ============================================================================
-// MONGODB REPOSITORY — ELIMFILTERS (SAFE MODE)
+﻿// ============================================================================
+// MONGODB REPOSITORY â€” ELIMFILTERS (SAFE MODE)
 // - Persistencia exclusiva ELIMFILTERS / EM9
 // - Nunca scrapea
 // - Nunca infiere
-// - Nunca rompe el servidor si Mongo no está disponible
+// - Nunca rompe el servidor si Mongo no estÃ¡ disponible
 // ============================================================================
 
 let MongoClient;
 try {
   ({ MongoClient } = require('mongodb'));
 } catch (_) {
-  console.warn('❌ MongoDB dependency not installed. MongoDB repository disabled.');
+  console.warn('âŒ MongoDB dependency not installed. MongoDB repository disabled.');
 }
 
 class MongoDBRepository {
@@ -23,7 +23,7 @@ class MongoDBRepository {
   }
 
   // ---------------------------------------------------------------------------
-  // CONEXIÓN SEGURA
+  // CONEXIÃ“N SEGURA
   // ---------------------------------------------------------------------------
   async connect() {
     if (!this.enabled || this.connected) return;
@@ -32,7 +32,7 @@ class MongoDBRepository {
     const dbName = process.env.MONGODB_DB || 'elimfilters';
 
     if (!uri) {
-      console.warn('⚠️ MongoDB URI not defined. Repository disabled.');
+      console.warn('âš ï¸ MongoDB URI not defined. Repository disabled.');
       this.enabled = false;
       return;
     }
@@ -49,9 +49,9 @@ class MongoDBRepository {
       await this.collection.createIndex({ duty: 1 });
 
       this.connected = true;
-      console.log('✅ MongoDB repository connected');
+      console.log('âœ… MongoDB repository connected');
     } catch (err) {
-      console.error('❌ MongoDB connection failed:', err.message);
+      console.error('âŒ MongoDB connection failed:', err.message);
       this.enabled = false;
     }
   }
@@ -133,6 +133,43 @@ class MongoDBRepository {
       this.connected = false;
     }
   }
+
+  // Función search para el endpoint /search
+  async search(query) {
+    if (!this.enabled) {
+      return { success: false, error: 'MongoDB not available' };
+    }
+
+    try {
+      await this.connect();
+      if (!this.connected) {
+        return { success: false, error: 'MongoDB connection failed' };
+      }
+
+      const normalizedQuery = query.toUpperCase().trim();
+      
+      // Buscar por SKU, OEM codes o cross reference
+      const results = await this.collection.find({
+        $or: [
+          { sku: normalizedQuery },
+          { query_norm: normalizedQuery },
+          { oem_codes: { $regex: normalizedQuery, $options: 'i' } },
+          { cross_reference: { $regex: normalizedQuery, $options: 'i' } }
+        ]
+      }).limit(10).toArray();
+
+      return {
+        success: true,
+        count: results.length,
+        results: results
+      };
+    } catch (error) {
+      console.error('MongoDB search error:', error);
+      return { success: false, error: error.message };
+    }
+  }
+
 }
 
 module.exports = new MongoDBRepository();
+
