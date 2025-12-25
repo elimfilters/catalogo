@@ -119,17 +119,17 @@ app.post('/search', async (req, res) => {
     if (scrapedResult) {
       // Guardar en Sheets
       try {
-        await syncSheetsService.upsertBySku({
+        await syncSheetsService.appendToSheet({
           sku: scrapedResult.normsku || query,
-          query_normalized: query,
+          code_client: query,
+          code_oem: scrapedResult.oem_codes?.[0] || query,
           duty: scrapedResult.duty_type,
-          type: scrapedResult.filter_type || scrapedResult.type,
           family: scrapedResult.family,
-          attributes: scrapedResult.attributes || {},
-          oem_codes: scrapedResult.oem_codes,
-          cross_reference: scrapedResult.cross_reference,
-          description: scrapedResult.description,
-          source: scrapedResult.source
+          media: scrapedResult.media_type || '',
+          source: scrapedResult.source || 'SCRAPER',
+          cross_reference: scrapedResult.cross_reference || [],
+          applications: scrapedResult.applications || [],
+          attributes: scrapedResult.attributes || {}
         });
         console.log(`✅ Guardado en Sheets: ${scrapedResult.normsku || query}`);
       } catch (err) {
