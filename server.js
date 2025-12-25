@@ -2,7 +2,6 @@
  * ELIMFILTERS API Server - v5.0.2
  * Servidor principal con detección, escritura y exportación a Google Sheets
  */
-
 const express = require('express');
 const cors = require('cors');
 const detectRouter = require('./src/api/detect');
@@ -10,6 +9,7 @@ const processRouter = require('./src/api/process');
 const metricsMarineRouter = require('./src/api/metricsMarine');
 const exportRouter = require('./src/api/export');
 const { checkMarineAlerts } = require('./src/services/marineAlerts');
+const { isEnabled: isSheetsEnabled } = require('./src/sheets');
 
 const app = express();
 const PORT = process.env.PORT || 8080;
@@ -48,9 +48,7 @@ app.get('/', (req, res) => {
       'Filter Detection (HD/LD/MARINE)',
       'SKU Generation',
       'Google Sheets Integration',
-      'Export Filtered Products',
-      'Cross-Reference Lookup',
-      'Batch Processing'
+      'Multi-manufacturer Support'
     ]
   });
 });
@@ -58,14 +56,12 @@ app.get('/', (req, res) => {
 app.get('/health', (req, res) => {
   res.status(200).json({
     status: 'healthy',
-    service: 'ELIMFILTERS Detection API',
-    version: '5.0.2',
     timestamp: new Date().toISOString(),
     uptime: Math.floor(process.uptime()),
     memory: process.memoryUsage(),
     features: {
       detection: true,
-      googleSheets: !!process.env.GOOGLE_SERVICE_ACCOUNT_KEY,
+      googleSheets: isSheetsEnabled(),
       export: true,
       batch: true,
       marine: true
@@ -131,7 +127,7 @@ app.listen(PORT, () => {
   console.log('📤 Export: POST http://localhost:' + PORT + '/api/export/sheets');
   console.log('────────────────────────────────────────────────────────');
   
-  if (process.env.GOOGLE_SERVICE_ACCOUNT_KEY) {
+  if (isSheetsEnabled()) {
     console.log('✅ Google Sheets integration: ENABLED');
     console.log('✅ Export functionality: ENABLED');
   } else {
