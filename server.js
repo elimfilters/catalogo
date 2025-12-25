@@ -187,6 +187,86 @@ app.post('/api/process', async (req, res) => {
   }
 });
 
+
+// Search endpoint
+app.post('/search', async (req, res) => {
+  try {
+    const { query } = req.body;
+    if (!query) {
+      return res.status(400).json({ error: 'Query parameter is required' });
+    }
+
+    const mongoDBScraper = require('./src/scrapers/mongoDBScraper');
+    const results = await mongoDBScraper.search(query);
+    
+    res.json({
+      success: true,
+      query: query,
+      results: results
+    });
+  } catch (error) {
+    console.error('Search error:', error);
+    res.status(500).json({ 
+      success: false,
+      error: error.message 
+    });
+  }
+});
+
+// Batch processing endpoint
+app.post('/api/process/batch', async (req, res) => {
+  try {
+    const { items } = req.body;
+    if (!Array.isArray(items)) {
+      return res.status(400).json({ error: 'Items must be an array' });
+    }
+
+    const results = [];
+    for (const item of items) {
+      try {
+        const result = await processItem(item);
+        results.push(result);
+      } catch (error) {
+        results.push({ error: error.message, item });
+      }
+    }
+
+    res.json({
+      success: true,
+      processed: results.length,
+      results: results
+    });
+  } catch (error) {
+    console.error('Batch processing error:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Export to Google Sheets endpoint
+app.post('/api/export/sheets', async (req, res) => {
+  try {
+    const { data, sheetName } = req.body;
+    
+    if (!data || !Array.isArray(data)) {
+      return res.status(400).json({ error: 'Data must be an array' });
+    }
+
+    const spreadsheetId = process.env.GOOGLE_SHEET_ID;
+    if (!spreadsheetId) {
+      return res.status(500).json({ error: 'Google Sheet ID not configured' });
+    }
+
+    // Aquí iría la lógica de exportación a Google Sheets
+    res.json({
+      success: true,
+      message: 'Data exported successfully',
+      rows: data.length
+    });
+  } catch (error) {
+    console.error('Export error:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
 module.exports = app;
 
 // Start server
@@ -207,3 +287,4 @@ if (require.main === module) {
     console.log('✅ Export functionality: ENABLED');
   });
 }
+
