@@ -188,3 +188,22 @@ app.post('/api/process', async (req, res) => {
 });
 
 module.exports = app;
+
+// Start server
+if (require.main === module) {
+  app.listen(PORT, () => {
+    console.log('────────────────────────────────────────────────────────');
+    console.log('🚀 ELIMFILTERS API v5.0.2');
+    console.log('📡 Running on port ' + PORT);
+    console.log('🌎 Environment: ' + (process.env.NODE_ENV || 'development'));
+    console.log('────────────────────────────────────────────────────────');
+    console.log('📍 Health: http://localhost:' + PORT + '/health');
+    console.log('🔍 Search: POST http://localhost:' + PORT + '/search');
+    console.log('📝 Process: POST http://localhost:' + PORT + '/api/process');
+    console.log('📝 Batch: POST http://localhost:' + PORT + '/api/process/batch');
+    console.log('📤 Export: POST http://localhost:' + PORT + '/api/export/sheets');
+    console.log('────────────────────────────────────────────────────────');
+    console.log('✅ Google Sheets integration: ' + (sheetsInitialized ? 'ENABLED' : 'DISABLED'));
+    console.log('✅ Export functionality: ENABLED');
+  });
+}
