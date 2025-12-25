@@ -21,7 +21,6 @@ function initializeGoogleSheets() {
   try {
     console.log('=== Inicializando Google Sheets ===');
     
-    // Buscar credenciales con el nombre correcto que tienes en Railway
     const base64Creds = process.env.GOOGLE_SHEETS_CREDENTIALS || process.env.GOOGLE_SERVICE_ACCOUNT_KEY_BASE64;
     
     if (!base64Creds) {
@@ -30,7 +29,6 @@ function initializeGoogleSheets() {
 
     console.log('Variable usada:', process.env.GOOGLE_SHEETS_CREDENTIALS ? 'GOOGLE_SHEETS_CREDENTIALS' : 'GOOGLE_SERVICE_ACCOUNT_KEY_BASE64');
 
-    // Decodificar Base64
     const credentialsJson = Buffer.from(base64Creds, 'base64').toString('utf-8');
     console.log('✅ Base64 decodificado, longitud:', credentialsJson.length);
     
@@ -40,12 +38,10 @@ function initializeGoogleSheets() {
     console.log('Private key presente:', !!credentials.private_key);
     console.log('Private key length:', credentials.private_key?.length);
 
-    // Verificar que el private key tiene formato correcto
     if (!credentials.private_key.includes('BEGIN PRIVATE KEY')) {
       throw new Error('Private key format invalid - missing BEGIN marker');
     }
 
-    // Crear autenticación JWT
     auth = new google.auth.JWT(
       credentials.client_email,
       null,
@@ -63,10 +59,8 @@ function initializeGoogleSheets() {
   }
 }
 
-// Inicializar al arrancar
 const sheetsInitialized = initializeGoogleSheets();
 
-// Health check
 app.get('/health', (req, res) => {
   res.json({
     status: 'healthy',
@@ -83,7 +77,6 @@ app.get('/health', (req, res) => {
   });
 });
 
-// Detectar tipo de pieza
 async function detectPieceType(code) {
   console.log('Detectando tipo de pieza para:', code);
   
@@ -113,7 +106,6 @@ Responde solo con el nombre de la categoría, sin explicaciones.`;
   return detectedType;
 }
 
-// Generar SKU
 function generateSKU(code, pieceType) {
   console.log(`Generando SKU para ${code} (${pieceType})`);
   
@@ -135,7 +127,6 @@ function generateSKU(code, pieceType) {
   return sku;
 }
 
-// Guardar en Google Sheets
 async function saveToGoogleSheets(code, sku, description) {
   if (!sheetsInitialized) {
     throw new Error('Google Sheets no inicializado');
@@ -159,7 +150,6 @@ async function saveToGoogleSheets(code, sku, description) {
   return result.data.updates.updatedRows;
 }
 
-// Endpoint principal
 app.post('/api/process', async (req, res) => {
   try {
     const { code } = req.body;
@@ -197,9 +187,4 @@ app.post('/api/process', async (req, res) => {
   }
 });
 
-app.listen(PORT, '0.0.0.0', () => {
-  console.log(`🚀 Servidor en puerto ${PORT}`);
-  console.log('📊 Google Sheets:', sheetsInitialized ? '✅' : '❌');
-});git add server.js
-git commit -m "Trigger redeploy"
-git push
+module.exports = app;
