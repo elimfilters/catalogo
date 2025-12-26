@@ -5,9 +5,6 @@ const { scrapeFRAM } = require('../scrapers/framScraper');
 const { generateSKU } = require('../sku/generator');
 const { code: normalize } = require('../utils/normalize');
 ```
-
-   https://catalogo-production-9437.up.railway.app/api/search/P552100
-
 async function search(codigoEntrada) {
   const startTime = Date.now();
   try {
