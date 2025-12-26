@@ -15,28 +15,25 @@
  */
 function extract4Digits(code) {
     if (!code) {
-        console.log('⚠️  No code provided for digit extraction');
+        console.log('No code provided for digit extraction');
         return null;
     }
-
-    // Extract all digits from the code
+    
     const digits = String(code).replace(/\D/g, '');
-
+    
     if (!digits) {
-        console.log(`⚠️  No digits found in: ${code}`);
+        console.log(`No digits found in: ${code}`);
         return null;
     }
-
-    // Take last 4 digits
+    
     if (digits.length >= 4) {
         const last4 = digits.slice(-4);
-        console.log(`📊 Extracted last4: ${last4} from ${code}`);
+        console.log(`Extracted last4: ${last4} from ${code}`);
         return last4;
     }
-
-    // Pad with zeros if less than 4 digits
+    
     const padded = digits.padStart(4, '0');
-    console.log(`📊 Padded to last4: ${padded} from ${code}`);
+    console.log(`Padded to last4: ${padded} from ${code}`);
     return padded;
 }
 
@@ -61,25 +58,25 @@ function isValid4Digits(digits) {
  */
 function extract4Alnum(code) {
     if (!code) {
-        console.log('⚠️  No code provided for alnum extraction');
+        console.log('No code provided for alnum extraction');
         return null;
     }
-
+    
     const cleaned = String(code).toUpperCase().replace(/[^A-Z0-9]/g, '');
-
+    
     if (!cleaned) {
-        console.log(`⚠️  No alphanumeric content found in: ${code}`);
+        console.log(`No alphanumeric content found in: ${code}`);
         return null;
     }
-
+    
     if (cleaned.length >= 4) {
         const last4 = cleaned.slice(-4);
-        console.log(`📊 Extracted last4 alnum: ${last4} from ${code}`);
+        console.log(`Extracted last4 alnum: ${last4} from ${code}`);
         return last4;
     }
-
+    
     const padded = cleaned.padStart(4, '0');
-    console.log(`📊 Padded to last4 alnum: ${padded} from ${code}`);
+    console.log(`Padded to last4 alnum: ${padded} from ${code}`);
     return padded;
 }
 
