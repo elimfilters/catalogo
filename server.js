@@ -1,134 +1,111 @@
+'use strict';
+
+/* =============================================================================
+   ELIMFILTERS API — SERVER
+   Versión: 5.0.2
+   Node.js: 20.x
+   Puerto: 8080 (FIJO)
+============================================================================= */
+
 const express = require('express');
 const cors = require('cors');
-const { GoogleGenerativeAI } = require('@google/generative-ai');
-const { google } = require('googleapis');
+const bodyParser = require('body-parser');
+
+// =============================================================================
+//  VALIDACIÓN DE ENTORNO (FAIL FAST)
+// =============================================================================
+
+if (!process.env.GOOGLE_SERVICE_ACCOUNT_KEY_BASE64) {
+  console.error('❌ Missing ENV: GOOGLE_SERVICE_ACCOUNT_KEY_BASE64');
+  process.exit(1);
+}
+
+// =============================================================================
+//  GOOGLE SERVICE ACCOUNT (SEGURO + BLINDADO)
+// =============================================================================
+
+let googleServiceAccount;
+
+try {
+  const decoded = Buffer
+    .from(process.env.GOOGLE_SERVICE_ACCOUNT_KEY_BASE64, 'base64')
+    .toString('utf-8');
+
+  googleServiceAccount = JSON.parse(decoded);
+
+  if (
+    !googleServiceAccount.client_email ||
+    !googleServiceAccount.private_key
+  ) {
+    throw new Error('Invalid Google Service Account structure');
+  }
+
+  console.log('✅ Google Sheets API inicializada correctamente');
+  console.log('Client email:', googleServiceAccount.client_email);
+  console.log('Private key presente:', true);
+
+} catch (err) {
+  console.error('❌ Error loading Google Service Account:', err.message);
+  process.exit(1);
+}
+
+// =============================================================================
+//  APP INIT
+// =============================================================================
 
 const app = express();
-const PORT = process.env.PORT || 8080;
 
-// Middleware
 app.use(cors());
-app.use(express.json());
+app.use(bodyParser.json({ limit: '10mb' }));
+app.use(bodyParser.urlencoded({ extended: true }));
 
-// Inicializar Gemini
-const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
+// =============================================================================
+//  HEALTH CHECK
+// =============================================================================
 
-// Configurar Google Sheets
-const auth = new google.auth.GoogleAuth({
-  credentials: JSON.parse(process.env.GOOGLE_CREDENTIALS),
-  scopes: ['https://www.googleapis.com/auth/spreadsheets'],
-});
-
-const sheets = google.sheets({ version: 'v4', auth });
-const SPREADSHEET_ID = process.env.SPREADSHEET_ID;
-
-// Servicio de sincronización con Sheets
-const syncSheetsService = {
-  async appendToSheet(data) {
-    try {
-      const values = [[
-        data.sku || '',
-        data.code_client || '',
-        data.code_oem || '',
-        data.duty || '',
-        data.family || '',
-        data.media || '',
-        data.source || '',
-        JSON.stringify(data.cross_reference || []),
-        JSON.stringify(data.applications || []),
-        JSON.stringify(data.attributes || {}),
-        new Date().toISOString()
-      ]];
-
-      const response = await sheets.spreadsheets.values.append({
-        spreadsheetId: SPREADSHEET_ID,
-        range: 'Sheet1!A:K',
-        valueInputOption: 'RAW',
-        resource: { values },
-      });
-
-      return response.data;
-    } catch (error) {
-      console.error('❌ Error al guardar en Sheets:', error.message);
-      throw error;
-    }
-  }
-};
-
-// Endpoint principal de scraping
-app.post('/scrape', async (req, res) => {
-  try {
-    const { query } = req.body;
-    
-    if (!query) {
-      return res.status(400).json({ error: 'Query is required' });
-    }
-
-    console.log(`🔍 Procesando búsqueda: ${query}`);
-
-    // Llamar a Gemini para scraping
-    const model = genAI.getGenerativeModel({ model: 'gemini-pro' });
-    const prompt = `Busca información sobre el repuesto automotriz: ${query}. 
-    Devuelve en formato JSON con: normsku, oem_codes, duty_type, family, media_type, 
-    source, cross_reference, applications, attributes`;
-
-    const result = await model.generateContent(prompt);
-    const response = await result.response;
-    const text = response.text();
-    
-    // Parsear respuesta
-    let scrapedResult;
-    try {
-      scrapedResult = JSON.parse(text);
-    } catch (parseError) {
-      scrapedResult = {
-        normsku: query,
-        oem_codes: [query],
-        duty_type: 'UNKNOWN',
-        family: 'UNKNOWN',
-        source: 'SCRAPER'
-      };
-    }
-
-    // Guardar en Sheets
-    try {
-      await syncSheetsService.appendToSheet({
-        sku: scrapedResult.normsku || query,
-        code_client: query,
-        code_oem: scrapedResult.oem_codes?.[0] || query,
-        duty: scrapedResult.duty_type,
-        family: scrapedResult.family,
-        media: scrapedResult.media_type || '',
-        source: scrapedResult.source || 'SCRAPER',
-        cross_reference: scrapedResult.cross_reference || [],
-        applications: scrapedResult.applications || [],
-        attributes: scrapedResult.attributes || {}
-      });
-      
-      console.log(`✅ Guardado en Sheets: ${scrapedResult.normsku || query}`);
-    } catch (sheetsError) {
-      console.error('⚠️ Error al guardar en Sheets, pero continuando:', sheetsError.message);
-    }
-
-    res.json({
-      success: true,
-      data: scrapedResult
-    });
-
-  } catch (error) {
-    console.error('❌ Error en /scrape:', error);
-    res.status(500).json({
-      error: 'Internal server error',
-      message: error.message
-    });
-  }
-});
-
-// Health check
 app.get('/health', (req, res) => {
-  res.json({ status: 'ok', timestamp: new Date().toISOString() });
+  res.json({
+    status: 'OK',
+    service: 'ELIMFILTERS API',
+    version: '5.0.2',
+    environment: process.env.NODE_ENV || 'production',
+    googleSheets: 'ENABLED'
+  });
 });
+
+// =============================================================================
+//  ROUTES (ACTIVA LAS QUE YA TENGAS)
+// =============================================================================
+
+// Ejemplos:
+// const searchRoutes = require('./routes/search');
+// app.use('/search', searchRoutes);
+
+// const processRoutes = require('./routes/process');
+// app.use('/api/process', processRoutes);
+
+// const exportRoutes = require('./routes/export');
+// app.use('/api/export/sheets', exportRoutes);
+
+// =============================================================================
+//  404 FALLBACK
+// =============================================================================
+
+app.use((req, res) => {
+  res.status(404).json({ error: 'Endpoint not found' });
+});
+
+// =============================================================================
+//  START SERVER (PORT 8080 FIJO)
+// =============================================================================
+
+const PORT = 8080;
 
 app.listen(PORT, () => {
-  console.log(`🚀 Server running on port ${PORT}`);
+  console.log('────────────────────────────────────────────────────────');
+  console.log('🚀 ELIMFILTERS API v5.0.2');
+  console.log(`📡 Running on port ${PORT}`);
+  console.log(`🌎 Environment: ${process.env.NODE_ENV || 'production'}`);
+  console.log('📍 Health: http://localhost:8080/health');
+  console.log('────────────────────────────────────────────────────────');
 });
