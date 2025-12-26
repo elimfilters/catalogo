@@ -1,0 +1,90 @@
+{
+  "DONALDSON_SYNTEQ_XP": {
+    "elimfilters_tech": "ELIMTEK™ MultiCore",
+    "technology_name": "ELIMTEK™ MultiCore – Oil / Fuel / Hydraulic (HD)",
+    "technology_tier": "ULTRA_PREMIUM",
+    "technology_scope": "OIL|HD|SYNTHETIC|EXTREME_PERFORMANCE",
+    "family": "OIL",
+    "duty": "HD"
+  },
+  "DONALDSON_SYNTEQ": {
+    "elimfilters_tech": "ELIMTEK™ MultiCore",
+    "technology_name": "ELIMTEK™ MultiCore – Oil / Fuel / Hydraulic (HD)",
+    "technology_tier": "PREMIUM",
+    "technology_scope": "OIL|HD|MULTILAYER|BETA_HIGH|EXTENDED_PERFORMANCE",
+    "family": "OIL",
+    "duty": "HD"
+  },
+  "DONALDSON_ULTRA_WEB_HD": {
+    "elimfilters_tech": "MACROCORE™ NanoMax",
+    "technology_name": "MACROCORE™ NanoMax – Engine Air (HD)",
+    "technology_tier": "ULTRA_PREMIUM",
+    "technology_scope": "AIR|HD|NANOFIBER|SYNTHETIC|MINIMAL_RESTRICTION",
+    "family": "AIR",
+    "duty": "HD"
+  },
+  "DONALDSON_ULTRA_WEB": {
+    "elimfilters_tech": "MACROCORE™ NanoMax",
+    "technology_name": "MACROCORE™ NanoMax – Engine Air (HD)",
+    "technology_tier": "PREMIUM",
+    "technology_scope": "AIR|HD|NANOFIBER|SUBMICRON",
+    "family": "AIR",
+    "duty": "HD"
+  },
+  "DONALDSON_POWERCORE": {
+    "elimfilters_tech": "MACROCORE™",
+    "technology_name": "MACROCORE™ – Engine Air (HD)",
+    "technology_tier": "PREMIUM",
+    "technology_scope": "AIR|HD|POWERCORE|HIGH_CAPACITY",
+    "family": "AIR",
+    "duty": "HD"
+  },
+  "DONALDSON_BLUE": {
+    "elimfilters_tech": "ELIMTEK™ Blend",
+    "technology_name": "ELIMTEK™ Blend – Oil / Fuel (HD)",
+    "technology_tier": "STANDARD",
+    "technology_scope": "OIL|HD|CELLULOSE_BLEND|BALANCED",
+    "family": "OIL",
+    "duty": "HD"
+  },
+  "FRAM_SYNTHETIC_ENDURANCE": {
+    "elimfilters_tech": "ELIMTEK™ MultiCore",
+    "technology_name": "ELIMTEK™ MultiCore – Oil Filter (LD)",
+    "technology_tier": "PREMIUM",
+    "technology_scope": "OIL|LD|SYNTHETIC|MULTILAYER|EXTENDED_INTERVAL",
+    "family": "OIL",
+    "duty": "LD"
+  },
+  "FRAM_TITANIUM_OIL": {
+    "elimfilters_tech": "ELIMTEK™ MultiCore",
+    "technology_name": "ELIMTEK™ MultiCore – Oil Filter (LD)",
+    "technology_tier": "PREMIUM",
+    "technology_scope": "OIL|LD|TITANIUM|HIGH_PERFORMANCE",
+    "family": "OIL",
+    "duty": "LD"
+  },
+  "FRAM_TITANIUM_AIR": {
+    "elimfilters_tech": "MACROCORE™ Ultra",
+    "technology_name": "MACROCORE™ Ultra – Air Filter (LD)",
+    "technology_tier": "PREMIUM",
+    "technology_scope": "AIR|LD|NANOFIBER|SUBMICRON|EXTENDED_LIFE",
+    "family": "AIR",
+    "duty": "LD"
+  },
+  "FRAM_FORCE": {
+    "elimfilters_tech": "ELIMTEK™ Blend",
+    "technology_name": "ELIMTEK™ Blend – Oil Filter (LD)",
+    "technology_tier": "STANDARD",
+    "technology_scope": "OIL|LD|SYNTHETIC_BLEND|DAILY_PROTECTION",
+    "family": "OIL",
+    "duty": "LD"
+  },
+  "FRAM_EXTRA_GUARD_OIL": {
+    "elimfilters_tech": "ELIMTEK™ Blend",
+    "technology_name": "ELIMTEK™ Blend – Oil Filter (LD)",
+    "technology_tier": "STANDARD",
+    "technology_scope": "OIL|LD|CELLULOSE_BLEND",
+    "family": "OIL",
+    "duty": "LD"
+  }
+}
