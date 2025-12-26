@@ -1,6 +1,6 @@
 // ============================================================================
-// DONALDSON SCRAPER v10.2.0 - STAGEHAND + GEMINI 2.5 FLASH
-// DETECCIÓN PRECISA + DESCRIPCIÓN ELIMFILTERS
+// DONALDSON SCRAPER v10.3.0 - STAGEHAND + GEMINI 2.5 FLASH
+// DETECCIÓN PRECISA + DESCRIPCIÓN ELIMFILTERS + URL CORREGIDA
 // ============================================================================
 
 const { Stagehand } = require('@browserbasehq/stagehand');
@@ -48,32 +48,11 @@ async function scrapeDonaldson(codigo) {
     const page = stagehand.page;
     
     // ========================================================================
-    // ESTRATEGIA 1: URL DIRECTA (90%)
+    // ESTRATEGIA 1: URL DIRECTA CON BÚSQUEDA (95%)
     // ========================================================================
-    console.log(`[STAGEHAND] Estrategia 1: URL directa`);
-    const directURL = `https://shop.donaldson.com/store/es-us/product/${normalized}`;
+    console.log(`[STAGEHAND] Estrategia 1: Búsqueda en Donaldson`);
     
-    await page.goto(directURL, { 
-      waitUntil: 'networkidle',
-      timeout: 30000 
-    });
-    
-    const isProductPage = await page.evaluate(() => {
-      const title = document.querySelector('h1, .product-title, .prodTitle');
-      return title && title.textContent.trim().length > 0;
-    });
-    
-    if (isProductPage) {
-      console.log(`[STAGEHAND] ✅ URL directa exitosa`);
-      const datos = await extractDataWithAI(stagehand, page, normalized, directURL);
-      await stagehand.close();
-      return { encontrado: true, datos };
-    }
-    
-    // ========================================================================
-    // ESTRATEGIA 2: BÚSQUEDA CON AI (9.9%)
-    // ========================================================================
-    console.log(`[STAGEHAND] Estrategia 2: Búsqueda con AI`);
+    // Primero ir a la búsqueda para obtener el URL completo con ID
     const searchURL = `https://shop.donaldson.com/store/es-us/search?text=${normalized}`;
     
     await page.goto(searchURL, { 
@@ -83,7 +62,47 @@ async function scrapeDonaldson(codigo) {
     
     await page.waitForTimeout(2000);
     
-    console.log(`[STAGEHAND] 🤖 AI buscando el primer resultado...`);
+    // Intentar obtener el link del primer producto
+    const productLink = await page.evaluate(() => {
+      const link = document.querySelector('a[href*="/product/"]');
+      return link ? link.href : null;
+    });
+    
+    if (productLink) {
+      console.log(`[STAGEHAND] ✅ Link encontrado: ${productLink}`);
+      
+      await page.goto(productLink, { 
+        waitUntil: 'networkidle',
+        timeout: 30000 
+      });
+      
+      await page.waitForTimeout(2000);
+      
+      const isProductPage = await page.evaluate(() => {
+        const title = document.querySelector('h1, .product-title, .prodTitle');
+        return title && title.textContent.trim().length > 0;
+      });
+      
+      if (isProductPage) {
+        console.log(`[STAGEHAND] ✅ Página de producto válida`);
+        const datos = await extractDataWithAI(stagehand, page, normalized, productLink);
+        await stagehand.close();
+        return { encontrado: true, datos };
+      }
+    }
+    
+    // ========================================================================
+    // ESTRATEGIA 2: BÚSQUEDA CON AI CLICK (4.9%)
+    // ========================================================================
+    console.log(`[STAGEHAND] Estrategia 2: AI navegando resultados de búsqueda`);
+    
+    // Volver a la búsqueda si no funcionó la estrategia 1
+    await page.goto(searchURL, { 
+      waitUntil: 'networkidle',
+      timeout: 30000 
+    });
+    
+    await page.waitForTimeout(2000);
     
     try {
       await stagehand.act({
@@ -266,36 +285,30 @@ async function extractDataWithAI(stagehand, page, codigo, productURL) {
     duty_type: detectedDuty,
     type: verifiedType,
     subtype: detectSubtype(filterTypeDetection.productTitle || ''),
-    description: elimfiltersDescription, // ✅ Descripción ELIMFILTERS
+    description: elimfiltersDescription,
     
-    // CÓDIGOS
     oem_codes: applications.oemCodes || '',
     cross_reference: parseCrossReferences(filterTypeDetection.crossReferenceCodes),
     
-    // APLICACIONES
     media_type: normalizeMediaType(specifications.mediaType),
     equipment_applications: applications.equipmentApplications || '',
     engine_applications: applications.engineApplications || '',
     
-    // DIMENSIONES
     height_mm: convertToMM(specifications.height),
     outer_diameter_mm: convertToMM(specifications.outerDiameter),
     inner_diameter_mm: convertToMM(specifications.innerDiameter),
     thread_size: specifications.threadSize || null,
     
-    // FILTRACIÓN
     micron_rating: specifications.micronRating || null,
     beta_200: null,
     iso_main_efficiency_percent: null,
     iso_test_method: null,
     
-    // OPERACIÓN
     operating_temperature_min_c: null,
     operating_temperature_max_c: null,
     operating_pressure_min_psi: null,
     operating_pressure_max_psi: null,
     
-    // ESPECÍFICOS
     bypass_valve_psi: null,
     hydrostatic_burst_psi: null,
     dirt_capacity_grams: null,
@@ -307,7 +320,6 @@ async function extractDataWithAI(stagehand, page, codigo, productURL) {
     panel_depth_mm: null,
     rated_flow_gpm: null,
     
-    // MATERIALES
     seal_material: null,
     housing_material: null,
     gasket_od_mm: null,
@@ -315,14 +327,12 @@ async function extractDataWithAI(stagehand, page, codigo, productURL) {
     fluid_compatibility: null,
     disposal_method: 'RECYCLABLE',
     
-    // CALIDAD
     manufacturing_standards: null,
     certification_standards: null,
     service_life_hours: null,
     change_interval_km: null,
     weight_grams: null,
     
-    // METADATA
     _tech_original_detected: null,
     product_url: productURL,
     imagen_url: imageURL,
@@ -344,7 +354,6 @@ function verifyFilterType(breadcrumb, title, crossRefs, aiDetectedType) {
   const t = (title || '').toLowerCase();
   const c = (crossRefs || '').toLowerCase();
   
-  // PRIORIDAD 1: Breadcrumb
   if (b.includes('lube') || b.includes('oil')) {
     console.log(`[VERIFY] ✅ Breadcrumb → OIL`);
     return 'OIL';
@@ -366,7 +375,6 @@ function verifyFilterType(breadcrumb, title, crossRefs, aiDetectedType) {
     return 'HYDRAULIC';
   }
   
-  // PRIORIDAD 2: Título
   if (t.includes('lube filter') || t.includes('oil filter')) {
     console.log(`[VERIFY] ✅ Título → OIL`);
     return 'OIL';
@@ -380,7 +388,6 @@ function verifyFilterType(breadcrumb, title, crossRefs, aiDetectedType) {
     return 'AIR';
   }
   
-  // PRIORIDAD 3: Cross-references
   if (c.includes('lf')) {
     console.log(`[VERIFY] ✅ Cross-ref LF → OIL`);
     return 'OIL';
@@ -398,7 +405,6 @@ function verifyFilterType(breadcrumb, title, crossRefs, aiDetectedType) {
     return 'HYDRAULIC';
   }
   
-  // PRIORIDAD 4: AI
   const normalized = normalizeFilterType(aiDetectedType);
   console.log(`[VERIFY] ⚠️ Usando AI → ${normalized}`);
   return normalized;
@@ -406,15 +412,12 @@ function verifyFilterType(breadcrumb, title, crossRefs, aiDetectedType) {
 
 function generateELIMFILTERSDescription(type, duty, engineApps, equipmentApps) {
   const tech = ELIMFILTERS_TECH[type] || 'ELIMTEK™ EXTENDED 99%';
-  
-  // Extraer las 2-3 aplicaciones más importantes
   const topApps = extractTopApplications(engineApps, equipmentApps);
   
   if (topApps && topApps.length > 0) {
     return `ELIMFILTERS ${type} Filter - ${tech} - ${topApps}`;
   }
   
-  // Fallback si no hay aplicaciones específicas
   const dutyText = duty === 'HD' ? 'Heavy Duty' : 'Light Duty';
   return `ELIMFILTERS ${type} Filter - ${tech} - ${dutyText}`;
 }
@@ -422,19 +425,16 @@ function generateELIMFILTERSDescription(type, duty, engineApps, equipmentApps) {
 function extractTopApplications(engineApps, equipmentApps) {
   const apps = [];
   
-  // Parsear engine applications
   if (engineApps) {
     const engines = engineApps.split(/[,;]/).map(e => e.trim()).filter(e => e.length > 2);
-    apps.push(...engines.slice(0, 2)); // Primeros 2 motores
+    apps.push(...engines.slice(0, 2));
   }
   
-  // Parsear equipment applications
   if (equipmentApps && apps.length < 3) {
     const equipment = equipmentApps.split(/[,;]/).map(e => e.trim()).filter(e => e.length > 2);
-    apps.push(...equipment.slice(0, 3 - apps.length)); // Completar hasta 3
+    apps.push(...equipment.slice(0, 3 - apps.length));
   }
   
-  // Retornar los primeros 3, limitados a 100 caracteres
   const result = apps.slice(0, 3).join(', ');
   return result.length > 100 ? result.substring(0, 97) + '...' : result;
 }
