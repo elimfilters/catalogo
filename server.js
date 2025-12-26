@@ -1,111 +1,149 @@
-'use strict';
-
-/* =============================================================================
-   ELIMFILTERS API — SERVER
-   Versión: 5.0.2
-   Node.js: 20.x
-   Puerto: 8080 (FIJO)
-============================================================================= */
+// ============================================================================
+// ELIMFILTERS API v8.0.0 - SERVER
+// Production URL: catalogo-production-9437.up.railway.app
+// Integration: https://elimfilters.com/part-search/
+// ============================================================================
 
 const express = require('express');
 const cors = require('cors');
-const bodyParser = require('body-parser');
-
-// =============================================================================
-//  VALIDACIÓN DE ENTORNO (FAIL FAST)
-// =============================================================================
-
-if (!process.env.GOOGLE_SERVICE_ACCOUNT_KEY_BASE64) {
-  console.error('❌ Missing ENV: GOOGLE_SERVICE_ACCOUNT_KEY_BASE64');
-  process.exit(1);
-}
-
-// =============================================================================
-//  GOOGLE SERVICE ACCOUNT (SEGURO + BLINDADO)
-// =============================================================================
-
-let googleServiceAccount;
-
-try {
-  const decoded = Buffer
-    .from(process.env.GOOGLE_SERVICE_ACCOUNT_KEY_BASE64, 'base64')
-    .toString('utf-8');
-
-  googleServiceAccount = JSON.parse(decoded);
-
-  if (
-    !googleServiceAccount.client_email ||
-    !googleServiceAccount.private_key
-  ) {
-    throw new Error('Invalid Google Service Account structure');
-  }
-
-  console.log('✅ Google Sheets API inicializada correctamente');
-  console.log('Client email:', googleServiceAccount.client_email);
-  console.log('Private key presente:', true);
-
-} catch (err) {
-  console.error('❌ Error loading Google Service Account:', err.message);
-  process.exit(1);
-}
-
-// =============================================================================
-//  APP INIT
-// =============================================================================
+const morgan = require('morgan');
+const helmet = require('helmet');
+const compression = require('compression');
+const rateLimit = require('express-rate-limit');
 
 const app = express();
+const PORT = process.env.PORT || 8080;
 
-app.use(cors());
-app.use(bodyParser.json({ limit: '10mb' }));
-app.use(bodyParser.urlencoded({ extended: true }));
+// ============================================================================
+// MIDDLEWARE
+// ============================================================================
 
-// =============================================================================
-//  HEALTH CHECK
-// =============================================================================
+app.use(helmet());
+app.use(compression());
+
+app.use(cors({
+  origin: [
+    'https://elimfilters.com',
+    'https://www.elimfilters.com',
+    'http://localhost:3000',
+    'http://localhost:8080'
+  ],
+  methods: ['GET', 'POST', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization'],
+  credentials: true
+}));
+
+app.use(express.json({ limit: '10mb' }));
+app.use(express.urlencoded({ extended: true, limit: '10mb' }));
+
+if (process.env.NODE_ENV === 'production') {
+  app.use(morgan('combined'));
+} else {
+  app.use(morgan('dev'));
+}
+
+const limiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 100,
+  message: { error: 'Too many requests', message: 'Please try again later' }
+});
+app.use('/api/', limiter);
+
+app.use((req, res, next) => {
+  console.log(`[${new Date().toISOString()}] ${req.method} ${req.path}`);
+  next();
+});
+
+// ============================================================================
+// ROUTES
+// ============================================================================
 
 app.get('/health', (req, res) => {
   res.json({
     status: 'OK',
-    service: 'ELIMFILTERS API',
-    version: '5.0.2',
-    environment: process.env.NODE_ENV || 'production',
-    googleSheets: 'ENABLED'
+    version: '8.0.0',
+    timestamp: new Date().toISOString(),
+    server: 'catalogo-production-9437.up.railway.app'
   });
 });
 
-// =============================================================================
-//  ROUTES (ACTIVA LAS QUE YA TENGAS)
-// =============================================================================
+app.get('/', (req, res) => {
+  res.json({
+    name: 'ELIMFILTERS API',
+    version: '8.0.0',
+    status: 'running',
+    endpoints: {
+      health: '/health',
+      search: '/api/search/:codigo',
+      searchPost: 'POST /api/search'
+    }
+  });
+});
 
-// Ejemplos:
-// const searchRoutes = require('./routes/search');
-// app.use('/search', searchRoutes);
+let searchRoutes;
+try {
+  searchRoutes = require('./src/routes/search');
+  app.use('/api/search', searchRoutes);
+  console.log('✅ Search routes loaded');
+} catch (error) {
+  console.error('⚠️ Search routes not available:', error.message);
+  try {
+    const detectRoutes = require('./src/api/detect');
+    app.use('/api/search', detectRoutes);
+    console.log('✅ Using detect routes as fallback');
+  } catch (fallbackError) {
+    console.error('❌ No search routes available');
+  }
+}
 
-// const processRoutes = require('./routes/process');
-// app.use('/api/process', processRoutes);
+try {
+  const vinRoutes = require('./src/api/vin');
+  app.use('/api/vin', vinRoutes);
+  console.log('✅ VIN routes loaded');
+} catch (error) {
+  console.log('ℹ️ VIN routes not available');
+}
 
-// const exportRoutes = require('./routes/export');
-// app.use('/api/export/sheets', exportRoutes);
-
-// =============================================================================
-//  404 FALLBACK
-// =============================================================================
+// ============================================================================
+// ERROR HANDLING
+// ============================================================================
 
 app.use((req, res) => {
-  res.status(404).json({ error: 'Endpoint not found' });
+  res.status(404).json({
+    success: false,
+    error: 'NOT_FOUND',
+    message: `Route ${req.method} ${req.path} not found`
+  });
 });
 
-// =============================================================================
-//  START SERVER (PORT 8080 FIJO)
-// =============================================================================
+app.use((err, req, res, next) => {
+  console.error('❌ Global error:', err);
+  res.status(err.status || 500).json({
+    success: false,
+    error: err.name || 'INTERNAL_ERROR',
+    message: err.message || 'Internal server error',
+    ...(process.env.NODE_ENV !== 'production' && { stack: err.stack })
+  });
+});
 
-const PORT = 8080;
+// ============================================================================
+// SERVER START
+// ============================================================================
 
 app.listen(PORT, () => {
-  console.log('────────────────────────────────────────────────────────');
-  console.log('🚀 ELIMFILTERS API v5.0.2');
-  console.log(`📡 Running on port ${PORT}`);
-  console.log(`🌎 Environment: ${process.env.NODE_ENV || 'production'}`);
-  console.log('📍 Health: http://localhost:8080/health');
-  console.log('────────────────────────────────────────────────────────');
+  console.log('');
+  console.log('╔═══════════════════════════════════════════╗');
+  console.log('║   ELIMFILTERS API v8.0.0 - PRODUCTION    ║');
+  console.log('╚═══════════════════════════════════════════╝');
+  console.log(`🚀 Port: ${PORT}`);
+  console.log(`🌐 URL: catalogo-production-9437.up.railway.app`);
+  console.log(`🔗 WordPress: elimfilters.com/part-search/`);
+  console.log(`📊 Env: ${process.env.NODE_ENV || 'development'}`);
+  console.log('✅ Ready');
+  console.log('');
 });
+
+process.on('SIGTERM', () => process.exit(0));
+process.on('SIGINT', () => process.exit(0));
+
+module.exports = app;
