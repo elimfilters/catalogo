@@ -6,13 +6,14 @@
 const axios = require('axios');
 const cheerio = require('cheerio');
 const { extract4Digits } = require('../utils/digitExtractor');
+const { determineDuty } = require('../utils/determineDuty');
 
 async function scrapeDonaldson(codigo) {
   try {
     const normalized = String(codigo).trim().toUpperCase().replace(/[^A-Z0-9]/g, '');
     const searchURL = `https://shop.donaldson.com/store/es-us/search?text=${normalized}`;
     
-    console.log(`🌐 [DONALDSON] Scraping: ${searchURL}`);
+    console.log(`[DONALDSON] Scraping: ${searchURL}`);
     
     const searchResponse = await axios.get(searchURL, {
       headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36' },
@@ -23,7 +24,7 @@ async function scrapeDonaldson(codigo) {
     const productLink = $search('a[href*="/product/"]').first().attr('href');
     
     if (!productLink) {
-      console.log(`ℹ️ [DONALDSON] No encontrado: ${normalized}`);
+      console.log(`[DONALDSON] No encontrado: ${normalized}`);
       return { encontrado: false, razon: 'No encontrado en Donaldson' };
     }
     
@@ -35,15 +36,14 @@ async function scrapeDonaldson(codigo) {
     
     const $ = cheerio.load(productResponse.data);
     
-    // Extraer información completa
     const datos = extractFullData($, normalized, productURL);
     
-    console.log(`✅ [DONALDSON] Encontrado: ${normalized} | Tipo: ${datos.type}`);
+    console.log(`[DONALDSON] Encontrado: ${normalized} | Tipo: ${datos.type} | Duty: ${datos.duty_type}`);
     
     return { encontrado: true, datos };
     
   } catch (error) {
-    console.error(`❌ [DONALDSON] Error:`, error.message);
+    console.error(`[DONALDSON] Error:`, error.message);
     return { encontrado: false, razon: error.message };
   }
 }
@@ -55,42 +55,40 @@ function extractFullData($, codigo, productURL) {
   const specs = $('.productSpecsSection, .specifications, [class*="spec"]').text();
   const allText = [breadcrumb, titulo, descripcion, specs].join(' ').toLowerCase();
   
+  const engineApps = extractEngineApps($);
+  const equipmentApps = extractEquipmentApps($);
+  const detectedDuty = determineDuty(engineApps, equipmentApps, allText);
+  
   return {
     query: codigo,
     norm: extractCodigoDonaldson($, codigo),
-    duty_type: 'HD',
+    duty_type: detectedDuty,
     type: detectType(breadcrumb, titulo),
     subtype: detectSubtype(allText),
     description: titulo || descripcion.substring(0, 200),
     
-    // CÓDIGOS
     oem_codes: extractOEMCodes($),
     cross_reference: extractCrossReferences($),
     
-    // CARACTERÍSTICAS
     media_type: extractMediaType($),
-    equipment_applications: extractEquipmentApps($),
-    engine_applications: extractEngineApps($),
+    equipment_applications: equipmentApps,
+    engine_applications: engineApps,
     
-    // DIMENSIONES
     height_mm: convertToMM(extractSpec($, 'Height', 'Hauteur', 'Altura')),
     outer_diameter_mm: convertToMM(extractSpec($, 'Outer Diameter', 'Diamètre extérieur', 'OD')),
     inner_diameter_mm: convertToMM(extractSpec($, 'Inner Diameter', 'Diamètre intérieur', 'ID')),
     thread_size: extractSpec($, 'Thread Size', 'Filetage', 'Thread'),
     
-    // FILTRACIÓN
     micron_rating: extractSpec($, 'Micron Rating', 'Filtration', 'Micron'),
     beta_200: extractSpec($, 'Beta 200', 'β200', 'Beta'),
     iso_main_efficiency_percent: extractEfficiency($, specs),
     iso_test_method: extractSpec($, 'ISO', 'Test Method'),
     
-    // OPERACIÓN
     operating_temperature_min_c: extractTempMin($, specs),
     operating_temperature_max_c: extractTempMax($, specs),
     operating_pressure_min_psi: extractPressureMin($, specs),
     operating_pressure_max_psi: extractPressureMax($, specs),
     
-    // ESPECÍFICOS POR TIPO
     bypass_valve_psi: extractSpec($, 'Bypass', 'Valve'),
     hydrostatic_burst_psi: extractSpec($, 'Burst', 'Pressure'),
     dirt_capacity_grams: extractDirtCapacity($, specs),
@@ -102,31 +100,24 @@ function extractFullData($, codigo, productURL) {
     panel_depth_mm: convertToMM(extractSpec($, 'Depth', 'Panel Depth')),
     rated_flow_gpm: extractFlowGPM($, specs),
     
-    // MATERIALES
     seal_material: extractSealMaterial($, specs),
     housing_material: extractHousingMaterial($, specs),
     gasket_od_mm: convertToMM(extractSpec($, 'Gasket OD', 'Gasket Outer')),
     gasket_id_mm: convertToMM(extractSpec($, 'Gasket ID', 'Gasket Inner')),
     
-    // COMPATIBILIDAD
     fluid_compatibility: extractFluidCompatibility($, specs),
     disposal_method: extractDisposalMethod($, specs),
     
-    // ESTÁNDARES
     manufacturing_standards: extractStandards($, specs),
     certification_standards: extractCertifications($, specs),
     
-    // VIDA ÚTIL
     service_life_hours: extractServiceLife($, specs),
     change_interval_km: extractChangeInterval($, specs),
     
-    // PESO
     weight_grams: extractWeight($, specs),
     
-    // TECNOLOGÍA ORIGINAL (para mapeo)
     _tech_original_detected: extractTechOriginal($, allText),
     
-    // METADATA
     product_url: productURL,
     imagen_url: extractImageURL($),
     breadcrumb: breadcrumb,
@@ -135,8 +126,6 @@ function extractFullData($, codigo, productURL) {
     timestamp: new Date().toISOString()
   };
 }
-
-// FUNCIONES DE EXTRACCIÓN
 
 function detectType(breadcrumb, titulo) {
   const text = (breadcrumb + ' ' + titulo).toLowerCase();
