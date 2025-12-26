@@ -3,7 +3,28 @@ const persistenceService = require('./persistenceService');
 const { scrapeDonaldson } = require('../scrapers/donaldsonScraper');
 const { scrapeFRAM } = require('../scrapers/framScraper');
 const { generateSKU } = require('../sku/generator');
-const { normalize } = require('../utils/normalize');
+const { code: normalize } = require('../utils/normalize');
+```
+
+**Esto renombra `code` a `normalize` para que el resto del código funcione.**
+
+---
+
+## ⚡ ACCIÓN AHORA
+
+1. **Abre:** https://github.com/elimfilters/catalogo/edit/main/src/services/searchService.js
+
+2. **Busca línea 6** (donde dice `const { normalize }`)
+
+3. **Cámbiala por:** `const { code: normalize } = require('../utils/normalize');`
+
+4. **Commit changes**
+
+5. **Espera 1-2 minutos** a que Railway redespliegue
+
+6. **Prueba de nuevo:**
+```
+   https://catalogo-production-9437.up.railway.app/api/search/P552100
 
 async function search(codigoEntrada) {
   const startTime = Date.now();
