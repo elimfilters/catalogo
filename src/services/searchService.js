@@ -4,20 +4,20 @@ const { scrapeDonaldson } = require('../scrapers/donaldsonScraper');
 const { scrapeFRAM } = require('../scrapers/framScraper');
 const { generateSKU } = require('../sku/generator');
 const { code: normalize } = require('../utils/normalize');
-```
+
 async function search(codigoEntrada) {
   const startTime = Date.now();
   try {
-    console.log(`🔍 [SEARCH] Iniciando: ${codigoEntrada}`);
+    console.log(`[SEARCH] Iniciando: ${codigoEntrada}`);
     const codigoNormalizado = normalize(codigoEntrada);
     if (!codigoNormalizado) {
-      return { success: false, error: 'INVALID_CODE', message: 'Código inválido' };
+      return { success: false, error: 'INVALID_CODE', message: 'Codigo invalido' };
     }
     
     const cached = await cacheService.get(codigoNormalizado);
     if (cached) {
       const elapsed = Date.now() - startTime;
-      console.log(`✅ [CACHE HIT] ${elapsed}ms`);
+      console.log(`[CACHE HIT] ${elapsed}ms`);
       return {
         success: true,
         source: cached.source || 'CACHE',
@@ -28,7 +28,7 @@ async function search(codigoEntrada) {
       };
     }
     
-    console.log(`ℹ️ [SCRAPING] Código no en caché...`);
+    console.log(`[SCRAPING] Codigo no en cache...`);
     const [donaldsonResult, framResult] = await Promise.allSettled([
       scrapeDonaldson(codigoNormalizado),
       scrapeFRAM(codigoNormalizado)
@@ -42,17 +42,17 @@ async function search(codigoEntrada) {
       scrapedData = donaldsonResult.value.datos;
       duty = 'HD';
       manufacturer = 'DONALDSON';
-      console.log(`✅ [DONALDSON] Encontrado`);
+      console.log(`[DONALDSON] Encontrado`);
     } else if (framResult.status === 'fulfilled' && framResult.value?.encontrado) {
       scrapedData = framResult.value.datos;
       duty = 'LD';
       manufacturer = 'FRAM';
-      console.log(`✅ [FRAM] Encontrado`);
+      console.log(`[FRAM] Encontrado`);
     }
     
     if (!scrapedData) {
-      console.log(`❌ [NOT FOUND]`);
-      return { success: false, error: 'NOT_FOUND', message: 'Código no encontrado' };
+      console.log(`[NOT FOUND]`);
+      return { success: false, error: 'NOT_FOUND', message: 'Codigo no encontrado' };
     }
     
     const skuResult = generateSKU(scrapedData.type, duty, scrapedData.norm || codigoNormalizado);
@@ -61,7 +61,7 @@ async function search(codigoEntrada) {
     try {
       await persistenceService.save(scrapedData);
     } catch (persistError) {
-      console.error(`⚠️ [PERSIST] Error:`, persistError.message);
+      console.error(`[PERSIST] Error:`, persistError.message);
     }
     
     const elapsed = Date.now() - startTime;
@@ -75,7 +75,7 @@ async function search(codigoEntrada) {
     };
   } catch (error) {
     const elapsed = Date.now() - startTime;
-    console.error(`❌ [SEARCH] Error:`, error);
+    console.error(`[SEARCH] Error:`, error);
     return { success: false, error: 'INTERNAL_ERROR', message: error.message };
   }
 }
