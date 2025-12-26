@@ -4,6 +4,7 @@ const { scrapeDonaldson } = require('../scrapers/donaldsonScraper');
 const { scrapeFRAM } = require('../scrapers/framScraper');
 const { generateSKU } = require('../sku/generator');
 const { code: normalize } = require('../utils/normalize');
+const { extract4Digits } = require('../utils/digitExtractor');
 
 async function search(codigoEntrada) {
   const startTime = Date.now();
@@ -55,8 +56,20 @@ async function search(codigoEntrada) {
       return { success: false, error: 'NOT_FOUND', message: 'Codigo no encontrado' };
     }
     
-    const skuResult = generateSKU(scrapedData.type, duty, scrapedData.norm || codigoNormalizado);
-    scrapedData.sku = skuResult.sku || skuResult || `TEMP_${codigoNormalizado}`;
+    const last4 = extract4Digits(scrapedData.norm || codigoNormalizado);
+    if (!last4) {
+      console.error(`[EXTRACT] No se pudieron extraer 4 digitos de: ${scrapedData.norm || codigoNormalizado}`);
+      return { success: false, error: 'INVALID_DIGITS', message: 'No se pudieron extraer digitos del codigo' };
+    }
+    
+    const skuResult = generateSKU(scrapedData.type, duty, last4);
+    
+    if (skuResult.error) {
+      console.error(`[SKU] Error generando SKU:`, skuResult.error);
+      scrapedData.sku = `ERROR_${codigoNormalizado}`;
+    } else {
+      scrapedData.sku = skuResult;
+    }
     
     try {
       await persistenceService.save(scrapedData);
