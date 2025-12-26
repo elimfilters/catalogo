@@ -36,19 +36,16 @@ async function search(codigoEntrada) {
     ]);
     
     let scrapedData = null;
-    let duty = null;
     let manufacturer = null;
     
     if (donaldsonResult.status === 'fulfilled' && donaldsonResult.value?.encontrado) {
       scrapedData = donaldsonResult.value.datos;
-      duty = 'HD';
       manufacturer = 'DONALDSON';
-      console.log(`[DONALDSON] Encontrado`);
+      console.log(`[DONALDSON] Encontrado - Duty: ${scrapedData.duty_type}`);
     } else if (framResult.status === 'fulfilled' && framResult.value?.encontrado) {
       scrapedData = framResult.value.datos;
-      duty = 'LD';
       manufacturer = 'FRAM';
-      console.log(`[FRAM] Encontrado`);
+      console.log(`[FRAM] Encontrado - Duty: ${scrapedData.duty_type}`);
     }
     
     if (!scrapedData) {
@@ -62,7 +59,7 @@ async function search(codigoEntrada) {
       return { success: false, error: 'INVALID_DIGITS', message: 'No se pudieron extraer digitos del codigo' };
     }
     
-    const skuResult = generateSKU(scrapedData.type, duty, last4);
+    const skuResult = generateSKU(scrapedData.type, scrapedData.duty_type, last4);
     
     if (skuResult.error) {
       console.error(`[SKU] Error generando SKU:`, skuResult.error);
