@@ -1,6 +1,6 @@
 // ============================================================================
-// DONALDSON SCRAPER v10.0.0 - STAGEHAND + GEMINI 2.5 FLASH
-// 99.9% SUCCESS RATE - AI-POWERED BROWSER AUTOMATION
+// DONALDSON SCRAPER v10.2.0 - STAGEHAND + GEMINI 2.5 FLASH
+// DETECCIÓN PRECISA + DESCRIPCIÓN ELIMFILTERS
 // ============================================================================
 
 const { Stagehand } = require('@browserbasehq/stagehand');
@@ -12,11 +12,25 @@ const { extract4Digits } = require('../utils/digitExtractor');
 // ============================================================================
 const STAGEHAND_CONFIG = {
   env: process.env.NODE_ENV || 'production',
-  apiKey: process.env.GEMINI_API_KEY, // Gemini 2.5 Flash
+  apiKey: process.env.GEMINI_API_KEY,
   modelName: 'gemini-2.0-flash-exp',
-  headless: true, // Sin interfaz gráfica en producción
-  verbose: 0, // 0 = silencioso, 1 = normal, 2 = debug
-  enableCaching: true, // Cache de DOM para velocidad
+  headless: true,
+  verbose: 0,
+  enableCaching: true,
+};
+
+// ============================================================================
+// TECNOLOGÍAS ELIMFILTERS
+// ============================================================================
+const ELIMFILTERS_TECH = {
+  'OIL': 'ELIMTEK™ EXTENDED 99%',
+  'FUEL': 'ELIMTEK™ EXTENDED 99%',
+  'HYDRAULIC': 'ELIMTEK™ EXTENDED 99%',
+  'COOLANT': 'ELIMTEK™ EXTENDED 99%',
+  'TRANSMISSION': 'ELIMTEK™ EXTENDED 99%',
+  'SEPARATOR': 'ELIMTEK™ EXTENDED 99%',
+  'AIR': 'MACROCORE™',
+  'CABIN': 'MICROKAPPA™'
 };
 
 // ============================================================================
@@ -44,7 +58,6 @@ async function scrapeDonaldson(codigo) {
       timeout: 30000 
     });
     
-    // Verificar si es una página de producto válida
     const isProductPage = await page.evaluate(() => {
       const title = document.querySelector('h1, .product-title, .prodTitle');
       return title && title.textContent.trim().length > 0;
@@ -68,19 +81,15 @@ async function scrapeDonaldson(codigo) {
       timeout: 30000 
     });
     
-    // Esperar a que carguen los resultados
     await page.waitForTimeout(2000);
     
-    // ✅ USAR AI PARA ENCONTRAR EL PRODUCTO
     console.log(`[STAGEHAND] 🤖 AI buscando el primer resultado...`);
     
     try {
-      // act() usa AI para interactuar con la página
       await stagehand.act({
         action: "click on the first filter product in the search results"
       });
       
-      // Esperar a que cargue la página del producto
       await page.waitForTimeout(2000);
       
       const currentURL = page.url();
@@ -94,9 +103,6 @@ async function scrapeDonaldson(codigo) {
       console.log(`[STAGEHAND] ❌ AI no pudo encontrar el producto: ${aiError.message}`);
     }
     
-    // ========================================================================
-    // NO ENCONTRADO
-    // ========================================================================
     await stagehand.close();
     console.log(`[STAGEHAND] ❌ No encontrado: ${normalized}`);
     return { encontrado: false, razon: 'No encontrado en Donaldson' };
@@ -121,34 +127,59 @@ async function extractDataWithAI(stagehand, page, codigo, productURL) {
   console.log(`[STAGEHAND] 🤖 Extrayendo datos con AI...`);
   
   // ========================================================================
-  // PASO 1: EXTRAER INFORMACIÓN BÁSICA CON AI
+  // PASO 1: DETECCIÓN PRECISA DE TIPO
   // ========================================================================
-  const basicInfo = await stagehand.extract({
-    instruction: `Extract the following information from this filter product page:
-      - Product title/name
-      - Product description
-      - Filter type (oil, fuel, air, cabin, hydraulic, transmission, coolant, separator)
-      - Part number or code
-      - Breadcrumb or category path`,
+  const filterTypeDetection = await stagehand.extract({
+    instruction: `CRITICAL: Determine the EXACT filter type from this Donaldson filter page.
+    
+    Look at these sources IN ORDER OF PRIORITY:
+    
+    1. BREADCRUMB/CATEGORY PATH (most reliable):
+       - "Filters > Lube" OR "Filters > Oil" → TYPE IS "OIL"
+       - "Filters > Fuel" → TYPE IS "FUEL"
+       - "Filters > Air" → TYPE IS "AIR"
+       - "Filters > Hydraulic" → TYPE IS "HYDRAULIC"
+       - "Filters > Cabin" → TYPE IS "CABIN"
+    
+    2. PRODUCT TITLE:
+       - If title contains "Lube Filter" OR "Oil Filter" → TYPE IS "OIL"
+       - If title contains "Fuel Filter" OR "Fuel/Water" → TYPE IS "FUEL"
+       - If title contains "Air Filter" → TYPE IS "AIR"
+    
+    3. CROSS-REFERENCES (verify):
+       - If cross-reference codes start with "LF" (like LF3620) → TYPE IS "OIL" (Lube Filter)
+       - If cross-reference codes start with "FS" or "FF" → TYPE IS "FUEL"
+       - If cross-reference codes start with "AF" → TYPE IS "AIR"
+    
+    IGNORE marketing text - focus ONLY on the actual filter category.`,
     schema: {
-      title: "string",
-      description: "string",
-      filterType: "string",
-      partNumber: "string",
-      breadcrumb: "string"
+      breadcrumb: "string",
+      productTitle: "string",
+      crossReferenceCodes: "string",
+      filterType: "string"
     }
   });
   
-  console.log(`[STAGEHAND] ℹ️ Título: ${basicInfo.title}`);
-  console.log(`[STAGEHAND] ℹ️ Tipo: ${basicInfo.filterType}`);
+  console.log(`[STAGEHAND] 🔍 Breadcrumb: ${filterTypeDetection.breadcrumb}`);
+  console.log(`[STAGEHAND] 🔍 Título: ${filterTypeDetection.productTitle}`);
+  console.log(`[STAGEHAND] 🔍 Cross-refs: ${filterTypeDetection.crossReferenceCodes}`);
+  
+  const verifiedType = verifyFilterType(
+    filterTypeDetection.breadcrumb,
+    filterTypeDetection.productTitle,
+    filterTypeDetection.crossReferenceCodes,
+    filterTypeDetection.filterType
+  );
+  
+  console.log(`[STAGEHAND] ✅ Tipo verificado: ${verifiedType}`);
   
   // ========================================================================
-  // PASO 2: EXTRAER APLICACIONES CON AI
+  // PASO 2: EXTRAER APLICACIONES
   // ========================================================================
   const applications = await stagehand.extract({
-    instruction: `Find and extract:
-      - Engine applications (e.g., "Cummins ISX", "Detroit Diesel DD15", "Caterpillar C15")
-      - Equipment applications (e.g., "Kenworth T680", "Freightliner Cascadia")
+    instruction: `Find and extract specific applications:
+      - Engine applications: List specific engine models (e.g., "Cummins ISX15", "Detroit Diesel DD15", "Caterpillar C15")
+      - Equipment applications: List specific vehicle/equipment models (e.g., "Kenworth T680", "Freightliner Cascadia", "Caterpillar 320D")
       - OEM cross-reference codes
       Return empty string if not found.`,
     schema: {
@@ -158,10 +189,11 @@ async function extractDataWithAI(stagehand, page, codigo, productURL) {
     }
   });
   
-  console.log(`[STAGEHAND] ℹ️ Motor apps: ${applications.engineApplications?.substring(0, 50)}...`);
+  console.log(`[STAGEHAND] ℹ️ Engine: ${applications.engineApplications?.substring(0, 60)}...`);
+  console.log(`[STAGEHAND] ℹ️ Equipment: ${applications.equipmentApplications?.substring(0, 60)}...`);
   
   // ========================================================================
-  // PASO 3: EXTRAER ESPECIFICACIONES TÉCNICAS CON AI
+  // PASO 3: EXTRAER ESPECIFICACIONES
   // ========================================================================
   const specifications = await stagehand.extract({
     instruction: `Extract technical specifications:
@@ -183,7 +215,17 @@ async function extractDataWithAI(stagehand, page, codigo, productURL) {
   });
   
   // ========================================================================
-  // PASO 4: OBTENER IMAGEN CON PLAYWRIGHT
+  // PASO 4: EXTRAER PART NUMBER
+  // ========================================================================
+  const partInfo = await stagehand.extract({
+    instruction: `Extract the exact Donaldson part number from the page.`,
+    schema: {
+      partNumber: "string"
+    }
+  });
+  
+  // ========================================================================
+  // PASO 5: OBTENER IMAGEN
   // ========================================================================
   const imageURL = await page.evaluate(() => {
     const img = document.querySelector('.product-image img, [class*="image"] img, [data-product-image]');
@@ -191,9 +233,9 @@ async function extractDataWithAI(stagehand, page, codigo, productURL) {
   });
   
   // ========================================================================
-  // PASO 5: DETERMINAR DUTY TYPE CON AI
+  // PASO 6: DETERMINAR DUTY TYPE
   // ========================================================================
-  const allText = `${basicInfo.title} ${basicInfo.description} ${basicInfo.breadcrumb} ${applications.engineApplications} ${applications.equipmentApplications}`;
+  const allText = `${filterTypeDetection.productTitle} ${filterTypeDetection.breadcrumb} ${applications.engineApplications} ${applications.equipmentApplications}`;
   
   const detectedDuty = determineDuty(
     applications.engineApplications || '',
@@ -204,19 +246,31 @@ async function extractDataWithAI(stagehand, page, codigo, productURL) {
   console.log(`[STAGEHAND] ✅ Duty detectado: ${detectedDuty}`);
   
   // ========================================================================
-  // PASO 6: CONSTRUIR OBJETO DE DATOS
+  // PASO 7: GENERAR DESCRIPCIÓN ELIMFILTERS
+  // ========================================================================
+  const elimfiltersDescription = generateELIMFILTERSDescription(
+    verifiedType,
+    detectedDuty,
+    applications.engineApplications,
+    applications.equipmentApplications
+  );
+  
+  console.log(`[STAGEHAND] 📝 Descripción: ${elimfiltersDescription}`);
+  
+  // ========================================================================
+  // PASO 8: CONSTRUIR OBJETO DE DATOS
   // ========================================================================
   const datos = {
     query: codigo,
-    norm: basicInfo.partNumber || codigo,
+    norm: partInfo.partNumber || codigo,
     duty_type: detectedDuty,
-    type: normalizeFilterType(basicInfo.filterType),
-    subtype: detectSubtype(basicInfo.description || ''),
-    description: basicInfo.title || basicInfo.description?.substring(0, 200) || '',
+    type: verifiedType,
+    subtype: detectSubtype(filterTypeDetection.productTitle || ''),
+    description: elimfiltersDescription, // ✅ Descripción ELIMFILTERS
     
     // CÓDIGOS
     oem_codes: applications.oemCodes || '',
-    cross_reference: [],
+    cross_reference: parseCrossReferences(filterTypeDetection.crossReferenceCodes),
     
     // APLICACIONES
     media_type: normalizeMediaType(specifications.mediaType),
@@ -272,7 +326,7 @@ async function extractDataWithAI(stagehand, page, codigo, productURL) {
     _tech_original_detected: null,
     product_url: productURL,
     imagen_url: imageURL,
-    breadcrumb: basicInfo.breadcrumb || '',
+    breadcrumb: filterTypeDetection.breadcrumb || '',
     manufacturer: 'DONALDSON',
     source: 'DONALDSON_STAGEHAND_AI',
     timestamp: new Date().toISOString()
@@ -285,18 +339,118 @@ async function extractDataWithAI(stagehand, page, codigo, productURL) {
 // FUNCIONES AUXILIARES
 // ============================================================================
 
+function verifyFilterType(breadcrumb, title, crossRefs, aiDetectedType) {
+  const b = (breadcrumb || '').toLowerCase();
+  const t = (title || '').toLowerCase();
+  const c = (crossRefs || '').toLowerCase();
+  
+  // PRIORIDAD 1: Breadcrumb
+  if (b.includes('lube') || b.includes('oil')) {
+    console.log(`[VERIFY] ✅ Breadcrumb → OIL`);
+    return 'OIL';
+  }
+  if (b.includes('fuel') && !b.includes('lube')) {
+    console.log(`[VERIFY] ✅ Breadcrumb → FUEL`);
+    return 'FUEL';
+  }
+  if (b.includes('air') || b.includes('aire')) {
+    console.log(`[VERIFY] ✅ Breadcrumb → AIR`);
+    return 'AIR';
+  }
+  if (b.includes('cabin') || b.includes('cabina')) {
+    console.log(`[VERIFY] ✅ Breadcrumb → CABIN`);
+    return 'CABIN';
+  }
+  if (b.includes('hydraulic')) {
+    console.log(`[VERIFY] ✅ Breadcrumb → HYDRAULIC`);
+    return 'HYDRAULIC';
+  }
+  
+  // PRIORIDAD 2: Título
+  if (t.includes('lube filter') || t.includes('oil filter')) {
+    console.log(`[VERIFY] ✅ Título → OIL`);
+    return 'OIL';
+  }
+  if (t.includes('fuel filter') && !t.includes('lube')) {
+    console.log(`[VERIFY] ✅ Título → FUEL`);
+    return 'FUEL';
+  }
+  if (t.includes('air filter')) {
+    console.log(`[VERIFY] ✅ Título → AIR`);
+    return 'AIR';
+  }
+  
+  // PRIORIDAD 3: Cross-references
+  if (c.includes('lf')) {
+    console.log(`[VERIFY] ✅ Cross-ref LF → OIL`);
+    return 'OIL';
+  }
+  if (c.includes('fs') || c.includes('ff')) {
+    console.log(`[VERIFY] ✅ Cross-ref FS/FF → FUEL`);
+    return 'FUEL';
+  }
+  if (c.includes('af')) {
+    console.log(`[VERIFY] ✅ Cross-ref AF → AIR`);
+    return 'AIR';
+  }
+  if (c.includes('hf')) {
+    console.log(`[VERIFY] ✅ Cross-ref HF → HYDRAULIC`);
+    return 'HYDRAULIC';
+  }
+  
+  // PRIORIDAD 4: AI
+  const normalized = normalizeFilterType(aiDetectedType);
+  console.log(`[VERIFY] ⚠️ Usando AI → ${normalized}`);
+  return normalized;
+}
+
+function generateELIMFILTERSDescription(type, duty, engineApps, equipmentApps) {
+  const tech = ELIMFILTERS_TECH[type] || 'ELIMTEK™ EXTENDED 99%';
+  
+  // Extraer las 2-3 aplicaciones más importantes
+  const topApps = extractTopApplications(engineApps, equipmentApps);
+  
+  if (topApps && topApps.length > 0) {
+    return `ELIMFILTERS ${type} Filter - ${tech} - ${topApps}`;
+  }
+  
+  // Fallback si no hay aplicaciones específicas
+  const dutyText = duty === 'HD' ? 'Heavy Duty' : 'Light Duty';
+  return `ELIMFILTERS ${type} Filter - ${tech} - ${dutyText}`;
+}
+
+function extractTopApplications(engineApps, equipmentApps) {
+  const apps = [];
+  
+  // Parsear engine applications
+  if (engineApps) {
+    const engines = engineApps.split(/[,;]/).map(e => e.trim()).filter(e => e.length > 2);
+    apps.push(...engines.slice(0, 2)); // Primeros 2 motores
+  }
+  
+  // Parsear equipment applications
+  if (equipmentApps && apps.length < 3) {
+    const equipment = equipmentApps.split(/[,;]/).map(e => e.trim()).filter(e => e.length > 2);
+    apps.push(...equipment.slice(0, 3 - apps.length)); // Completar hasta 3
+  }
+  
+  // Retornar los primeros 3, limitados a 100 caracteres
+  const result = apps.slice(0, 3).join(', ');
+  return result.length > 100 ? result.substring(0, 97) + '...' : result;
+}
+
 function normalizeFilterType(type) {
   if (!type) return 'UNKNOWN';
   const t = type.toLowerCase();
   
-  if (t.includes('oil') || t.includes('aceite') || t.includes('lubrication')) return 'OIL';
-  if (t.includes('fuel') || t.includes('combustible') || t.includes('diesel fuel')) return 'FUEL';
-  if (t.includes('air') || t.includes('aire') || t.includes('intake')) return 'AIR';
-  if (t.includes('cabin') || t.includes('cabina') || t.includes('hvac')) return 'CABIN';
-  if (t.includes('hydraulic') || t.includes('hidraulico')) return 'HYDRAULIC';
-  if (t.includes('transmission') || t.includes('transmision')) return 'TRANSMISSION';
-  if (t.includes('coolant') || t.includes('refrigerante')) return 'COOLANT';
-  if (t.includes('separator') || t.includes('separador') || t.includes('fuel/water')) return 'SEPARATOR';
+  if (t.includes('oil') || t.includes('lube')) return 'OIL';
+  if (t.includes('fuel')) return 'FUEL';
+  if (t.includes('air')) return 'AIR';
+  if (t.includes('cabin')) return 'CABIN';
+  if (t.includes('hydraulic')) return 'HYDRAULIC';
+  if (t.includes('transmission')) return 'TRANSMISSION';
+  if (t.includes('coolant')) return 'COOLANT';
+  if (t.includes('separator')) return 'SEPARATOR';
   
   return 'UNKNOWN';
 }
@@ -304,7 +458,7 @@ function normalizeFilterType(type) {
 function detectSubtype(text) {
   const t = text.toLowerCase();
   if (t.includes('synthetic')) return 'SYNTHETIC';
-  if (t.includes('ultra') || t.includes('premium') || t.includes('endurance')) return 'PREMIUM';
+  if (t.includes('ultra') || t.includes('premium')) return 'PREMIUM';
   if (t.includes('blue') || t.includes('powercore')) return 'PREMIUM';
   return 'STANDARD';
 }
@@ -317,6 +471,22 @@ function normalizeMediaType(media) {
   if (m.includes('cellulose')) return 'CELLULOSE';
   if (m.includes('nanofiber') || m.includes('ultra-web')) return 'NANOFIBER';
   return 'STANDARD';
+}
+
+function parseCrossReferences(crossRefs) {
+  if (!crossRefs) return [];
+  
+  const refs = [];
+  const codes = crossRefs.split(/[,;]/);
+  
+  for (const code of codes) {
+    const trimmed = code.trim();
+    if (trimmed && trimmed.length > 2) {
+      refs.push(trimmed);
+    }
+  }
+  
+  return refs;
 }
 
 function convertToMM(value) {
@@ -337,7 +507,6 @@ function convertToMM(value) {
     return Math.round(num);
   }
   
-  // Default: asumir mm
   return Math.round(num);
 }
 
