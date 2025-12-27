@@ -1,17 +1,23 @@
 function initializeGoogleSheets() {
   try {
-    console.log('=== Inicializando Google Sheets === 🔥 SIN BASE64');
+    console.log('=== Inicializando Google Sheets ===');
 
-    const rawCreds = process.env.GOOGLE_SHEETS_CREDENTIALS;
+    const base64Creds = process.env.GOOGLE_SERVICE_ACCOUNT_KEY_BASE64;
 
-    if (!rawCreds) {
-      throw new Error('No credentials found. Set GOOGLE_SHEETS_CREDENTIALS');
+    if (!base64Creds) {
+      throw new Error(
+        'No credentials found. Set GOOGLE_SERVICE_ACCOUNT_KEY_BASE64'
+      );
     }
 
-    console.log('Variable usada: GOOGLE_SHEETS_CREDENTIALS');
+    console.log('Variable usada: GOOGLE_SERVICE_ACCOUNT_KEY_BASE64');
 
-    const credentials = JSON.parse(rawCreds);
+    // Decodifica Base64 a texto JSON
+    const credentialsJson = Buffer.from(base64Creds, 'base64').toString('utf-8');
 
+    console.log('✅ Credenciales decodificadas de Base64, longitud:', credentialsJson.length);
+
+    const credentials = JSON.parse(credentialsJson);
     console.log('✅ JSON parseado correctamente');
     console.log('Client email:', credentials.client_email);
     console.log('Private key presente:', !!credentials.private_key);
