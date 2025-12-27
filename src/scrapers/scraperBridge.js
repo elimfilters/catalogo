@@ -1,40 +1,45 @@
 // ============================================================================
-// SCRAPER BRIDGE — AUTORIDAD TÉCNICA
+// SCRAPER BRIDGE – GEMINI GROUNDING
 // ============================================================================
 
-const { scrapeDonaldson } = require('./donaldsonScraper'); // HD
-const { scrapeFram } = require('./framScraper');           // LD
-const { scrapeSierra } = require('./sierraScraper');       // MARINE
+const { scrapeDonaldson, scrapeFRAM } = require('./geminiGroundingScraper');
 
 async function scraperBridge(normalizedCode) {
-  const scrapers = [
-    scrapeDonaldson,
-    scrapeFram,
-    scrapeSierra
-  ];
-
-  for (const scrape of scrapers) {
-    try {
-      const result = await scrape(normalizedCode);
-
-      if (
-        result &&
-        result.confirmed === true &&
-        result.source &&
-        result.facts &&
-        typeof result.facts === 'object'
-      ) {
-        return {
-          confirmed: true,
-          source: String(result.source).toUpperCase(),
-          facts: result.facts
-        };
-      }
-    } catch (_) {
-      continue;
+  console.log(`[BRIDGE] Buscando: ${normalizedCode}`);
+  
+  // Intentar con Donaldson (HD) primero
+  try {
+    const donResult = await scrapeDonaldson(normalizedCode);
+    
+    if (donResult && donResult.encontrado) {
+      console.log(`[BRIDGE] ✅ Encontrado en Donaldson`);
+      return {
+        confirmed: true,
+        source: 'DONALDSON_GEMINI',
+        facts: donResult.datos
+      };
     }
+  } catch (err) {
+    console.log(`[BRIDGE] ⚠️ Error en Donaldson:`, err.message);
   }
 
+  // Intentar con FRAM (LD)
+  try {
+    const framResult = await scrapeFRAM(normalizedCode);
+    
+    if (framResult && framResult.encontrado) {
+      console.log(`[BRIDGE] ✅ Encontrado en FRAM`);
+      return {
+        confirmed: true,
+        source: 'FRAM_GEMINI',
+        facts: framResult.datos
+      };
+    }
+  } catch (err) {
+    console.log(`[BRIDGE] ⚠️ Error en FRAM:`, err.message);
+  }
+
+  console.log(`[BRIDGE] ❌ No encontrado en ningún scraper`);
   return null;
 }
 
