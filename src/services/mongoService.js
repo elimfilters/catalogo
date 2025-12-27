@@ -1,288 +1,332 @@
 // ============================================================================
-// MONGODB SERVICE - Minimal, resilient implementation
-// Provides caching helpers used by detection/sync services.
-// If `MONGODB_URI` is not set, functions degrade gracefully.
+// MONGODB SERVICE v9.1 - CACHE BUFFER PARA 1000+ BÚSQUEDAS CONCURRENTES
 // ============================================================================
 
-let MongoClient = null;
-function ensureMongoDriver() {
-  if (MongoClient) return true;
+const mongoose = require('mongoose');
+
+// ============================================================================
+// SCHEMA CON VALIDACIÓN ESTRICTA v7.0.0
+// ============================================================================
+const filterSchema = new mongoose.Schema({
+  // Columna A: SKU ELIMFILTERS
+  A_SKU: {
+    type: String,
+    required: true,
+    unique: true,
+    index: true,
+    validate: {
+      validator: function(v) {
+        // Validar que el prefijo coincida con F_type
+        const prefix = v.substring(0, 3);
+        const validPrefixes = {
+          'OIL': ['EL8'],
+          'FUEL': ['EF9'],
+          'AIR': ['EA1'],
+          'SEPARATOR': ['ES9'],
+          'HYDRAULIC': ['EH6'],
+          'AIR_DRYER': ['ED4'],
+          'CABIN': ['EC1'],
+          'COOLANT': ['EW7'],
+          'MARINE': ['EM9'],
+          'TURBINE': ['ET9'],
+          'AIR_HOUSING': ['EA2'],
+          'KIT': ['EK5', 'EK3']
+        };
+        
+        if (!this.F_type) return false;
+        const allowedPrefixes = validPrefixes[this.F_type] || [];
+        return allowedPrefixes.includes(prefix);
+      },
+      message: 'SKU prefix must match F_type according to v7.0.0 decision table'
+    }
+  },
+  
+  // Columna B: Código solicitado (query original)
+  B_codigo_solicitado: {
+    type: String,
+    required: true,
+    index: true
+  },
+  
+  // Columna C: Norma (Donaldson o FRAM)
+  C_norm: {
+    type: String,
+    required: true,
+    index: true
+  },
+  
+  // Columna D: Duty Type
+  D_duty_type: {
+    type: String,
+    required: true,
+    enum: ['HD', 'LD'],
+    index: true
+  },
+  
+  // Columna E: Subtype
+  E_subtype: {
+    type: String,
+    default: 'STANDARD',
+    enum: ['STANDARD', 'SYNTHETIC', 'PREMIUM']
+  },
+  
+  // Columna F: Type (categoría técnica)
+  F_type: {
+    type: String,
+    required: true,
+    enum: ['OIL', 'FUEL', 'AIR', 'CABIN', 'HYDRAULIC', 'TRANSMISSION', 
+           'COOLANT', 'SEPARATOR', 'AIR_DRYER', 'MARINE', 'TURBINE', 'AIR_HOUSING', 'KIT'],
+    index: true
+  },
+  
+  // Columna G: Descripción ELIMFILTERS
+  G_description: {
+    type: String,
+    required: true
+  },
+  
+  // Columnas H-Z: Especificaciones técnicas
+  H_oem_codes: String,
+  I_cross_reference: [String],
+  J_media_type: String,
+  K_equipment_applications: String,
+  L_engine_applications: String,
+  M_height_mm: Number,
+  N_outer_diameter_mm: Number,
+  O_inner_diameter_mm: Number,
+  P_thread_size: String,
+  Q_micron_rating: String,
+  R_product_url: String,
+  S_imagen_url: String,
+  T_breadcrumb: String,
+  U_manufacturer: {
+    type: String,
+    enum: ['DONALDSON', 'FRAM', 'FLEETGUARD', 'RACOR', 'PARKER']
+  },
+  V_source: {
+    type: String,
+    enum: ['DONALDSON_STAGEHAND_AI', 'FRAM_STAGEHAND_AI', 'FLEETGUARD_STAGEHAND_AI']
+  },
+  
+  // Metadata
+  created_at: {
+    type: Date,
+    default: Date.now,
+    index: true
+  },
+  updated_at: {
+    type: Date,
+    default: Date.now
+  },
+  cache_hits: {
+    type: Number,
+    default: 0
+  }
+}, {
+  collection: 'elimfilters_catalog',
+  timestamps: { createdAt: 'created_at', updatedAt: 'updated_at' }
+});
+
+// Índices compuestos para búsquedas rápidas
+filterSchema.index({ B_codigo_solicitado: 1, D_duty_type: 1 });
+filterSchema.index({ C_norm: 1 });
+filterSchema.index({ F_type: 1, D_duty_type: 1 });
+
+const FilterModel = mongoose.model('Filter', filterSchema);
+
+// ============================================================================
+// CONEXIÓN A MONGODB
+// ============================================================================
+let isConnected = false;
+
+async function connectMongo() {
+  if (isConnected) {
+    console.log('[MONGO] ✅ Ya conectado');
+    return;
+  }
+  
   try {
-    // Carga diferida del driver para tolerar entornos sin mongodb instalado
-    const mod = require('mongodb');
-    MongoClient = mod && mod.MongoClient ? mod.MongoClient : null;
-    return !!MongoClient;
-  } catch (e) {
-    console.log('⚠️  MongoDB driver no disponible:', e.message);
-    return false;
+    if (!process.env.MONGODB_URI) {
+      console.log('[MONGO] ⚠️ MONGODB_URI no configurada - cache deshabilitado');
+      return;
+    }
+    
+    await mongoose.connect(process.env.MONGODB_URI, {
+      useNewUrlParser: true,
+      useUnifiedTopology: true,
+      maxPoolSize: 10,
+      serverSelectionTimeoutMS: 5000,
+      socketTimeoutMS: 45000,
+    });
+    
+    isConnected = true;
+    console.log('[MONGO] ✅ Conectado a MongoDB Atlas');
+  } catch (error) {
+    console.error('[MONGO] ❌ Error de conexión:', error.message);
   }
 }
 
-let client = null;
-let db = null;
-let filtersCollection = null;
+// ============================================================================
+// FUNCIONES DE CACHE (v9.1)
+// ============================================================================
 
-const COLLECTION_NAME = 'master_catalog';
-
-function hasMongoEnv() {
-  return !!process.env.MONGODB_URI;
+async function findByCode(code) {
+  if (!isConnected) {
+    console.log('[MONGO] ⚠️ No conectado - skip cache');
+    return null;
+  }
+  
+  try {
+    const normalized = String(code).trim().toUpperCase();
+    console.log(`[MONGO] 🔍 Buscando: ${normalized}`);
+    
+    const filter = await FilterModel.findOneAndUpdate(
+      {
+        $or: [
+          { B_codigo_solicitado: normalized },
+          { C_norm: normalized }
+        ]
+      },
+      { 
+        $inc: { cache_hits: 1 },
+        $set: { updated_at: new Date() }
+      },
+      { new: true }
+    ).lean();
+    
+    if (filter) {
+      console.log(`[MONGO] ✅ Cache HIT: ${filter.A_SKU} (hits: ${filter.cache_hits})`);
+      return filter;
+    }
+    
+    console.log(`[MONGO] ℹ️ Cache MISS: ${normalized}`);
+    return null;
+    
+  } catch (error) {
+    console.error('[MONGO] ❌ Error en findByCode:', error.message);
+    return null;
+  }
 }
 
-async function connect() {
-  if (!hasMongoEnv()) {
-    console.log('ℹ️  MongoDB disabled: MONGODB_URI not set');
+async function saveFilter(filterData) {
+  if (!isConnected) {
+    console.log('[MONGO] ⚠️ No conectado - skip save');
     return null;
   }
-  if (!ensureMongoDriver()) {
-    console.log('ℹ️  Persistencia degradada: mongodb no instalado');
-    return null;
-  }
-  if (client && client.topology && client.topology.isConnected()) {
-    return db;
-  }
-  const mongoUri = process.env.MONGODB_URI;
-  client = new MongoClient(mongoUri, {
-    maxPoolSize: 10,
-    minPoolSize: 2,
-    serverSelectionTimeoutMS: 5000,
-  });
-  await client.connect();
-  db = client.db();
-  filtersCollection = db.collection(COLLECTION_NAME);
+  
   try {
-    // Índices para rendimiento
-    await filtersCollection.createIndex({ code_client: 1 });
-    await filtersCollection.createIndex({ code_oem: 1 });
-    await filtersCollection.createIndex({ sku: 1 });
-    await filtersCollection.createIndex({ duty: 1, family: 1 });
-    await filtersCollection.createIndex({ timestamp: -1 });
-    // Clave única: normsku
-    await filtersCollection.createIndex({ normsku: 1 }, { unique: true });
-    // Índice de texto para búsqueda catálogo: equipment_applications + engine_applications
-    try {
-      // Eliminar cualquier índice de texto existente para crear uno compuesto
-      const idx = await filtersCollection.indexes();
-      const textNames = (Array.isArray(idx) ? idx : []).filter(ix => {
-        const k = ix && ix.key ? Object.values(ix.key) : [];
-        return Array.isArray(k) && k.some(v => String(v).toLowerCase() === 'text');
-      }).map(ix => ix.name).filter(Boolean);
-      for (const name of textNames) {
-        try { await filtersCollection.dropIndex(name); } catch (_) {}
+    console.log(`[MONGO] 💾 Guardando: ${filterData.A_SKU || filterData.sku}`);
+    
+    if (!filterData.A_SKU && !filterData.sku) {
+      console.error('[MONGO] ❌ Falta SKU');
+      return null;
+    }
+    
+    if (!filterData.F_type && !filterData.type) {
+      console.error('[MONGO] ❌ Falta Type');
+      return null;
+    }
+    
+    // Mapear datos a schema MongoDB
+    const mongoData = {
+      A_SKU: filterData.A_SKU || filterData.sku,
+      B_codigo_solicitado: filterData.B_codigo_solicitado || filterData.query,
+      C_norm: filterData.C_norm || filterData.norm,
+      D_duty_type: filterData.D_duty_type || filterData.duty_type,
+      E_subtype: filterData.E_subtype || filterData.subtype || 'STANDARD',
+      F_type: filterData.F_type || filterData.type,
+      G_description: filterData.G_description || filterData.description,
+      H_oem_codes: filterData.H_oem_codes || filterData.oem_codes,
+      I_cross_reference: filterData.I_cross_reference || filterData.cross_reference,
+      J_media_type: filterData.J_media_type || filterData.media_type,
+      K_equipment_applications: filterData.K_equipment_applications || filterData.equipment_applications,
+      L_engine_applications: filterData.L_engine_applications || filterData.engine_applications,
+      M_height_mm: filterData.M_height_mm || filterData.height_mm,
+      N_outer_diameter_mm: filterData.N_outer_diameter_mm || filterData.outer_diameter_mm,
+      O_inner_diameter_mm: filterData.O_inner_diameter_mm || filterData.inner_diameter_mm,
+      P_thread_size: filterData.P_thread_size || filterData.thread_size,
+      Q_micron_rating: filterData.Q_micron_rating || filterData.micron_rating,
+      R_product_url: filterData.R_product_url || filterData.product_url,
+      S_imagen_url: filterData.S_imagen_url || filterData.imagen_url,
+      T_breadcrumb: filterData.T_breadcrumb || filterData.breadcrumb,
+      U_manufacturer: filterData.U_manufacturer || filterData.manufacturer,
+      V_source: filterData.V_source || filterData.source
+    };
+    
+    const filter = await FilterModel.findOneAndUpdate(
+      { A_SKU: mongoData.A_SKU },
+      mongoData,
+      { 
+        upsert: true, 
+        new: true,
+        runValidators: true
       }
-      await filtersCollection.createIndex({ equipment_applications: 'text', engine_applications: 'text' }, { name: 'fts_equipment_engine' });
-    } catch (_) {}
-  } catch (e) {
-    console.log('⚠️  Index creation skipped:', e.message);
-  }
-  console.log('✅ MongoDB connected');
-  return db;
-}
-
-async function disconnect() {
-  try {
-    if (client) {
-      await client.close();
-      client = null; db = null; filtersCollection = null;
-      console.log('✅ MongoDB disconnected');
+    );
+    
+    console.log(`[MONGO] ✅ Guardado: ${filter.A_SKU}`);
+    return filter;
+    
+  } catch (error) {
+    if (error.name === 'ValidationError') {
+      console.error('[MONGO] ❌ Error de validación:', error.message);
+    } else {
+      console.error('[MONGO] ❌ Error en saveFilter:', error.message);
     }
-  } catch (e) {
-    console.log('⚠️  MongoDB disconnect error:', e.message);
-  }
-}
-
-// Read operations
-async function searchCache(code) {
-  try {
-    if (!hasMongoEnv()) return null;
-    await connect();
-    const normalized = String(code || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
-    const result = await filtersCollection.findOne({
-      $or: [
-        { code_client_normalized: normalized },
-        { code_oem_normalized: normalized },
-      ],
-    });
-    if (!result) return null;
-    return {
-      found: true,
-      cached: true,
-      code_client: result.code_client,
-      code_oem: result.code_oem,
-      duty: result.duty,
-      family: result.family,
-      sku: result.sku,
-      media: result.media,
-      source: result.source,
-      cross_reference: result.cross_reference || [],
-      applications: result.applications || [],
-      attributes: result.attributes || {},
-      timestamp: result.timestamp,
-      _id: result._id,
-    };
-  } catch (e) {
-    console.log('⚠️  Cache search error:', e.message);
     return null;
   }
 }
 
-async function getAllFilters(filter = {}, limit = 100) {
+async function findBySKU(sku) {
+  if (!isConnected) return null;
+  
   try {
-    if (!hasMongoEnv()) return [];
-    await connect();
-    return await filtersCollection
-      .find(filter)
-      .sort({ timestamp: -1 })
-      .limit(limit)
-      .toArray();
-  } catch (e) {
-    console.log('⚠️  getAllFilters error:', e.message);
-    return [];
-  }
-}
-
-// Full-text catalog search over equipment/engine applications
-async function searchCatalogByText(term, { limit = 20, page = 1, project = null } = {}) {
-  try {
-    if (!hasMongoEnv()) return [];
-    await connect();
-    const q = String(term || '').trim();
-    if (!q) return [];
-    const skip = Math.max(0, (Number(page) - 1) * Number(limit));
-    const baseProjection = {
-      normsku: 1,
-      sku: 1,
-      code_client: 1,
-      code_oem: 1,
-      family: 1,
-      duty: 1,
-      equipment_applications: 1,
-      engine_applications: 1,
-      oem_codes: 1,
-      cross_reference: 1,
-      media: 1,
-      source: 1,
-      timestamp: 1,
-      score: { $meta: 'textScore' }
-    };
-    const projection = project && typeof project === 'object' ? { ...baseProjection, ...project } : baseProjection;
-
-    const cursor = filtersCollection
-      .find({ $text: { $search: q } }, { projection })
-      .sort({ score: { $meta: 'textScore' } })
-      .skip(skip)
-      .limit(Number(limit));
-
-    const results = await cursor.toArray();
-    return results.map(doc => ({
-      score: doc.score,
-      normsku: doc.normsku,
-      sku: doc.sku,
-      code_client: doc.code_client,
-      code_oem: doc.code_oem,
-      family: doc.family,
-      duty: doc.duty,
-      equipment_applications: Array.isArray(doc.equipment_applications) ? doc.equipment_applications : [],
-      engine_applications: Array.isArray(doc.engine_applications) ? doc.engine_applications : [],
-      oem_codes: Array.isArray(doc.oem_codes) ? doc.oem_codes : [],
-      cross_reference: Array.isArray(doc.cross_reference) ? doc.cross_reference : [],
-      media: doc.media,
-      source: doc.source,
-      timestamp: doc.timestamp
-    }));
-  } catch (e) {
-    console.log('⚠️  searchCatalogByText error:', e.message);
-    return [];
-  }
-}
-
-// Write operations
-async function saveToCache(data) {
-  try {
-    if (!hasMongoEnv()) return null;
-    await connect();
-    const normalizedClient = (data.query || data.code_client || '')
-      .toUpperCase().replace(/[^A-Z0-9]/g, '');
-    const normalizedOEM = (data.oem_equivalent || data.code_oem || '')
-      .toUpperCase().replace(/[^A-Z0-9]/g, '');
-    const existing = await filtersCollection.findOne({
-      $or: [
-        { code_client_normalized: normalizedClient },
-        { code_oem_normalized: normalizedOEM },
-      ],
-    });
-    if (existing) return existing;
-    const toArray = (v) => {
-      if (!v) return [];
-      if (Array.isArray(v)) return v;
-      // Regla definitiva: dividir por coma + espacio
-      return String(v).split(', ').map(s => s.trim()).filter(Boolean);
-    };
-
-    // Guardrail de Persistencia: VOL_LOW
-    const eqAppsArr = Array.isArray(data.equipment_applications) ? data.equipment_applications : toArray(data.equipment_applications);
-    const enAppsArr = Array.isArray(data.engine_applications) ? data.engine_applications : toArray(data.engine_applications || data.applications);
-    const uniq = (arr) => new Set((Array.isArray(arr) ? arr : []).map(s => String(s || '').toLowerCase())).size;
-    const eqCount = uniq(eqAppsArr);
-    const enCount = uniq(enAppsArr);
-    const minRequired = 6;
-    if (eqCount < minRequired || enCount < minRequired) {
-      const msg = `VOL_LOW: insufficient applications (equipment=${eqCount}, engine=${enCount}, min=${minRequired})`;
-      console.log(`⚠️  ${msg}`);
-      const err = new Error(msg);
-      err.code = 'VOL_LOW';
-      err.status = 400;
-      throw err;
+    const filter = await FilterModel.findOneAndUpdate(
+      { A_SKU: sku },
+      { 
+        $inc: { cache_hits: 1 },
+        $set: { updated_at: new Date() }
+      },
+      { new: true }
+    ).lean();
+    
+    if (filter) {
+      console.log(`[MONGO] ✅ Cache HIT por SKU: ${sku}`);
     }
-
-    const document = {
-      code_client: data.query || data.code_client,
-      code_client_normalized: normalizedClient,
-      normsku: data.normsku || normalizedClient,
-      code_oem: data.oem_equivalent || data.code_oem,
-      code_oem_normalized: normalizedOEM,
-      duty: data.duty,
-      family: data.family,
-      sku: data.sku,
-      media: data.media,
-      source: data.source,
-      oem_codes: toArray(data.oem_codes),
-      cross_reference: toArray(data.cross_reference),
-      engine_applications: Array.isArray(data.engine_applications) ? data.engine_applications : toArray(data.engine_applications),
-      equipment_applications: Array.isArray(data.equipment_applications) ? data.equipment_applications : toArray(data.equipment_applications),
-      manufacturing_standards: toArray(data.manufacturing_standards),
-      certification_standards: toArray(data.certification_standards),
-      applications: Array.isArray(data.applications) ? data.applications : toArray(data.applications),
-      attributes: data.attributes || {},
-      timestamp: new Date(),
-      created_at: new Date(),
-      updated_at: new Date(),
-    };
-    return await filtersCollection.insertOne(document);
-  } catch (e) {
-    if (String(e?.code).toUpperCase() === 'VOL_LOW' || e?.status === 400 || /VOL_LOW/i.test(String(e?.message || ''))) {
-      // Propagar el error de calidad para que el caller devuelva 400
-      throw e;
-    }
-    console.log('⚠️  saveToCache error:', e.message);
+    
+    return filter;
+  } catch (error) {
+    console.error('[MONGO] ❌ Error en findBySKU:', error.message);
     return null;
   }
 }
 
-// Placeholders for optional APIs used elsewhere
-async function updateCache() { /* no-op */ }
-async function deleteFromCache() { /* no-op */ }
-async function getCacheStats() { return null; }
-async function clearCache() { return 0; }
+async function getCacheStats() {
+  if (!isConnected) return null;
+  
+  try {
+    const stats = await FilterModel.aggregate([
+      {
+        $group: {
+          _id: null,
+          total_filters: { $sum: 1 },
+          total_hits: { $sum: '$cache_hits' },
+          avg_hits: { $avg: '$cache_hits' }
+        }
+      }
+    ]);
+    
+    return stats[0] || { total_filters: 0, total_hits: 0, avg_hits: 0 };
+  } catch (error) {
+    console.error('[MONGO] ❌ Error en getCacheStats:', error.message);
+    return null;
+  }
+}
 
 module.exports = {
-  connect,
-  disconnect,
-  searchCache,
-  saveToCache,
-  updateCache,
-  deleteFromCache,
-  getAllFilters,
-  searchCatalogByText,
+  connectMongo,
+  findByCode,
+  saveFilter,
+  findBySKU,
   getCacheStats,
-  clearCache,
+  FilterModel
 };
