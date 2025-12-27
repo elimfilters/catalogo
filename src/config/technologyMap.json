@@ -1,90 +1,60 @@
 {
-  "DONALDSON_SYNTEQ_XP": {
-    "elimfilters_tech": "ELIMTEK™ MultiCore",
-    "technology_name": "ELIMTEK™ MultiCore – Oil / Fuel / Hydraulic (HD)",
-    "technology_tier": "ULTRA_PREMIUM",
-    "technology_scope": "OIL|HD|SYNTHETIC|EXTREME_PERFORMANCE",
-    "family": "OIL",
-    "duty": "HD"
+  "version": "12.0.0",
+  "brand": "ELIMFILTERS ✨",
+  "mapping_rules": {
+    "HEAVY_DUTY": {
+      "prefix_priority": ["ET9", "EH6", "ES9", "EL8", "EA1", "EA2"],
+      "technologies": {
+        "ET9": {
+          "tecnologia_aplicada": "AquaCore™ Pro",
+          "technology_name": "AquaCore™ Pro – Coalescente HPCR avanzado",
+          "tier": "ULTRA_PREMIUM",
+          "description": "Separación de agua en 3 etapas con eficiencia molecular para sistemas Common Rail."
+        },
+        "EH6": {
+          "tecnologia_aplicada": "HydroFlow™ 5000",
+          "technology_name": "HydroFlow™ 5000 – Microfibra de Vidrio ISO",
+          "tier": "PREMIUM_HD",
+          "description": "Control de contaminación absoluta para sistemas hidráulicos de alta presión."
+        },
+        "EL8": {
+          "tecnologia_aplicada": "ELIMTEK™ MultiCore",
+          "technology_name": "ELIMTEK™ MultiCore – Oil/Fuel Synthetic HD",
+          "tier": "PREMIUM_HD",
+          "description": "Media sintética de densidad graduada con máxima retención de hollín y partículas."
+        }
+      }
+    },
+    "SPECIAL_SERIES": {
+      "TURBINE": {
+        "match": ["500FG", "900FG", "1000FG"],
+        "tecnologia_aplicada": "AQUACORE™ Marine Series",
+        "mapping": {
+          "500FG": "AQUACORE™ Marine 1000",
+          "900FG": "AQUACORE™ Marine 2000",
+          "1000FG": "AQUACORE™ Marine 4000"
+        }
+      },
+      "INDUSTRIAL": {
+        "match": ["TURBINE", "GAS_TURBINE"],
+        "tecnologia_aplicada": "HYDROFLOW™ TurboMax"
+      }
+    }
   },
-  "DONALDSON_SYNTEQ": {
-    "elimfilters_tech": "ELIMTEK™ MultiCore",
-    "technology_name": "ELIMTEK™ MultiCore – Oil / Fuel / Hydraulic (HD)",
-    "technology_tier": "PREMIUM",
-    "technology_scope": "OIL|HD|MULTILAYER|BETA_HIGH|EXTENDED_PERFORMANCE",
-    "family": "OIL",
-    "duty": "HD"
-  },
-  "DONALDSON_ULTRA_WEB_HD": {
-    "elimfilters_tech": "MACROCORE™ NanoMax",
-    "technology_name": "MACROCORE™ NanoMax – Engine Air (HD)",
-    "technology_tier": "ULTRA_PREMIUM",
-    "technology_scope": "AIR|HD|NANOFIBER|SYNTHETIC|MINIMAL_RESTRICTION",
-    "family": "AIR",
-    "duty": "HD"
-  },
-  "DONALDSON_ULTRA_WEB": {
-    "elimfilters_tech": "MACROCORE™ NanoMax",
-    "technology_name": "MACROCORE™ NanoMax – Engine Air (HD)",
-    "technology_tier": "PREMIUM",
-    "technology_scope": "AIR|HD|NANOFIBER|SUBMICRON",
-    "family": "AIR",
-    "duty": "HD"
-  },
-  "DONALDSON_POWERCORE": {
-    "elimfilters_tech": "MACROCORE™",
-    "technology_name": "MACROCORE™ – Engine Air (HD)",
-    "technology_tier": "PREMIUM",
-    "technology_scope": "AIR|HD|POWERCORE|HIGH_CAPACITY",
-    "family": "AIR",
-    "duty": "HD"
-  },
-  "DONALDSON_BLUE": {
-    "elimfilters_tech": "ELIMTEK™ Blend",
-    "technology_name": "ELIMTEK™ Blend – Oil / Fuel (HD)",
-    "technology_tier": "STANDARD",
-    "technology_scope": "OIL|HD|CELLULOSE_BLEND|BALANCED",
-    "family": "OIL",
-    "duty": "HD"
-  },
-  "FRAM_SYNTHETIC_ENDURANCE": {
-    "elimfilters_tech": "ELIMTEK™ MultiCore",
-    "technology_name": "ELIMTEK™ MultiCore – Oil Filter (LD)",
-    "technology_tier": "PREMIUM",
-    "technology_scope": "OIL|LD|SYNTHETIC|MULTILAYER|EXTENDED_INTERVAL",
-    "family": "OIL",
-    "duty": "LD"
-  },
-  "FRAM_TITANIUM_OIL": {
-    "elimfilters_tech": "ELIMTEK™ MultiCore",
-    "technology_name": "ELIMTEK™ MultiCore – Oil Filter (LD)",
-    "technology_tier": "PREMIUM",
-    "technology_scope": "OIL|LD|TITANIUM|HIGH_PERFORMANCE",
-    "family": "OIL",
-    "duty": "LD"
-  },
-  "FRAM_TITANIUM_AIR": {
-    "elimfilters_tech": "MACROCORE™ Ultra",
-    "technology_name": "MACROCORE™ Ultra – Air Filter (LD)",
-    "technology_tier": "PREMIUM",
-    "technology_scope": "AIR|LD|NANOFIBER|SUBMICRON|EXTENDED_LIFE",
-    "family": "AIR",
-    "duty": "LD"
-  },
-  "FRAM_FORCE": {
-    "elimfilters_tech": "ELIMTEK™ Blend",
-    "technology_name": "ELIMTEK™ Blend – Oil Filter (LD)",
-    "technology_tier": "STANDARD",
-    "technology_scope": "OIL|LD|SYNTHETIC_BLEND|DAILY_PROTECTION",
-    "family": "OIL",
-    "duty": "LD"
-  },
-  "FRAM_EXTRA_GUARD_OIL": {
-    "elimfilters_tech": "ELIMTEK™ Blend",
-    "technology_name": "ELIMTEK™ Blend – Oil Filter (LD)",
-    "technology_tier": "STANDARD",
-    "technology_scope": "OIL|LD|CELLULOSE_BLEND",
-    "family": "OIL",
-    "duty": "LD"
+  "oem_equivalents": {
+    "Donaldson": {
+      "Synteq": "ELIMTEK™ MultiCore",
+      "Synteq XP": "ELIMTEK™ MultiCore (ULTRA_PREMIUM)",
+      "Ultra-Web": "MACROCORE™ NanoMax",
+      "Blue": "ELIMTEK™ Blend"
+    },
+    "Fleetguard": {
+      "StrataPore": "ELIMTEK™ MultiCore",
+      "NanoNet": "MACROCORE™ NanoMax"
+    },
+    "Parker_Racor": {
+      "Aquabloc": "AquaCore™ Pro",
+      "Turbine": "AQUACORE™ Marine Series"
+    }
   }
 }
