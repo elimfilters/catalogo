@@ -1,18 +1,18 @@
-// ============================================================================
+﻿// ============================================================================
 // SCRAPER BRIDGE – GEMINI GROUNDING
 // ============================================================================
 
 const { scrapeDonaldson, scrapeFRAM } = require('./geminiGroundingScraper');
 
 async function scraperBridge(normalizedCode) {
-  console.log(`[BRIDGE] Buscando: ${normalizedCode}`);
+  console.log([BRIDGE] Buscando: );
   
   // Intentar con Donaldson (HD) primero
   try {
     const donResult = await scrapeDonaldson(normalizedCode);
     
     if (donResult && donResult.encontrado) {
-      console.log(`[BRIDGE] ✅ Encontrado en Donaldson`);
+      console.log([BRIDGE] ✅ Encontrado en Donaldson);
       return {
         confirmed: true,
         source: 'DONALDSON_GEMINI',
@@ -20,7 +20,7 @@ async function scraperBridge(normalizedCode) {
       };
     }
   } catch (err) {
-    console.log(`[BRIDGE] ⚠️ Error en Donaldson:`, err.message);
+    console.log([BRIDGE] ⚠️ Error en Donaldson:, err.message);
   }
 
   // Intentar con FRAM (LD)
@@ -28,7 +28,7 @@ async function scraperBridge(normalizedCode) {
     const framResult = await scrapeFRAM(normalizedCode);
     
     if (framResult && framResult.encontrado) {
-      console.log(`[BRIDGE] ✅ Encontrado en FRAM`);
+      console.log([BRIDGE] ✅ Encontrado en FRAM);
       return {
         confirmed: true,
         source: 'FRAM_GEMINI',
@@ -36,10 +36,10 @@ async function scraperBridge(normalizedCode) {
       };
     }
   } catch (err) {
-    console.log(`[BRIDGE] ⚠️ Error en FRAM:`, err.message);
+    console.log([BRIDGE] ⚠️ Error en FRAM:, err.message);
   }
 
-  console.log(`[BRIDGE] ❌ No encontrado en ningún scraper`);
+  console.log([BRIDGE] ❌ No encontrado en ningún scraper);
   return null;
 }
 
