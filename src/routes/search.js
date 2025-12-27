@@ -1,33 +1,58 @@
 const express = require('express');
 const router = express.Router();
+const searchService = require('../services/searchService');
+const isElimfiltersSKU = require('../utils/isElimfiltersSKU').isElimfiltersSKU;
 
-const { isElimfiltersSKU } = require('../utils/isElimfiltersSKU');
-const mongo = require('../scrapers/mongoDBScraper');
-const { scraperBridge } = require('../scrapers/scraperBridge');
-
-router.get('/', async (req, res) => {
-  const q = String(req.query.q || '').trim().toUpperCase();
-  if (!q) return res.status(400).json({ success: false, error: 'EMPTY_QUERY' });
-
-  // === BLOQUEO ELIMFILTERS ===
-  if (isElimfiltersSKU(q)) {
-    const found = await mongo.findBySKU(q);
-    if (found) {
-      return res.json({ success: true, source: 'ELIMFILTERS', data: found });
+router.get('/:codigo', async (req, res) => {
+  try {
+    const codigo = String(req.params.codigo).trim().toUpperCase();
+    if (!codigo) {
+      return res.status(400).json({ success: false, error: 'MISSING_CODE' });
     }
-    return res.status(404).json({
-      success: false,
-      error: 'SKU_ELIMFILTERS_NOT_FOUND'
+    
+    console.log('[SEARCH GET]', codigo);
+    
+    if (isElimfiltersSKU(codigo)) {
+      const result = await searchService.searchBySKU(codigo);
+      return res.json(result);
+    }
+    
+    const result = await searchService.search(codigo);
+    return res.json(result);
+  } catch (error) {
+    console.error('[SEARCH GET ERROR]', error);
+    return res.status(500).json({ 
+      success: false, 
+      error: 'INTERNAL_ERROR', 
+      message: error.message 
     });
   }
+});
 
-  // === FLUJO NORMAL OEM ===
-  const result = await scraperBridge(q);
-  if (result) {
-    return res.json({ success: true, data: result });
+router.post('/', async (req, res) => {
+  try {
+    const codigo = String(req.body.partNumber || req.body.codigo || '').trim().toUpperCase();
+    if (!codigo) {
+      return res.status(400).json({ success: false, error: 'MISSING_CODE' });
+    }
+    
+    console.log('[SEARCH POST]', codigo);
+    
+    if (isElimfiltersSKU(codigo)) {
+      const result = await searchService.searchBySKU(codigo);
+      return res.json(result);
+    }
+    
+    const result = await searchService.search(codigo);
+    return res.json(result);
+  } catch (error) {
+    console.error('[SEARCH POST ERROR]', error);
+    return res.status(500).json({ 
+      success: false, 
+      error: 'INTERNAL_ERROR', 
+      message: error.message 
+    });
   }
-
-  return res.status(404).json({ success: false, error: 'NOT_FOUND' });
 });
 
 module.exports = router;
