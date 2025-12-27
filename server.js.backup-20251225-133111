@@ -1,10 +1,10 @@
-const express = require('express');
+﻿const express = require('express');
 const cors = require('cors');
 const { GoogleGenerativeAI } = require('@google/generative-ai');
 const { google } = require('googleapis');
 
 const app = express();
-const PORT = process.env.PORT || 8080;
+const PORT = process.env.PORT || 3000;
 
 // Middleware
 app.use(cors());
@@ -61,7 +61,6 @@ function initializeGoogleSheets() {
 
 const sheetsInitialized = initializeGoogleSheets();
 
-// Health endpoint
 app.get('/health', (req, res) => {
   res.json({
     status: 'healthy',
@@ -78,90 +77,10 @@ app.get('/health', (req, res) => {
   });
 });
 
-// Lazy load para evitar circular dependency
-let scraperBridge;
-let syncSheetsService;
-
-function loadDependencies() {
-  if (!scraperBridge) {
-    scraperBridge = require('./src/scrapers/scraperBridge').scraperBridge;
-  }
-  if (!syncSheetsService) {
-    syncSheetsService = require('./src/services/syncSheetsService');
-  }
-}
-
-// Search endpoint con scraping automático
-app.post('/search', async (req, res) => {
-  try {
-    const { query } = req.body;
-    if (!query) {
-      return res.status(400).json({ error: 'Query parameter is required' });
-    }
-
-    const mongoDBScraper = require('./src/scrapers/mongoDBScraper');
-    
-    // Primero buscar en MongoDB
-    const mongoResult = await mongoDBScraper.search(query);
-    
-    if (mongoResult.success && mongoResult.count > 0) {
-      return res.json({
-        success: true,
-        query: query,
-        results: mongoResult.results[0]
-      });
-    }
-
-    // Si no existe, hacer scraping
-    loadDependencies();
-    const scrapedResult = await scraperBridge(query);
-    
-    if (scrapedResult) {
-      // Guardar en Sheets
-      try {
-        await syncSheetsService.upsertBySku({
-          sku: scrapedResult.normsku || query,
-          query_normalized: query,
-          duty: scrapedResult.duty_type,
-          type: scrapedResult.filter_type || scrapedResult.type,
-          family: scrapedResult.family,
-          attributes: scrapedResult.attributes || {},
-          oem_codes: scrapedResult.oem_codes,
-          cross_reference: scrapedResult.cross_reference,
-          description: scrapedResult.description,
-          source: scrapedResult.source
-        });
-        console.log(`✅ Guardado en Sheets: ${scrapedResult.normsku || query}`);
-      } catch (err) {
-        console.error('⚠️ Error guardando en Sheets:', err.message);
-      }
-
-      return res.json({
-        success: true,
-        query: query,
-        results: scrapedResult
-      });
-    }
-
-    res.json({
-      success: false,
-      query: query,
-      error: 'No results found'
-    });
-
-  } catch (error) {
-    console.error('Search error:', error);
-    res.status(500).json({ 
-      success: false,
-      error: error.message 
-    });
-  }
-});
-
 async function detectPieceType(code) {
   console.log('Detectando tipo de pieza para:', code);
   
-  const model = genAI.getGenerativeModel({ model: process.env.GEMINI_MODEL || "gemini-1.5-flash" });
+  const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
   
   const prompt = `Analiza este código de pieza marina: ${code}
 
@@ -268,60 +187,6 @@ app.post('/api/process', async (req, res) => {
   }
 });
 
-// Batch processing endpoint
-app.post('/api/process/batch', async (req, res) => {
-  try {
-    const { items } = req.body;
-    if (!Array.isArray(items)) {
-      return res.status(400).json({ error: 'Items must be an array' });
-    }
-
-    const results = [];
-    for (const item of items) {
-      try {
-        const result = await processItem(item);
-        results.push(result);
-      } catch (error) {
-        results.push({ error: error.message, item });
-      }
-    }
-
-    res.json({
-      success: true,
-      processed: results.length,
-      results: results
-    });
-  } catch (error) {
-    console.error('Batch processing error:', error);
-    res.status(500).json({ error: error.message });
-  }
-});
-
-// Export to Google Sheets endpoint
-app.post('/api/export/sheets', async (req, res) => {
-  try {
-    const { data, sheetName } = req.body;
-    
-    if (!data || !Array.isArray(data)) {
-      return res.status(400).json({ error: 'Data must be an array' });
-    }
-
-    const spreadsheetId = process.env.GOOGLE_SHEET_ID;
-    if (!spreadsheetId) {
-      return res.status(500).json({ error: 'Google Sheet ID not configured' });
-    }
-
-    res.json({
-      success: true,
-      message: 'Data exported successfully',
-      rows: data.length
-    });
-  } catch (error) {
-    console.error('Export error:', error);
-    res.status(500).json({ error: error.message });
-  }
-});
-
 module.exports = app;
 
 // Start server
@@ -329,8 +194,8 @@ if (require.main === module) {
   app.listen(PORT, () => {
     console.log('────────────────────────────────────────────────────────');
     console.log('🚀 ELIMFILTERS API v5.0.2');
-    console.log('📡 Running on port', PORT);
-    console.log('🌎 Environment:', process.env.NODE_ENV || 'production');
+    console.log('📡 Running on port ' + PORT);
+    console.log('🌎 Environment: ' + (process.env.NODE_ENV || 'development'));
     console.log('────────────────────────────────────────────────────────');
     console.log('📍 Health: http://localhost:' + PORT + '/health');
     console.log('🔍 Search: POST http://localhost:' + PORT + '/search');
@@ -338,7 +203,7 @@ if (require.main === module) {
     console.log('📝 Batch: POST http://localhost:' + PORT + '/api/process/batch');
     console.log('📤 Export: POST http://localhost:' + PORT + '/api/export/sheets');
     console.log('────────────────────────────────────────────────────────');
-    console.log('✅ Google Sheets integration:', sheetsInitialized ? 'ENABLED' : 'DISABLED');
+    console.log('✅ Google Sheets integration: ' + (sheetsInitialized ? 'ENABLED' : 'DISABLED'));
     console.log('✅ Export functionality: ENABLED');
   });
 }

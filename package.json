@@ -7,6 +7,7 @@
     },
     "dependencies": {
         "@google/generative-ai": "^0.24.1",
+        "mongoose": "^8.0.0",
         "axios": "^1.7.7",
         "cheerio": "^1.0.0-rc.12",
         "compression": "^1.8.1",
