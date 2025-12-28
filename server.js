@@ -39,9 +39,9 @@ app.use((req, res, next) => {
 // 2. CONFIGURACIÓN GEMA API v8.7
 // ============================================
 const GEMA_CONFIG = {
-  baseURL: 'https://api.gema.example.com/v8.7', // Reemplazar con URL real
-  token: 'ELIM-GEMA-CORE-2025-V87-SECURE',
-  timeout: 15000
+  baseURL: process.env.GEMA_API_URL || 'https://api.gema.example.com/v8.7',
+  token: process.env.GEMA_API_TOKEN || 'ELIM-GEMA-CORE-2025-V87-SECURE',
+  timeout: parseInt(process.env.GEMA_TIMEOUT) || 15000
 };
 
 const gemaClient = axios.create({
@@ -161,7 +161,53 @@ app.get('/health', (req, res) => {
   });
 });
 
+// API Info endpoint (para documentación rápida)
+app.get('/api', (req, res) => {
+  res.json({
+    success: true,
+    version: '5.5',
+    endpoints: {
+      health: {
+        method: 'GET',
+        path: '/health',
+        description: 'Health check endpoint'
+      },
+      search_post: {
+        method: 'POST',
+        path: '/api/search',
+        description: 'Search catalog (requires JSON body with "query" field)',
+        example: {
+          query: 'filter',
+          filters: {},
+          page: 1,
+          limit: 50
+        }
+      },
+      search_get: {
+        method: 'GET',
+        path: '/api/search?q={query}',
+        description: 'Search catalog via GET (for testing)',
+        example: '/api/search?q=filter&page=1&limit=10'
+      },
+      autocomplete: {
+        method: 'GET',
+        path: '/api/autocomplete?q={query}',
+        description: 'Get autocomplete suggestions',
+        example: '/api/autocomplete?q=filt'
+      },
+      part_details: {
+        method: 'GET',
+        path: '/api/part/{partNumber}',
+        description: 'Get details for specific part number',
+        example: '/api/part/EF-12345'
+      }
+    },
+    documentation: 'https://elimfilters.com/api-docs'
+  });
+});
+
 // Endpoint principal de búsqueda (REQUERIMIENTO #1)
+// Soporta tanto POST como GET
 app.post('/api/search', async (req, res) => {
   try {
     const { query, filters, page = 1, limit = 50 } = req.body;
@@ -234,11 +280,92 @@ app.post('/api/search', async (req, res) => {
   }
 });
 
+// GET version del endpoint de búsqueda (para testing fácil)
+app.get('/api/search', async (req, res) => {
+  try {
+    const { q, query, page = 1, limit = 50 } = req.query;
+    const searchQuery = q || query;
+
+    if (!searchQuery || searchQuery.trim().length === 0) {
+      return res.status(400).json({
+        success: false,
+        error: 'Query parameter "q" or "query" is required',
+        code: 'INVALID_QUERY',
+        example: '/api/search?q=filter'
+      });
+    }
+
+    // Llamada a GEMA API
+    const gemaResponse = await gemaClient.post('/search', {
+      search_term: searchQuery,
+      filters: {},
+      pagination: {
+        page: parseInt(page),
+        per_page: parseInt(limit)
+      }
+    });
+
+    // Mapeo de datos
+    const mappedData = mapGemaToElimfilters(gemaResponse.data);
+
+    // Respuesta exitosa
+    res.json({
+      success: true,
+      query: searchQuery,
+      timestamp: new Date().toISOString(),
+      pagination: {
+        page: parseInt(page),
+        limit: parseInt(limit),
+        total: gemaResponse.data.total || 0
+      },
+      data: mappedData
+    });
+
+  } catch (error) {
+    console.error('Search Error:', error.message);
+    
+    if (error.response) {
+      return res.status(error.response.status).json({
+        success: false,
+        error: 'GEMA API Error',
+        message: error.response.data?.message || 'External API error',
+        code: 'GEMA_API_ERROR'
+      });
+    }
+
+    if (error.code === 'ECONNABORTED') {
+      return res.status(504).json({
+        success: false,
+        error: 'Request timeout',
+        message: 'GEMA API did not respond in time',
+        code: 'TIMEOUT'
+      });
+    }
+
+    res.status(500).json({
+      success: false,
+      error: 'Internal server error',
+      message: process.env.NODE_ENV === 'development' ? error.message : 'An error occurred',
+      code: 'INTERNAL_ERROR'
+    });
+  }
+});
+
 // Endpoint de detalles por Part Number
 app.get('/api/part/:partNumber', async (req, res) => {
   try {
     const { partNumber } = req.params;
 
+    if (!partNumber || partNumber.trim().length === 0) {
+      return res.status(400).json({
+        success: false,
+        error: 'Part number is required',
+        code: 'INVALID_PART_NUMBER',
+        example: '/api/part/EF-12345'
+      });
+    }
+
+    // Llamada a GEMA API para obtener detalles del part number
     const gemaResponse = await gemaClient.get(`/parts/${partNumber}`);
     const mappedData = mapGemaToElimfilters({ results: [gemaResponse.data] });
 
@@ -250,10 +377,25 @@ app.get('/api/part/:partNumber', async (req, res) => {
 
   } catch (error) {
     console.error('Part Details Error:', error.message);
+    
+    // Si el part number no existe en GEMA
+    if (error.response?.status === 404) {
+      return res.status(404).json({
+        success: false,
+        error: 'Part number not found',
+        partNumber: req.params.partNumber,
+        code: 'PART_NOT_FOUND',
+        message: 'This part number does not exist in the catalog'
+      });
+    }
+
+    // Otros errores
     res.status(error.response?.status || 500).json({
       success: false,
       error: 'Failed to fetch part details',
-      code: 'PART_NOT_FOUND'
+      partNumber: req.params.partNumber,
+      code: 'PART_FETCH_ERROR',
+      message: process.env.NODE_ENV === 'development' ? error.message : 'An error occurred'
     });
   }
 });
@@ -316,7 +458,7 @@ app.listen(PORT, () => {
   console.log(`✓ Environment: ${process.env.NODE_ENV || 'production'}`);
   console.log(`✓ CORS enabled for elimfilters.com`);
   console.log(`✓ GEMA API v8.7 integration active`);
-  console.log(`✓ Public endpoint: https://catalogo-production-e423.up.railway.app`);
+  console.log(`✓ Public endpoint: https://elimfilters-backend-v5-production.up.railway.app`);
   console.log('');
   console.log('═══════════════════════════════════════════');
 });
@@ -324,7 +466,5 @@ app.listen(PORT, () => {
 // Graceful shutdown
 process.on('SIGTERM', () => {
   console.log('SIGTERM signal received: closing HTTP server');
-  server.close(() => {
-    console.log('HTTP server closed');
-  });
+  process.exit(0);
 });
