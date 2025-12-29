@@ -1,0 +1,112 @@
+﻿{
+  "master_kits": [
+    {
+      "query": "MK11518",
+      "vehicle_match": ["Freightliner Cascadia", "Freightliner Columbia", "Sterling"],
+      "engine_match": ["Cummins ISB 5.9L", "Cummins ISB 6.7L"],
+      "normsku": "EK51518",
+      "duty_type": "HD",
+      "type": "Master Kit (Heavy Duty)",
+      "subtype": "Fleet Maintenance Kit",
+      "description": "ELIMTEK™ Master Maintenance Kit for Freightliner/Cummins ISB - 3 Filter Complete Service",
+      "equipment_applications": "Freightliner Cascadia (2008-2024), Freightliner Columbia, Sterling Trucks (A9500, L9500)",
+      "engine_applications": "Cummins ISB 5.9L (2003-2010), Cummins ISB 6.7L (2007-2024)",
+      "industry_segments": "Heavy Duty Trucking, Fleet Operations",
+      "technology": "ELIMTEK™ Complete Maintenance",
+      "technology_tier": "Premium Industrial Grade",
+      "kit_weight_grams": 1650,
+      "service_interval_km": 40000,
+      "warranty_months": 24,
+      "components": [
+        {
+          "quantity": 1,
+          "oem_code": "P554004",
+          "donaldson_cross": "P554004",
+          "sku": "EL84004",
+          "type": "Oil Filter",
+          "function": "Full-Flow Engine Lubrication",
+          "application": "Engine oil filtration and protection",
+          "verified": true
+        },
+        {
+          "quantity": 1,
+          "oem_code": "LF3000",
+          "donaldson_cross": "P553000",
+          "sku": "EL83000",
+          "type": "Oil Filter",
+          "function": "Full-Flow Engine Lubrication",
+          "application": "Secondary oil filtration",
+          "verified": true
+        },
+        {
+          "quantity": 1,
+          "oem_code": "AF25262",
+          "donaldson_cross": "P533882",
+          "sku": "EA15262",
+          "type": "Air Filter",
+          "function": "Engine Air Intake Filtration",
+          "application": "Primary air filtration for engine protection",
+          "verified": true
+        }
+      ]
+    },
+    {
+      "query": "RAV4 2022",
+      "vehicle_match": ["Toyota RAV4", "RAV4 Hybrid", "RAV4 Prime"],
+      "engine_match": ["2.5L", "A25A-FKS", "A25A-FXS"],
+      "normsku": "EK51022",
+      "duty_type": "LD",
+      "type": "Master Kit (Light Duty)",
+      "subtype": "Automotive Maintenance Kit",
+      "description": "ELIMTEK™ Automotive Maintenance Kit for Toyota RAV4 2022 - 3 Filter Complete Service",
+      "equipment_applications": "Toyota RAV4 (2019-2024), Toyota RAV4 Hybrid (2019-2024), Toyota RAV4 Prime (2021-2024)",
+      "engine_applications": "Toyota 2.5L L4 A25A-FKS (Regular), Toyota 2.5L L4 A25A-FXS (Hybrid)",
+      "industry_segments": "Light Duty Automotive, Consumer Vehicles",
+      "technology": "ELIMTEK™ Automotive Maintenance",
+      "technology_tier": "Premium Consumer Grade",
+      "kit_weight_grams": 680,
+      "service_interval_km": 16000,
+      "warranty_months": 12,
+      "components": [
+        {
+          "quantity": 1,
+          "oem_code": "90915-YZZN1",
+          "fram_cross": "PH4967",
+          "sku": "EL84967",
+          "type": "Oil Filter",
+          "function": "Full-Flow Engine Lubrication",
+          "application": "Engine oil filtration for hybrid systems",
+          "verified": true
+        },
+        {
+          "quantity": 1,
+          "oem_code": "17801-25020",
+          "fram_cross": "CA12290",
+          "sku": "EA12290",
+          "type": "Air Filter",
+          "function": "Engine Air Intake Filtration",
+          "application": "Precision air flow for Atkinson cycle engines",
+          "verified": true
+        },
+        {
+          "quantity": 1,
+          "oem_code": "87139-58010",
+          "fram_cross": "CF12157",
+          "sku": "EC32157",
+          "type": "Cabin Air Filter",
+          "function": "HVAC Air Filtration",
+          "application": "Interior air quality and allergen protection",
+          "verified": true
+        }
+      ]
+    }
+  ],
+  "metadata": {
+    "version": "1.0.0",
+    "last_updated": "2025-12-29",
+    "total_kits": 2,
+    "ek5_count": 1,
+    "ek3_count": 1,
+    "verification_status": "all_components_verified"
+  }
+}

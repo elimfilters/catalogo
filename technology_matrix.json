@@ -1,0 +1,187 @@
+{
+  "technology_matrix": {
+    "EL8": {
+      "family": "Oil Filter (Lube)",
+      "technology_name": "ELIMTEK™ Nano-Shield",
+      "key_attribute": "High-efficiency synthetic media",
+      "technology_description": "Advanced synthetic nano-fiber media for maximum engine protection and extended service intervals",
+      "tier_hd": "Premium Industrial Grade",
+      "tier_ld": "Premium Automotive Grade"
+    },
+    "EF9": {
+      "family": "Fuel Filter",
+      "technology_name": "ELIMTEK™ Fuel Guard",
+      "key_attribute": "Injector and pump protection",
+      "technology_description": "Multi-stage filtration protecting fuel injectors and high-pressure pumps from contamination",
+      "tier_hd": "Premium Industrial Grade",
+      "tier_ld": "Premium Automotive Grade"
+    },
+    "ES9": {
+      "family": "Fuel Water Separator",
+      "technology_name": "WATERBLOC™ Marine Shield",
+      "key_attribute": "Hydrophobic water separation",
+      "technology_description": "Hydrophobic media technology for diesel fuel with integrated water separation for marine and industrial applications",
+      "tier_hd": "Premium Industrial Grade",
+      "tier_ld": "Premium Marine Grade"
+    },
+    "ET9": {
+      "family": "Turbine Series",
+      "technology_name": "WATERBLOC™ Aqua-Pure",
+      "key_attribute": "Centrifugal water repulsion",
+      "technology_description": "Advanced centrifugal separation technology removing water and contaminants before reaching filtration media",
+      "tier_hd": "Premium Industrial Grade",
+      "tier_ld": "Premium Marine Grade"
+    },
+    "EA1": {
+      "family": "Air Filter (All Types)",
+      "technology_name": "MACROCORE™ Precision-Flow",
+      "key_attribute": "Optimized airflow with low restriction",
+      "technology_description": "High-efficiency media maximizing airflow while capturing particulates for all air filter configurations",
+      "tier_hd": "Premium Industrial Grade",
+      "tier_ld": "Premium Automotive Grade"
+    },
+    "EA2": {
+      "family": "Air Filter Housing",
+      "technology_name": "MACROCORE™ System",
+      "key_attribute": "Complete air intake housing system",
+      "technology_description": "Air filter housing and carcasa systems engineered for optimal airflow management",
+      "tier_hd": "Premium Industrial Grade",
+      "tier_ld": "Premium Automotive Grade"
+    },
+    "EC1": {
+      "family": "Cabin Air Filter (All Types)",
+      "technology_name": "MACROCORE™ Air-Pure",
+      "key_attribute": "Allergen filtration with activated carbon",
+      "technology_description": "Multi-layer filtration removing allergens, pollen, and odors with activated carbon layer",
+      "tier_hd": "Premium Commercial Grade",
+      "tier_ld": "Premium Automotive Grade"
+    },
+    "EW7": {
+      "family": "Coolant Filter",
+      "technology_name": "ELIMTEK™ Coolant-Guard",
+      "key_attribute": "SCA additives against cavitation",
+      "technology_description": "Integrated supplemental coolant additives preventing cavitation and corrosion in cooling systems",
+      "tier_hd": "Premium Industrial Grade",
+      "tier_ld": "Premium Automotive Grade"
+    },
+    "EH6": {
+      "family": "Hydraulic Filter",
+      "technology_name": "ELIMTEK™ Fluid Control",
+      "key_attribute": "High-pressure hydraulic protection",
+      "technology_description": "Filtration for hydraulic systems protecting pumps and valves from particulate contamination",
+      "tier_hd": "Premium Industrial Grade",
+      "tier_ld": "Premium Automotive Grade"
+    },
+    "ED4": {
+      "family": "Air Dryer",
+cd "C:\Users\VICTOR ABREU"
+
+$matrixContent = @'
+{
+  "technology_matrix": {
+    "EL8": {
+      "family": "Oil Filter (Lube)",
+      "technology_name": "ELIMTEK™ Nano-Shield",
+      "key_attribute": "High-efficiency synthetic media",
+      "technology_description": "Advanced synthetic nano-fiber media for maximum engine protection and extended service intervals",
+      "tier_hd": "Premium Industrial Grade",
+      "tier_ld": "Premium Automotive Grade"
+    },
+    "EF9": {
+      "family": "Fuel Filter",
+      "technology_name": "ELIMTEK™ Fuel Guard",
+      "key_attribute": "Injector and pump protection",
+      "technology_description": "Multi-stage filtration protecting fuel injectors and high-pressure pumps from contamination",
+      "tier_hd": "Premium Industrial Grade",
+      "tier_ld": "Premium Automotive Grade"
+    },
+    "ES9": {
+      "family": "Fuel Water Separator",
+      "technology_name": "WATERBLOC™ Marine Shield",
+      "key_attribute": "Hydrophobic water separation",
+      "technology_description": "Hydrophobic media technology for diesel fuel with integrated water separation for marine and industrial applications",
+      "tier_hd": "Premium Industrial Grade",
+      "tier_ld": "Premium Marine Grade"
+    },
+    "ET9": {
+      "family": "Turbine Series",
+      "technology_name": "WATERBLOC™ Aqua-Pure",
+      "key_attribute": "Centrifugal water repulsion",
+      "technology_description": "Advanced centrifugal separation technology removing water and contaminants before reaching filtration media",
+      "tier_hd": "Premium Industrial Grade",
+      "tier_ld": "Premium Marine Grade"
+    },
+    "EA1": {
+      "family": "Air Filter (All Types)",
+      "technology_name": "MACROCORE™ Precision-Flow",
+      "key_attribute": "Optimized airflow with low restriction",
+      "technology_description": "High-efficiency media maximizing airflow while capturing particulates for all air filter configurations",
+      "tier_hd": "Premium Industrial Grade",
+      "tier_ld": "Premium Automotive Grade"
+    },
+    "EA2": {
+      "family": "Air Filter Housing",
+      "technology_name": "MACROCORE™ System",
+      "key_attribute": "Complete air intake housing system",
+      "technology_description": "Air filter housing and carcasa systems engineered for optimal airflow management",
+      "tier_hd": "Premium Industrial Grade",
+      "tier_ld": "Premium Automotive Grade"
+    },
+    "EC1": {
+      "family": "Cabin Air Filter (All Types)",
+      "technology_name": "MACROCORE™ Air-Pure",
+      "key_attribute": "Allergen filtration with activated carbon",
+      "technology_description": "Multi-layer filtration removing allergens, pollen, and odors with activated carbon layer",
+      "tier_hd": "Premium Commercial Grade",
+      "tier_ld": "Premium Automotive Grade"
+    },
+    "EW7": {
+      "family": "Coolant Filter",
+      "technology_name": "ELIMTEK™ Coolant-Guard",
+      "key_attribute": "SCA additives against cavitation",
+      "technology_description": "Integrated supplemental coolant additives preventing cavitation and corrosion in cooling systems",
+      "tier_hd": "Premium Industrial Grade",
+      "tier_ld": "Premium Automotive Grade"
+    },
+    "EH6": {
+      "family": "Hydraulic Filter",
+      "technology_name": "ELIMTEK™ Fluid Control",
+      "key_attribute": "High-pressure hydraulic protection",
+      "technology_description": "Filtration for hydraulic systems protecting pumps and valves from particulate contamination",
+      "tier_hd": "Premium Industrial Grade",
+      "tier_ld": "Premium Automotive Grade"
+    },
+    "ED4": {
+      "family": "Air Dryer",
+      "technology_name": "ELIMTEK™ Dry Air",
+      "key_attribute": "Moisture and oil removal",
+      "technology_description": "Desiccant-based air drying technology removing moisture and oil from compressed air systems",
+      "tier_hd": "Premium Industrial Grade",
+      "tier_ld": "N/A"
+    },
+    "EM9": {
+      "family": "Marine Filter",
+      "technology_name": "WATERBLOC™ Marine System",
+      "key_attribute": "Marine-grade corrosion resistance",
+      "technology_description": "Specialized filtration for marine applications with enhanced corrosion resistance and water separation",
+      "tier_hd": "Premium Marine Grade",
+      "tier_ld": "Premium Marine Grade"
+    },
+    "EK5": {
+      "family": "Master Kit (Heavy Duty)",
+      "technology_name": "ELIMTEK™ Protection Suite",
+      "key_attribute": "Complete maintenance solution",
+      "technology_description": "Comprehensive multi-filter maintenance kit engineered for complete fleet service protection",
+      "tier_hd": "Premium Industrial Grade",
+      "tier_ld": "N/A"
+    },
+    "EK3": {
+      "family": "Master Kit (Light Duty)",
+      "technology_name": "ELIMTEK™ Protection Suite",
+      "key_attribute": "Complete maintenance solution",
+      "technology_description": "Integrated automotive maintenance kit providing complete vehicle filtration in single service package",
+      "tier_hd": "N/A",
+      "tier_ld": "Premium Automotive Grade"
+    }
+  }
+}
