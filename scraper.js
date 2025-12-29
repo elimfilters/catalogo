@@ -79,6 +79,16 @@ YOUR TASK: Analyze the OEM filter code and determine:
 2. If it's Heavy Duty (HD) or Light Duty (LD) based on SPECIFICATIONS, not vehicle type
 3. The filter type (Oil, Fuel, Air, etc.)
 
+** CRITICAL: MANUFACTURER PREFIX CODES **
+ALWAYS use these prefix codes to determine filter type:
+- LF, P (oil filters), PH, PF, LFP = Oil/Lube Filter
+- FF, FS, PS = Fuel Filter
+- AF, PA, CA = Air Filter
+- HF, BT, PT = Hydraulic Filter
+- WF = Coolant/Water Filter
+
+Example: LF3000 has "LF" prefix → Oil Filter (NOT Fuel)
+
 CRITICAL RULES FOR DUTY CLASSIFICATION:
 
 ** HD (Heavy Duty) Indicators - Base on SPECIFICATIONS ONLY:**
