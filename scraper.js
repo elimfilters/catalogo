@@ -1,7 +1,7 @@
 // ============================================
 // ELIMFILTERS SCRAPER v6.6.0 + v8.8
 // ELIM_v8.8_LOGIC_ENGINEER
-// Motor de normalizaciÃ³n y clasificaciÃ³n tÃ©cnica
+// Motor de normalizaciÃƒÂ³n y clasificaciÃƒÂ³n tÃƒÂ©cnica
 // ============================================
 
 const axios = require('axios');
@@ -12,18 +12,18 @@ const groq = new Groq({
 });
 
 // ============================================
-// FUNCIÃ“N PRINCIPAL: SCRAPE FILTER
+// FUNCIÃƒâ€œN PRINCIPAL: SCRAPE FILTER
 // ============================================
 async function scrapeFilter(oemCode) {
   // Delay de 2 segundos para evitar rate limits
   await new Promise(resolve => setTimeout(resolve, 2000));
-  console.log(`\nðŸ” [SCRAPER v8.8] Starting scrape for: ${oemCode}`);
+  console.log(`\nÃ°Å¸â€Â [SCRAPER v8.8] Starting scrape for: ${oemCode}`);
   
   try {
     // 1. Detectar si es KIT
     const isKit = detectIfKit(oemCode);
     if (isKit) {
-      console.log('   âš ï¸  KIT detected - redirect to /api/kit');
+      console.log('   Ã¢Å¡Â Ã¯Â¸Â  KIT detected - redirect to /api/kit');
       return {
         error: 'KIT_DETECTED',
         message: 'Use /api/kit endpoint for Master Kits',
@@ -31,7 +31,7 @@ async function scrapeFilter(oemCode) {
       };
     }
     
-    // 2. Detectar pista de bÃºsqueda
+    // 2. Detectar pista de bÃƒÂºsqueda
     const searchHint = detectSearchHint(oemCode);
     console.log(`   Search hint: ${searchHint}`);
     
@@ -43,14 +43,14 @@ async function scrapeFilter(oemCode) {
     const html = await fetchHTML(searchUrl);
     console.log(`   HTML fetched: ${html.length} chars`);
     
-    // 5. Extraer con Groq (v8.8 - anÃ¡lisis tÃ©cnico)
+    // 5. Extraer con Groq (v8.8 - anÃƒÂ¡lisis tÃƒÂ©cnico)
     const specs = await extractWithGroq_v8_8(oemCode, html);
-    console.log(`   âœ… Specs extracted with v8.8 technical analysis`);
+    console.log(`   Ã¢Å“â€¦ Specs extracted with v8.8 technical analysis`);
     
     return specs;
     
   } catch (error) {
-    console.error(`   âŒ Scraper error: ${error.message}`);
+    console.error(`   Ã¢ÂÅ’ Scraper error: ${error.message}`);
     return null;
   }
 }
@@ -64,7 +64,7 @@ function detectIfKit(oemCode) {
 }
 
 // ============================================
-// DETECTAR PISTA DE BÃšSQUEDA
+// DETECTAR PISTA DE BÃƒÅ¡SQUEDA
 // ============================================
 function detectSearchHint(oemCode) {
   const code = oemCode.toUpperCase();
@@ -111,24 +111,24 @@ async function fetchHTML(url) {
     return response.data;
     
   } catch (error) {
-    console.error(`   âŒ Fetch error: ${error.message}`);
+    console.error(`   Ã¢ÂÅ’ Fetch error: ${error.message}`);
     return `<div>Fallback HTML for ${oemCode}</div>`;
   }
 }
 
 // ============================================
-// EXTRAER CON GROQ v8.8 - ANÃLISIS TÃ‰CNICO
+// EXTRAER CON GROQ v8.8 - ANÃƒÂLISIS TÃƒâ€°CNICO
 // ============================================
 async function extractWithGroq_v8_8(oemCode, html) {
-  console.log(`   ðŸ¤– Calling Groq with ELIM_v8.8_LOGIC_ENGINEER...`);
+  console.log(`   Ã°Å¸Â¤â€“ Calling Groq with ELIM_v8.8_LOGIC_ENGINEER...`);
   
-  // Truncar HTML (lÃ­mite de tokens)
+  // Truncar HTML (lÃƒÂ­mite de tokens)
   const truncatedHTML = html.length > 5000 
     ? html.substring(0, 5000) + '...[truncated]'
     : html;
   
   try {
-    const systemPrompt = `You are ELIM_v8.8_LOGIC_ENGINEER - the normalization and technical classification engine for ELIMfiltersâ„¢.
+    const systemPrompt = `You are ELIM_v8.8_LOGIC_ENGINEER - the normalization and technical classification engine for ELIMfiltersÃ¢â€žÂ¢.
 
 CRITICAL RULES:
 
@@ -136,10 +136,10 @@ CRITICAL RULES:
    - STRICTLY PROHIBITED: Use ANY original alphanumeric prefix (P55, P18, PH, CA, CF, 90915, LF, AF, etc.)
    - Extract ONLY the pure numeric root to construct normsku
    - Examples:
-     * P552100 â†’ Root: 2100
-     * PH4967 â†’ Root: 4967
-     * 90915-YZZN1 â†’ Root: 4967 (from FRAM cross PH4967)
-     * Sierra 18-7917 â†’ Root: 7917
+     * P552100 Ã¢â€ â€™ Root: 2100
+     * PH4967 Ã¢â€ â€™ Root: 4967
+     * 90915-YZZN1 Ã¢â€ â€™ Root: 4967 (from FRAM cross PH4967)
+     * Sierra 18-7917 Ã¢â€ â€™ Root: 7917
 
 2. SPECIFICATION ANALYSIS (DUTY DETERMINATION):
    - DO NOT use vehicle name to determine Duty
@@ -231,10 +231,10 @@ Return JSON with this EXACT structure:
 }
 
 EXAMPLES OF CORRECT DUTY DETERMINATION:
-- Thread 1-14 UN + 20 microns + High flow â†’ HD
-- Thread 3/4-16 + Bypass integrated + Gasoline â†’ LD
-- Racor cartridge + Water separation â†’ HD (ET9 or ES9)
-- Sierra 18-#### + Mercruiser â†’ MARINE (EM9)
+- Thread 1-14 UN + 20 microns + High flow Ã¢â€ â€™ HD
+- Thread 3/4-16 + Bypass integrated + Gasoline Ã¢â€ â€™ LD
+- Racor cartridge + Water separation Ã¢â€ â€™ HD (ET9 or ES9)
+- Sierra 18-#### + Mercruiser Ã¢â€ â€™ MARINE (EM9)
 
 CRITICAL: Determine duty by TECHNICAL SPECS, not by vehicle name.`;
 
@@ -253,24 +253,24 @@ CRITICAL: Determine duty by TECHNICAL SPECS, not by vehicle name.`;
     const responseText = completion.choices[0].message.content;
     const specs = JSON.parse(responseText);
     
-    console.log(`   âœ… Groq analysis complete`);
-    console.log(`   ðŸ“Š Duty: ${specs.target_duty} (${specs.technical_reasoning})`);
-    console.log(`   ðŸ”¢ Root: ${specs.normsku_root}`);
+    console.log(`   Ã¢Å“â€¦ Groq analysis complete`);
+    console.log(`   Ã°Å¸â€œÅ  Duty: ${specs.target_duty} (${specs.technical_reasoning})`);
+    console.log(`   Ã°Å¸â€Â¢ Root: ${specs.normsku_root}`);
     
-    // POST-VALIDACIÃ“N v8.8
+    // POST-VALIDACIÃƒâ€œN v8.8
     
-    // 1. Verificar que root es numÃ©rico puro
+    // 1. Verificar que root es numÃƒÂ©rico puro
     if (!/^\d+$/.test(specs.normsku_root)) {
-      console.warn(`   âš ï¸  Root contains non-numeric chars: ${specs.normsku_root}`);
+      console.warn(`   Ã¢Å¡Â Ã¯Â¸Â  Root contains non-numeric chars: ${specs.normsku_root}`);
       // Limpiar cualquier prefijo restante
       specs.normsku_root = specs.normsku_root.replace(/[^0-9]/g, '');
-      console.log(`   ðŸ§¹ Cleaned root: ${specs.normsku_root}`);
+      console.log(`   Ã°Å¸Â§Â¹ Cleaned root: ${specs.normsku_root}`);
     }
     
-    // 2. Verificar longitud (Ãºltimos 4 dÃ­gitos)
+    // 2. Verificar longitud (ÃƒÂºltimos 4 dÃƒÂ­gitos)
     if (specs.normsku_root.length > 4) {
       specs.normsku_root = specs.normsku_root.slice(-4);
-      console.log(`   ðŸ“ Truncated to last 4 digits: ${specs.normsku_root}`);
+      console.log(`   Ã°Å¸â€œÂ Truncated to last 4 digits: ${specs.normsku_root}`);
     }
     
     // 3. Limpiar cross references de prefijos
@@ -281,7 +281,7 @@ CRITICAL: Determine duty by TECHNICAL SPECS, not by vehicle name.`;
           // Remover prefijos comunes
           const cleaned = code.replace(/^(P|PH|CA|CF|LF|AF|FF|DBP|DBA)\d*/g, '');
           if (cleaned !== code && cleaned.length > 0) {
-            console.log(`   ðŸ§¹ Cleaned ${key}: ${code} â†’ ${cleaned}`);
+            console.log(`   Ã°Å¸Â§Â¹ Cleaned ${key}: ${code} Ã¢â€ â€™ ${cleaned}`);
             specs.cross_reference[key] = cleaned;
           }
         }
@@ -293,12 +293,12 @@ CRITICAL: Determine duty by TECHNICAL SPECS, not by vehicle name.`;
     delete specs.elim_sku;
     delete specs.elim_prefix;
     
-    console.log(`   âœ… v8.8 normalization complete`);
+    console.log(`   Ã¢Å“â€¦ v8.8 normalization complete`);
     
     return specs;
     
   } catch (error) {
-    console.error(`   âŒ Groq v8.8 error: ${error.message}`);
+    console.error(`   Ã¢ÂÅ’ Groq v8.8 error: ${error.message}`);
     
     return {
       normsku_root: oemCode.replace(/[^0-9]/g, '').slice(-4),
