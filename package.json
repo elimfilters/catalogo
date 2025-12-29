@@ -1,20 +1,20 @@
-﻿{
-  "name": "elimfilters-api",
-  "version": "6.6.0",
-  "description": "ELIMFILTERS API v6.6.0 + v8.8",
-  "main": "server.js",
-  "scripts": {
-    "start": "node server.js"
-  },
-  "dependencies": {
-    "express": "^4.18.2",
-    "cors": "^2.8.5",
-    "mongodb": "^6.3.0",
-    "googleapis": "^128.0.0",
-    "axios": "^1.6.0",
-    "groq-sdk": "^0.7.0"
-  },
-  "engines": {
-    "node": ">=18.0.0"
-  }
+{
+    "name":  "elimfilters-api",
+    "version":  "6.6.1",
+    "description":  "ELIMFILTERS API v6.6.0 + v8.8",
+    "main":  "server.js",
+    "scripts":  {
+                    "start":  "node server.js"
+                },
+    "dependencies":  {
+                         "express":  "^4.18.2",
+                         "cors":  "^2.8.5",
+                         "mongodb":  "^6.3.0",
+                         "googleapis":  "^128.0.0",
+                         "axios":  "^1.6.0",
+                         "groq-sdk":  "^0.7.0"
+                     },
+    "engines":  {
+                    "node":  "\u003e=18.0.0"
+                }
 }
