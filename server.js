@@ -8,7 +8,7 @@ const cors = require('cors');
 const { MongoClient } = require('mongodb');
 const { google } = require('googleapis');
 
-// Importar módulos v8.8
+// Importar mÃ³dulos v8.8
 const { scrapeFilter } = require('./scraper.js');
 const { processFilter } = require('./filter-processor.js');
 
@@ -20,7 +20,7 @@ app.use(cors());
 app.use(express.json());
 
 // ============================================
-// CONFIGURACIÓN
+// CONFIGURACIÃ“N
 // ============================================
 
 // MongoDB (opcional)
@@ -40,32 +40,32 @@ let technologyMatrix = null;
 // ============================================
 
 async function startup() {
-  console.log('\n🚀 ELIMFILTERS API v6.6.0 + v8.8 Starting...\n');
+  console.log('\nðŸš€ ELIMFILTERS API v6.6.0 + v8.8 Starting...\n');
   
   // 1. Cargar Master Kits
   try {
     const fs = require('fs');
     const kitsData = JSON.parse(fs.readFileSync('./ek5_master_kits.json', 'utf8'));
     masterKits = kitsData.kits || [];
-    console.log(`✅ Master Kits loaded: ${masterKits.length} kits`);
+    console.log(`âœ… Master Kits loaded: ${masterKits.length} kits`);
     
     const ek5Count = masterKits.filter(k => k.duty_type === 'HD').length;
     const ek3Count = masterKits.filter(k => k.duty_type === 'LD').length;
     console.log(`   - EK5 (HD): ${ek5Count}`);
     console.log(`   - EK3 (LD): ${ek3Count}`);
   } catch (err) {
-    console.error('❌ Failed to load master kits:', err.message);
+    console.error('âŒ Failed to load master kits:', err.message);
   }
   
   // 2. Cargar Technology Matrix
   try {
     const fs = require('fs');
     technologyMatrix = JSON.parse(fs.readFileSync('./technology_matrix.json', 'utf8'));
-    console.log('✅ Technology Matrix loaded');
+    console.log('âœ… Technology Matrix loaded');
     const techCount = Object.keys(technologyMatrix.technology_matrix || {}).length;
     console.log(`   Technologies: ${techCount}`);
   } catch (err) {
-    console.error('❌ Failed to load technology matrix:', err.message);
+    console.error('âŒ Failed to load technology matrix:', err.message);
   }
   
   // 3. Conectar MongoDB (opcional)
@@ -75,13 +75,13 @@ async function startup() {
       await mongoClient.connect();
       db = mongoClient.db('elimfilters');
       
-      // Crear índices
+      // Crear Ã­ndices
       await db.collection('filters').createIndex({ normsku: 1 });
       await db.collection('filters').createIndex({ query: 1 });
       
-      console.log('✅ MongoDB connected');
+      console.log('âœ… MongoDB connected');
     } catch (err) {
-      console.error('⚠️  MongoDB connection failed (optional):', err.message);
+      console.error('âš ï¸  MongoDB connection failed (optional):', err.message);
     }
   }
   
@@ -93,12 +93,12 @@ async function startup() {
       scopes: ['https://www.googleapis.com/auth/spreadsheets']
     });
     sheetsClient = google.sheets({ version: 'v4', auth });
-    console.log('✅ Google Sheets connected');
+    console.log('âœ… Google Sheets connected');
   } catch (err) {
-    console.error('⚠️  Google Sheets connection failed:', err.message);
+    console.error('âš ï¸  Google Sheets connection failed:', err.message);
   }
   
-  console.log('\n📌 Endpoints:');
+  console.log('\nðŸ“Œ Endpoints:');
   console.log('   POST /api/filter - Individual filter search (with scraping)');
   console.log('   POST /api/kit    - Master kit assembly (JSON lookup)');
   console.log('   GET  /health     - System status\n');
@@ -112,7 +112,7 @@ app.post('/api/filter', async (req, res) => {
   const startTime = Date.now();
   const { query } = req.body;
   
-  console.log(`\n🔍 [/api/filter] Request: ${query}`);
+  console.log(`\nðŸ” [/api/filter] Request: ${query}`);
   
   if (!query) {
     return res.status(400).json({
@@ -123,7 +123,7 @@ app.post('/api/filter', async (req, res) => {
   
   try {
     // 1. Scrape especificaciones (v8.8)
-    console.log('📄 Step 1: Scraping with v8.8...');
+    console.log('ðŸ“„ Step 1: Scraping with v8.8...');
     const scrapedSpecs = await scrapeFilter(query);
     
     if (!scrapedSpecs) {
@@ -143,8 +143,8 @@ app.post('/api/filter', async (req, res) => {
       });
     }
     
-    // 2. Procesar filtro (clasificación + SKU + 51 campos)
-    console.log('⚙️  Step 2: Processing with v8.8...');
+    // 2. Procesar filtro (clasificaciÃ³n + SKU + 51 campos)
+    console.log('âš™ï¸  Step 2: Processing with v8.8...');
     const processedData = await processFilter(query, scrapedSpecs);
     
     // 3. Guardar en MongoDB (si disponible)
@@ -155,9 +155,9 @@ app.post('/api/filter', async (req, res) => {
           { $set: { ...processedData, updated_at: new Date() } },
           { upsert: true }
         );
-        console.log('💾 Saved to MongoDB');
+        console.log('ðŸ’¾ Saved to MongoDB');
       } catch (err) {
-        console.error('⚠️  MongoDB save failed:', err.message);
+        console.error('âš ï¸  MongoDB save failed:', err.message);
       }
     }
     
@@ -165,14 +165,14 @@ app.post('/api/filter', async (req, res) => {
     if (sheetsClient && SHEET_ID) {
       try {
         await saveToSheets(processedData);
-        console.log('📊 Saved to Google Sheets');
+        console.log('ðŸ“Š Saved to Google Sheets');
       } catch (err) {
-        console.error('⚠️  Sheets save failed:', err.message);
+        console.error('âš ï¸  Sheets save failed:', err.message);
       }
     }
     
     const duration = Date.now() - startTime;
-    console.log(`✅ Request completed in ${duration}ms`);
+    console.log(`âœ… Request completed in ${duration}ms`);
     
     return res.json({
       success: true,
@@ -185,7 +185,7 @@ app.post('/api/filter', async (req, res) => {
     });
     
   } catch (error) {
-    console.error('❌ Error:', error.message);
+    console.error('âŒ Error:', error.message);
     
     return res.status(500).json({
       success: false,
@@ -202,7 +202,7 @@ app.post('/api/filter', async (req, res) => {
 app.post('/api/kit', async (req, res) => {
   const { query, vehicle, engine } = req.body;
   
-  console.log(`\n🔍 [/api/kit] Request: ${query || vehicle || engine}`);
+  console.log(`\nðŸ” [/api/kit] Request: ${query || vehicle || engine}`);
   
   if (!query && !vehicle && !engine) {
     return res.status(400).json({
@@ -251,7 +251,7 @@ app.post('/api/kit', async (req, res) => {
       });
     }
     
-    console.log(`✅ Kit found: ${matchedKit.normsku}`);
+    console.log(`âœ… Kit found: ${matchedKit.normsku}`);
     
     return res.json({
       success: true,
@@ -263,7 +263,7 @@ app.post('/api/kit', async (req, res) => {
     });
     
   } catch (error) {
-    console.error('❌ Error:', error.message);
+    console.error('âŒ Error:', error.message);
     
     return res.status(500).json({
       success: false,
@@ -299,7 +299,7 @@ app.get('/health', (req, res) => {
 });
 
 // ============================================
-// FUNCIÓN: GUARDAR EN GOOGLE SHEETS
+// FUNCIÃ“N: GUARDAR EN GOOGLE SHEETS
 // ============================================
 
 async function saveToSheets(data) {
@@ -311,7 +311,7 @@ async function saveToSheets(data) {
   
   await sheetsClient.spreadsheets.values.append({
     spreadsheetId: SHEET_ID,
-    range: 'Hoja 1!A:AY',
+    range: 'MASTER_UNIFIED_V5!A:AY',
     valueInputOption: 'RAW',
     requestBody: { values }
   });
@@ -323,10 +323,10 @@ async function saveToSheets(data) {
 
 startup().then(() => {
   app.listen(PORT, () => {
-    console.log(`✅ Server running on port ${PORT}`);
-    console.log(`🌐 Ready to receive requests\n`);
+    console.log(`âœ… Server running on port ${PORT}`);
+    console.log(`ðŸŒ Ready to receive requests\n`);
   });
 }).catch(err => {
-  console.error('❌ Startup failed:', err);
+  console.error('âŒ Startup failed:', err);
   process.exit(1);
 });
