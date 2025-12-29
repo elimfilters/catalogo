@@ -1,5 +1,5 @@
 // ============================================
-// ELIMFILTERS API v6.0.4 GEMINI EDITION
+// ELIMFILTERS API v6.0.6 GEMINI EDITION
 // Direct HTTP to Gemini v1beta (gemini-1.5-flash-latest)
 // ============================================
 
@@ -111,7 +111,7 @@ async function connectGeminiAI() {
         }
         
         geminiConfigured = true;
-        console.log('✅ Gemini AI configurado (v1beta/gemini-1.5-flash-latest - HTTP directo)');
+        console.log('✅ Gemini AI configurado (API v1 Production - gemini-1.5-flash)');
         return true;
     } catch (error) {
         console.error('❌ Error configurando Gemini AI:', error.message);
@@ -282,7 +282,7 @@ async function generarFichaConGemini(codigo) {
         // Agregar metadatos
         fichaCompleta.fecha_actualizacion = new Date().toISOString();
         fichaCompleta.procesado_por = 'Gemini 1.5 Flash Latest (v1beta)';
-        fichaCompleta.fuente_datos = 'ELIMFILTERS Engineering Core v6.0.4';
+        fichaCompleta.fuente_datos = 'ELIMFILTERS Engineering Core v6.0.6';
         
         console.log(`✅ Gemini generó ficha completa: ${fichaCompleta.sku}`);
         
@@ -566,7 +566,7 @@ app.get('/api/search', async (req, res) => {
 app.get('/', (req, res) => {
     res.json({
         status: 'running',
-        version: '6.0.4',
+        version: '6.0.6',
         service: 'ELIMFILTERS API - Gemini Edition',
         flujo: 'MongoDB Cache → Gemini AI → MongoDB + Sheets → Usuario',
         endpoints: {
@@ -587,7 +587,7 @@ app.get('/', (req, res) => {
 // ============================================
 
 async function startServer() {
-    console.log('🚀 Iniciando servidor Railway ELIMFILTERS v6.0.4...');
+    console.log('🚀 Iniciando servidor Railway ELIMFILTERS v6.0.6...');
     console.log('🤖 Gemini v1beta - HTTP Directo (No SDK)');
 
     // Conectar MongoDB
@@ -602,7 +602,7 @@ async function startServer() {
     // Iniciar servidor Express
     app.listen(PORT, '0.0.0.0', () => {
         console.log(`✅ Servidor escuchando en puerto ${PORT}`);
-        console.log(`🤖 Gemini AI: ${geminiConfigured ? 'Activo (v1beta/flash-latest)' : 'Deshabilitado'}`);
+        console.log(`🤖 Gemini AI: ${geminiConfigured ? 'Activo (v1 Production)' : 'Deshabilitado'}`);
         console.log(`📊 Flujo: Cache → Gemini → MongoDB + Sheets → Usuario`);
         console.log('Sistema listo ✨');
     });
