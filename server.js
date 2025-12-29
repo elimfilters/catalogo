@@ -1,6 +1,4 @@
-// ============================================
-<<<<<<< HEAD
-// ELIMFILTERS API SERVER v6.6.0 + v8.8
+//ELIMFILTERS API SERVER v6.6.0 + v8.8
 // Dual Endpoint Architecture
 =======
 // ELIMFILTERS API v6.1.0 GROQ EDITION
