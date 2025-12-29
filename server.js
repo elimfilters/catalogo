@@ -27,7 +27,7 @@ const SHEET_NAME = 'Master50';
 
 // Gemini AI Configuration (Direct API v1beta with HTTP control)
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
-const GEMINI_API_URL = 'https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent';
+const GEMINI_API_URL = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent';
 let geminiConfigured = false;
 
 // ============================================
