@@ -1,0 +1,9 @@
+﻿.entry-title, .page-title { display: none !important; }
+.efs-wrapper { min-height: 100vh; width: 100%; background: url("https://elimfilters.com/wp-content/uploads/2025/12/Imagen2.png") center/cover no-repeat fixed; display: flex; justify-content: center; align-items: flex-start; padding-top: 15vh; }
+.efs-tabs { display: flex; background: rgba(0,0,0,0.9); border-radius: 8px 8px 0 0; width: 100%; }
+.efs-tab { flex: 1; padding: 20px; background: transparent; border: none; color: #fff; font-weight: bold; cursor: pointer; border-bottom: 4px solid transparent; }
+.efs-tab.active { color: #ffd700; border-bottom: 4px solid #ffd700 !important; }
+.efs-content { background: #fff; padding: 10px; border-radius: 0 0 8px 8px; }
+.efs-row { display: flex; gap: 5px; }
+.efs-input { flex: 1; border: none; padding: 15px; outline: none; }
+.efs-btn { background: #ffd700; border: none; padding: 15px 30px; font-weight: bold; cursor: pointer; }
