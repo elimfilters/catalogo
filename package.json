@@ -1,7 +1,7 @@
 {
   "name": "elimfilters-api",
-  "version": "5.7.1",
-  "description": "ELIMFILTERS API - Verificar SKU → GEMA → MongoDB + Sheets → Usuario",
+  "version": "6.0.6",
+  "description": "ELIMFILTERS API - Gemini API v1 Production",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
@@ -17,7 +17,7 @@
   "engines": {
     "node": ">=18.0.0"
   },
-  "keywords": ["filters", "api", "elimfilters", "catalog", "gema"],
+  "keywords": ["filters", "api", "elimfilters", "catalog", "gemini"],
   "author": "ELIMFILTERS",
   "license": "PROPRIETARY"
 }
