@@ -14,7 +14,7 @@ const PORT = process.env.PORT || 8080;
 const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
 
 // Configuración de MongoDB
-const MONGODB_URI = process.env.MONGODB_URI;
+const MONGODB_URL = process.env.MONGODB_URI;
 const client = new MongoClient(MONGODB_URI);
 let db, filtersCollection;
 
