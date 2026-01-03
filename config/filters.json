@@ -1,0 +1,36 @@
+{
+  "brand_logic": {
+    "heavy_duty_pivot": "Donaldson",
+    "light_duty_pivot": "Fram",
+    "special_rules": {
+      "ET9": "Solo aplicaciones Heavy Duty (Motores grandes/Generación)",
+      "EM9": "Exclusivo para Motores y Equipos Marinos (HD y LD)",
+      "EL8_EA1_EF9": "Aplicables a HD (Pivote Donaldson) y LD (Pivote Fram)"
+    }
+  },
+  "prefixes": {
+    "Lube": "EL8",
+    "Air": "EA1",
+    "Fuel": "EF9",
+    "Cabin": "EC1",
+    "Separator": "ES9",
+    "Turbine": "ET9",
+    "Coolant": "EW7",
+    "Hydraulic": "EH6",
+    "Transmission": "EW7",
+    "Marine": "EM9",
+    "Brake": "ED4"
+  },
+  "technologies": {
+    "EL8": "SYNTRAX™",
+    "EA1": "NANOFORCE™",
+    "EF9": "SYNTEPORE™",
+    "EC1": "CABIN-SHIELD™",
+    "ES9": "AQUASEP™",
+    "ET9": "AQUAGUARD®",
+    "EW7": "THERM™",
+    "EH6": "CINTEK™",
+    "EM9": "MARINER PRO™",
+    "ED4": "BRAKEGUARD™"
+  }
+}
