@@ -5,7 +5,7 @@ const detectionService = require('./src/services/detectionService');
 
 const app = express();
 
-// CORRECCIÓN DE SEGURIDAD: Permite peticiones desde tu dominio de GoDaddy
+// CORRECCIÓN CORS: Permite que tu web en GoDaddy acceda sin bloqueos
 app.use(cors({
     origin: ['https://elimfilters.com', 'https://www.elimfilters.com'],
     methods: ['GET', 'POST'],
@@ -14,27 +14,25 @@ app.use(cors({
 
 app.use(express.json());
 
-// RUTA DE BÚSQUEDA: Coincide con efData.apiUrl de WordPress
+// Endpoint de Búsqueda sincronizado con WordPress
 app.post('/api/search', async (req, res) => {
     const { searchTerm, type } = req.body;
-    console.log(`🔍 Búsqueda recibida: [${type}] ${searchTerm}`);
+    console.log(`🔍 Petición Recibida: [${type}] ${searchTerm}`);
 
-    if (!searchTerm) {
-        return res.status(400).json({ success: false, message: 'Término de búsqueda requerido' });
-    }
+    if (!searchTerm) return res.status(400).json({ success: false, error: 'Término requerido' });
 
     try {
         const result = await detectionService.processSearch(searchTerm, type);
         if (result) {
             res.json({ success: true, data: result });
         } else {
-            res.status(404).json({ success: false, message: 'Producto no encontrado' });
+            res.status(404).json({ success: false, error: 'Producto no encontrado' });
         }
     } catch (error) {
-        console.error('❌ Error en el flujo:', error);
-        res.status(500).json({ success: false, message: 'Error interno del servidor' });
+        console.error('❌ Error en el servidor:', error);
+        res.status(500).json({ success: false, error: 'Internal Server Error' });
     }
 });
 
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => console.log(`🚀 ElimFilters Server v8.5 activo en puerto ${PORT}`));
+app.listen(PORT, () => console.log(`🚀 ElimFilters Server v8.5 en puerto ${PORT}`));
