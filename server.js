@@ -57,9 +57,9 @@ app.get('/api/search', async (req, res) => {
                         Responde en JSON con array 'results'.`;
 
         const completion = await groq.chat.completions.create({
-            messages: [{ role: "system", content: prompt }],
-            model: "llama-3.1-70b-versatile",
-            response_format: { type: "json_object" }
+    messages: [{ role: "system", content: prompt }],
+    model: "llama-3.1-8b-instant",
+    response_format: { type: "json_object" }
         });
 
         const data = JSON.parse(completion.choices[0].message.content);
