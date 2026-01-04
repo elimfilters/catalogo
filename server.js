@@ -1,38 +1,42 @@
-const express = require('express');
-const cors = require('cors');
-require('dotenv').config();
-const detectionService = require('./src/services/detectionService');
+const { GoogleSpreadsheet } = require('google-spreadsheet');
+const { JWT } = require('google-auth-library');
 
-const app = express();
-
-// CORRECCIÓN CRÍTICA: Permite que elimfilters.com acceda a los datos
-app.use(cors({
-    origin: ['https://elimfilters.com', 'https://www.elimfilters.com'],
-    methods: ['GET', 'POST'],
-    allowedHeaders: ['Content-Type']
-}));
-
-app.use(express.json());
-
-// Endpoint de búsqueda sincronizado con el plugin
-app.post('/api/search', async (req, res) => {
-    const { searchTerm, type } = req.body;
-    console.log(`🔍 Búsqueda recibida: [${type}] ${searchTerm}`);
-
-    if (!searchTerm) return res.status(400).json({ success: false, error: 'Término requerido' });
-
-    try {
-        const result = await detectionService.processSearch(searchTerm, type);
-        if (result) {
-            res.json({ success: true, data: result });
-        } else {
-            res.status(404).json({ success: false, error: 'Producto no encontrado' });
-        }
-    } catch (error) {
-        console.error('❌ Error en el servidor Railway:', error);
-        res.status(500).json({ success: false, error: 'Internal Server Error' });
-    }
+const auth = new JWT({
+    email: process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL,
+    key: process.env.GOOGLE_PRIVATE_KEY.replace(/\\n/g, '\n'),
+    scopes: ['https://www.googleapis.com/auth/spreadsheets'],
 });
 
-const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => console.log(`🚀 ElimFilters Server v8.5 activo en puerto ${PORT}`));
+const doc = new GoogleSpreadsheet(process.env.GOOGLE_SHEETS_ID, auth);
+
+async function processSearch(searchTerm) {
+    await doc.loadInfo();
+    const sheet = doc.sheetsByIndex[0];
+    const rows = await sheet.getRows();
+
+    const row = rows.find(r => 
+        r.get('SKU')?.toString().toLowerCase() === searchTerm.toLowerCase() ||
+        r.get('CROSS_REFERENCE')?.toString().toLowerCase().includes(searchTerm.toLowerCase())
+    );
+
+    if (!row) return null;
+
+    // ESTO ES LO QUE BUSCABAS: Mapeo de Tecnologías (H-AQ) y Aplicaciones (AT-AV)
+    return {
+        sku: row.get('SKU'),
+        description: row.get('DESCRIPTION'),
+        imageUrl: row.get('IMAGE_URL'),
+        specifications: [
+            { label: 'Height', value: row.get('H') }, // Columna H
+            { label: 'Outer Diameter', value: row.get('I') }, // Columna I
+            { label: 'Micron Rating', value: row.get('AQ') } // Columna AQ
+        ].filter(s => s.value),
+        equipment: rows.filter(r => r.get('SKU') === row.get('SKU')).map(r => ({
+            make: r.get('AT'),   // EQUIPO
+            model: r.get('AU'),  // MODELO
+            engine: r.get('AV')  // MOTOR
+        }))
+    };
+}
+
+module.exports = { processSearch };
