@@ -1,0 +1,459 @@
+import Groq from 'groq-sdk';
+import fs from 'fs/promises';
+import path from 'path';
+import { fileURLToPath } from 'url';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+const groq = new Groq({
+  apiKey: process.env.GROQ_API_KEY
+});
+
+// Cargar archivos de configuración
+let engineeringRules = null;
+let techMaster = null;
+let homologationMap = null;
+
+async function loadConfig() {
+  try {
+    if (!engineeringRules) {
+      const rulesPath = path.join(__dirname, 'ENGINEERING_RULES_MASTER.json');
+      const rulesData = await fs.readFile(rulesPath, 'utf-8');
+      engineeringRules = JSON.parse(rulesData);
+    }
+    
+    if (!techMaster) {
+      const techPath = path.join(__dirname, 'tech_master.json');
+      const techData = await fs.readFile(techPath, 'utf-8');
+      techMaster = JSON.parse(techData);
+    }
+
+    if (!homologationMap) {
+      const homologPath = path.join(__dirname, 'TECH_HOMOLOGATION_MAP.json');
+      const homologData = await fs.readFile(homologPath, 'utf-8');
+      homologationMap = JSON.parse(homologData);
+    }
+    
+    return { engineeringRules, techMaster, homologationMap };
+  } catch (error) {
+    console.error('Error loading config files:', error);
+    throw error;
+  }
+}
+
+/**
+ * Detecta tecnología Donaldson y retorna equivalente ELIMFILTERS homologado
+ */
+function getHomologatedTechnology(donaldsonTech, filterType) {
+  const map = homologationMap.TECHNOLOGY_HOMOLOGATION_MAP;
+  
+  // Buscar en diferentes categorías
+  const categories = {
+    'LUBE': map.LUBE_OIL_TECHNOLOGIES,
+    'AIR': map.AIR_TECHNOLOGIES,
+    'FUEL': map.FUEL_TECHNOLOGIES,
+    'FUEL_WATER_SEP': map.FUEL_WATER_SEPARATOR,
+    'TURBINE': map.TURBINE_ELEMENTS,
+    'COOLANT': map.COOLANT_TECHNOLOGIES,
+    'HYDRAULIC': map.HYDRAULIC_TECHNOLOGIES,
+    'TRANSMISSION': map.TRANSMISSION_TECHNOLOGIES,
+    'MARINE': map.MARINE_TECHNOLOGIES,
+    'BRAKE': map.BRAKE_TECHNOLOGIES
+  };
+
+  const category = categories[filterType];
+  if (!category) return null;
+
+  // Buscar coincidencia con keywords
+  const keywords = map.DETECTION_KEYWORDS.donaldson_indicators;
+  
+  for (const [key, tech] of Object.entries(category)) {
+    // Verificar si algún keyword está en el texto
+    const found = keywords.some(keyword => 
+      donaldsonTech.toUpperCase().includes(keyword.toUpperCase())
+    );
+    
+    if (found) {
+      return {
+        elimfilters_tech: tech.elimfilters_equivalent,
+        elimfilters_description: tech.elimfilters_description,
+        homologation_status: tech.homologation_status,
+        performance_match: tech.performance_match,
+        donaldson_original: tech.donaldson_tech
+      };
+    }
+  }
+
+  return null;
+}
+
+/**
+ * Extrae los últimos 4 dígitos de un código
+ */
+function extractLast4Digits(codigo) {
+  const soloNumeros = codigo.replace(/[^0-9]/g, '');
+  const ultimos4 = soloNumeros.slice(-4).padStart(4, '0');
+  return ultimos4;
+}
+
+/**
+ * Genera SKU según las reglas de ELIMFILTERS
+ */
+function generateSKU(prefijo, codigo, micronLetter = null) {
+  const ultimos4 = extractLast4Digits(codigo);
+  
+  if (prefijo === 'ET9' && micronLetter) {
+    return `${prefijo}${ultimos4}${micronLetter}`;
+  }
+  
+  return `${prefijo}${ultimos4}`;
+}
+
+/**
+ * Detecta letra de micronaje para ET9
+ */
+function detectMicronLetter(codigo) {
+  const upperCode = codigo.toUpperCase();
+  
+  if (upperCode.includes('PM')) return 'P';
+  if (upperCode.includes('TM')) return 'T';
+  if (upperCode.includes('SM')) return 'S';
+  
+  return null;
+}
+
+/**
+ * Genera descripción profesional con homologación
+ */
+function generateDescription(sku, tier, prefijo, mediaType, application = '', motor = '', homologatedInfo = null) {
+  const config = techMaster.ELIM_TECH_MASTER;
+  const tierData = engineeringRules.performance_tiers[tier];
+  const productType = engineeringRules.description_format.product_types[prefijo];
+  
+  const techBrandMap = {
+    'EL8': 'SYNTRAX™',
+    'EA1': 'NANOFORCE™',
+    'EF9': 'SYNTEPORE™',
+    'ES9': 'AQUASEP™',
+    'ET9': 'AQUAGUARD®',
+    'EC1': 'BIOGUARD™',
+    'EH6': 'CINTEK™',
+    'EW7': 'THERM™',
+    'EM9': 'MARINER PRO™',
+    'ED4': 'BRAKEGUARD™'
+  };
+  
+  const techBrand = techBrandMap[prefijo] || '';
+  const performanceClaim = tierData?.description_templates?.performance_claim || '';
+  const tierDescription = tierData?.description_templates?.tier_description || '';
+  
+  let description = `ELIMFILTERS® ${sku} ${productType} features ${techBrand} ${mediaType} technology.`;
+  
+  // Agregar información de homologación si existe
+  if (homologatedInfo) {
+    description += ` ${techBrand} is the homologated equivalent to ${homologatedInfo.donaldson_original}, providing ${homologatedInfo.performance_match.toLowerCase()} filtration performance.`;
+  }
+  
+  description += ` ${performanceClaim}. ${tierDescription}.`;
+  description += ` Meets OEM service interval specifications.`;
+  
+  if (motor) {
+    description += ` Designed for ${motor}.`;
+  }
+  
+  if (application) {
+    description += ` ${application}`;
+  }
+  
+  return description.replace(/\s+/g, ' ').trim();
+}
+
+/**
+ * Genera descripción especial para ET9 (turbinas) con homologación
+ */
+function generateET9Description(sku, micronLetter, baseCode, homologatedInfo = null) {
+  const micronData = {
+    'P': { micron: '30', color: 'red', rating: '30 micron (red)' },
+    'T': { micron: '10', color: 'blue', rating: '10 micron (blue)' },
+    'S': { micron: '2', color: 'brown', rating: '2 micron (brown)' }
+  };
+  
+  const data = micronData[micronLetter] || micronData['T'];
+  
+  let series = 'Racor turbine housings';
+  if (baseCode === '2010') series = 'Racor 500FG series housings';
+  if (baseCode === '2040') series = 'Racor 900 series housings';
+  if (baseCode === '2020') series = 'Racor 1000 series housings';
+  
+  let description = `ELIMFILTERS® ${sku} turbine element features AQUAGUARD® hydrophobic media technology for ${series}.`;
+  
+  // Agregar homologación
+  if (homologatedInfo) {
+    description += ` AQUAGUARD® is the homologated equivalent to ${homologatedInfo.donaldson_original}, providing equivalent filtration performance.`;
+  }
+  
+  description += ` ${data.rating} rating provides optimal filtration for high-pressure common rail diesel systems. Elite protection with chemical treatment for active water repulsion. Available in 2μ, 10μ, and 30μ ratings. Meets OEM service interval specifications.`;
+  
+  return description;
+}
+
+/**
+ * Analiza un código de filtro usando Groq AI con homologación
+ */
+async function analyzeFilterCode(codigo) {
+  try {
+    const { engineeringRules, techMaster, homologationMap } = await loadConfig();
+    
+    const systemContext = `You are an expert in automotive and heavy-duty filtration systems with deep knowledge of Donaldson technologies and ELIMFILTERS homologated equivalents.
+
+CRITICAL INSTRUCTIONS:
+1. Analyze the input filter code to determine filter type, duty (HD/LD), and tier system
+2. IDENTIFY any Donaldson technology mentioned (SYNTEQ, Ultra-Web, DBL, Racor, etc.)
+3. When Donaldson technology is detected, map it to ELIMFILTERS homologated equivalent
+4. For SINGLE tier_system: Generate 1 SKU (always PERFORMANCE tier)
+5. For TRILOGY tier_system: Identify 3 Donaldson pivots (STANDARD, PERFORMANCE, ELITE)
+6. RESPOND ONLY IN VALID JSON FORMAT - NO MARKDOWN, NO EXPLANATIONS
+
+HOMOLOGATION MAP:
+${JSON.stringify(homologationMap, null, 2)}
+
+ENGINEERING RULES:
+${JSON.stringify(engineeringRules, null, 2)}
+
+TECHNICAL MASTER:
+${JSON.stringify(techMaster, null, 2)}
+
+SKU GENERATION RULES:
+- Format: PREFIX (3 chars) + LAST_4_DIGITS
+- Extract only numbers from pivot code, take last 4 digits
+- Exception ET9: ET9 + 4_DIGITS + MICRON_LETTER (P/T/S)
+- PREFIX NEVER CHANGES within TRILOGY (same filter type)
+
+HOMOLOGATION DETECTION:
+- If code contains P-Series, SYNTEQ, DBL → Map to SYNTRAX™ (EL8)
+- If code contains Ultra-Web, PowerCore → Map to NANOFORCE™ (EA1)
+- If code contains StrataPore, fuel filters → Map to SYNTEPORE™ (EF9)
+- If code contains Racor, turbine, PM/TM/SM → Map to AQUAGUARD® (ET9)
+
+Examples:
+- P550425 (Donaldson SYNTEQ) → EL80425 (ELIMFILTERS SYNTRAX™, HOMOLOGATED)
+- DBL7900 (Donaldson Blue) → EL87900 (ELIMFILTERS SYNTRAX™ Elite, HOMOLOGATED)
+- 2010PM (Racor 30μ) → ET92010P (ELIMFILTERS AQUAGUARD® 30μ, HOMOLOGATED)`;
+
+    const userPrompt = `Analyze this filter code: ${codigo}
+
+Determine:
+1. Filter type (LUBE, AIR, FUEL, etc.)
+2. Prefix (EL8, EA1, EF9, etc.)
+3. Duty (HD or LD)
+4. Tier system (SINGLE or TRILOGY)
+5. DETECT any Donaldson technology
+6. Map to ELIMFILTERS homologated equivalent
+7. Generate SKU(s) following the rules
+8. Provide media types and technical specs
+
+RESPOND ONLY WITH A JSON OBJECT. NO MARKDOWN. NO EXPLANATIONS.
+
+For SINGLE tier_system, use this format:
+{
+  "codigo_entrada": "string",
+  "tipo_filtro": "string",
+  "prefijo": "string",
+  "duty": "HD or LD",
+  "tier_system": "SINGLE",
+  "sku": "string",
+  "tier": "PERFORMANCE",
+  "tech_brand": "string",
+  "media_type": "string",
+  "motor_aplicacion": "string or null",
+  "pivote": "string",
+  "donaldson_tech_detected": "string or null",
+  "homologation_status": "HOMOLOGATED or null"
+}
+
+For TRILOGY tier_system, use this format:
+{
+  "codigo_entrada": "string",
+  "tipo_filtro": "string",
+  "prefijo": "string",
+  "duty": "HD or LD",
+  "tier_system": "TRILOGY",
+  "skus": {
+    "STANDARD": {
+      "sku": "string",
+      "tier": "STANDARD",
+      "pivote": "string",
+      "media_type": "string"
+    },
+    "PERFORMANCE": {
+      "sku": "string",
+      "tier": "PERFORMANCE",
+      "pivote": "string",
+      "media_type": "string"
+    },
+    "ELITE": {
+      "sku": "string",
+      "tier": "ELITE",
+      "pivote": "string",
+      "media_type": "string"
+    }
+  },
+  "motor_aplicacion": "string or null",
+  "donaldson_tech_detected": "string or null",
+  "homologation_status": "HOMOLOGATED or null"
+}`;
+
+    const completion = await groq.chat.completions.create({
+      messages: [
+        {
+          role: 'system',
+          content: systemContext
+        },
+        {
+          role: 'user',
+          content: userPrompt
+        }
+      ],
+      model: 'llama-3.1-8b-instant',
+      temperature: 0.1,
+      max_tokens: 2000,
+      response_format: { type: 'json_object' }
+    });
+
+    const responseText = completion.choices[0]?.message?.content || '{}';
+    const aiAnalysis = JSON.parse(responseText);
+    
+    return aiAnalysis;
+    
+  } catch (error) {
+    console.error('Error in analyzeFilterCode:', error);
+    throw error;
+  }
+}
+
+/**
+ * Procesa un código de filtro y genera resultado completo con homologación
+ */
+async function processFilterCode(codigo) {
+  try {
+    const aiAnalysis = await analyzeFilterCode(codigo);
+    
+    // Obtener información de homologación si Donaldson tech fue detectada
+    let homologatedInfo = null;
+    if (aiAnalysis.donaldson_tech_detected) {
+      homologatedInfo = getHomologatedTechnology(
+        aiAnalysis.donaldson_tech_detected,
+        aiAnalysis.tipo_filtro
+      );
+    }
+    
+    if (aiAnalysis.tier_system === 'SINGLE') {
+      const micronLetter = detectMicronLetter(codigo);
+      const isET9 = aiAnalysis.prefijo === 'ET9';
+      
+      const expectedSKU = generateSKU(
+        aiAnalysis.prefijo, 
+        aiAnalysis.pivote || codigo,
+        isET9 ? micronLetter : null
+      );
+      
+      let descripcion;
+      if (isET9 && micronLetter) {
+        const baseCode = extractLast4Digits(codigo);
+        descripcion = generateET9Description(expectedSKU, micronLetter, baseCode, homologatedInfo);
+      } else {
+        descripcion = generateDescription(
+          expectedSKU,
+          aiAnalysis.tier || 'PERFORMANCE',
+          aiAnalysis.prefijo,
+          aiAnalysis.media_type || 'advanced filtration media',
+          '',
+          aiAnalysis.motor_aplicacion || '',
+          homologatedInfo
+        );
+      }
+      
+      return {
+        codigo_entrada: codigo,
+        tipo_filtro: aiAnalysis.tipo_filtro,
+        prefijo: aiAnalysis.prefijo,
+        duty: aiAnalysis.duty,
+        tier_system: 'SINGLE',
+        sku: expectedSKU,
+        tier: aiAnalysis.tier || 'PERFORMANCE',
+        tech_brand: aiAnalysis.tech_brand,
+        media_type: aiAnalysis.media_type,
+        descripcion: descripcion,
+        motor_aplicacion: aiAnalysis.motor_aplicacion || null,
+        referencia_original: codigo,
+        pivote: aiAnalysis.pivote || codigo,
+        homologation: homologatedInfo ? {
+          status: 'HOMOLOGATED',
+          donaldson_original: homologatedInfo.donaldson_original,
+          elimfilters_equivalent: homologatedInfo.elimfilters_tech,
+          performance_match: homologatedInfo.performance_match
+        } : null,
+        fecha_registro: new Date().toISOString()
+      };
+      
+    } else if (aiAnalysis.tier_system === 'TRILOGY') {
+      const skusProcessed = {};
+      
+      for (const [tierName, tierData] of Object.entries(aiAnalysis.skus)) {
+        const sku = generateSKU(aiAnalysis.prefijo, tierData.pivote);
+        const descripcion = generateDescription(
+          sku,
+          tierName,
+          aiAnalysis.prefijo,
+          tierData.media_type,
+          '',
+          aiAnalysis.motor_aplicacion || '',
+          homologatedInfo
+        );
+        
+        skusProcessed[tierName] = {
+          sku: sku,
+          tier: tierName,
+          pivote: tierData.pivote,
+          media_type: tierData.media_type,
+          descripcion: descripcion
+        };
+      }
+      
+      return {
+        codigo_entrada: codigo,
+        tipo_filtro: aiAnalysis.tipo_filtro,
+        prefijo: aiAnalysis.prefijo,
+        duty: aiAnalysis.duty,
+        tier_system: 'TRILOGY',
+        skus: skusProcessed,
+        motor_aplicacion: aiAnalysis.motor_aplicacion || null,
+        referencia_original: codigo,
+        homologation: homologatedInfo ? {
+          status: 'HOMOLOGATED',
+          donaldson_original: homologatedInfo.donaldson_original,
+          elimfilters_equivalent: homologatedInfo.elimfilters_tech,
+          performance_match: homologatedInfo.performance_match
+        } : null,
+        fecha_registro: new Date().toISOString()
+      };
+    }
+    
+    throw new Error('Invalid tier_system detected');
+    
+  } catch (error) {
+    console.error('Error processing filter code:', error);
+    throw error;
+  }
+}
+
+export {
+  analyzeFilterCode,
+  processFilterCode,
+  generateSKU,
+  generateDescription,
+  extractLast4Digits,
+  detectMicronLetter,
+  getHomologatedTechnology
+};
