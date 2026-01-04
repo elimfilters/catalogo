@@ -1,0 +1,36 @@
+{
+  "performance_tiers": {
+    "STANDARD": {
+      "description_templates": {
+        "performance_claim": "Reliable filtration for standard service intervals",
+        "tier_description": "Engineered for everyday operational demands with high-quality media"
+      }
+    },
+    "PERFORMANCE": {
+      "description_templates": {
+        "performance_claim": "Enhanced filtration efficiency and high dirt-holding capacity",
+        "tier_description": "Optimized for demanding environments and extended engine protection"
+      }
+    },
+    "ELITE": {
+      "description_templates": {
+        "performance_claim": "Maximum synthetic protection for extreme service conditions",
+        "tier_description": "Premium elite grade with specialized synthetic media for maximum longevity"
+      }
+    }
+  },
+  "description_format": {
+    "product_types": {
+      "EL8": "Full-Flow Lube Filter",
+      "EA1": "High-Efficiency Air Filter",
+      "EF9": "Secondary Fuel Filter",
+      "ES9": "Fuel/Water Separator Element",
+      "ET9": "Turbine Series Element",
+      "EC1": "Cabin Air Filter",
+      "EH6": "High-Pressure Hydraulic Filter",
+      "EW7": "Coolant/Transmission Filter",
+      "EM9": "Mariner Series Filter",
+      "ED4": "Pneumatic Brake Dryer"
+    }
+  }
+}
