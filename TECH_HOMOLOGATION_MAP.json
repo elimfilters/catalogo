@@ -1,94 +1,43 @@
 {
   "TECHNOLOGY_HOMOLOGATION_MAP": {
-    "DETECTION_KEYWORDS": {
-      "donaldson_indicators": ["SYNTEQ", "ULTRA-WEB", "DBL", "NANONET", "POWERCORE", "STRATAPORE", "BLUE", "AQUABLOC", "RACOR"]
-    },
-    "LUBE_OIL_TECHNOLOGIES": {
-      "SYNTEQ_LUBE": {
-        "donaldson_tech": "Synteq™ Media",
-        "elimfilters_equivalent": "SYNTRAX™",
-        "elimfilters_description": "Full synthetic high-efficiency media for lubrication",
-        "homologation_status": "HOMOLOGATED",
-        "performance_match": "EXACT"
+    "DATA_SOURCES": ["TECHNICAL_DIMENSIONS", "OEM_ENGINE_MANUALS", "MICRON_RATINGS"],
+    "MAPPING_RULES": {
+      "LUBE_OIL": {
+        "pref": "EL8",
+        "tech": "SYNTRAX™",
+        "iso": "ISO 4548-12",
+        "duty_pivots": { "HD": "Donaldson Specs", "LD": "Fram Specs" }
       },
-      "DBL_LUBE": {
-        "donaldson_tech": "Donaldson Blue® DBL",
-        "elimfilters_equivalent": "SYNTRAX™ ELITE",
-        "elimfilters_description": "Extended service synthetic media for high-durability lubrication",
-        "homologation_status": "HOMOLOGATED",
-        "performance_match": "SUPERIOR"
-      }
-    },
-    "AIR_TECHNOLOGIES": {
-      "ULTRA_WEB_AIR": {
-        "donaldson_tech": "Ultra-Web® Nanofiber",
-        "elimfilters_equivalent": "NANOFORCE™",
-        "elimfilters_description": "Sub-micron nanofiber filtration for superior engine protection",
-        "homologation_status": "HOMOLOGATED",
-        "performance_match": "EXACT"
-      }
-    },
-    "FUEL_WATER_SEPARATOR": {
-      "SYNTEQ_FUEL": {
-        "donaldson_tech": "Synteq™ Fuel Media",
-        "elimfilters_equivalent": "SYNTEPORE™",
-        "elimfilters_description": "Multi-layered synthetic fuel filtration",
-        "homologation_status": "HOMOLOGATED",
-        "performance_match": "EXACT"
-      }
-    },
-    "TURBINE_ELEMENTS": {
-      "RACOR_AQUABLOC": {
-        "donaldson_tech": "Aquabloc® Hydrophobic",
-        "elimfilters_equivalent": "AQUAGUARD®",
-        "elimfilters_description": "Hydrophobic water-repelling treated media for turbines",
-        "homologation_status": "HOMOLOGATED",
-        "performance_match": "EXACT"
-      }
-    },
-    "COOLANT_TECHNOLOGIES": {
-      "SCA_TECH": {
-        "donaldson_tech": "SCA Supplemental Additives",
-        "elimfilters_equivalent": "BIOGUARD™",
-        "elimfilters_description": "Biological and chemical coolant protection",
-        "homologation_status": "HOMOLOGATED",
-        "performance_match": "EXACT"
-      }
-    },
-    "HYDRAULIC_TECHNOLOGIES": {
-      "DT_HIGH_PERFORMANCE": {
-        "donaldson_tech": "DT High-Performance Media",
-        "elimfilters_equivalent": "CINTEK™",
-        "elimfilters_description": "High-pressure hydraulic filtration technology",
-        "homologation_status": "HOMOLOGATED",
-        "performance_match": "EXACT"
-      }
-    },
-    "TRANSMISSION_TECHNOLOGIES": {
-      "TRANS_SPECIFIC": {
-        "donaldson_tech": "Transmission Specific Media",
-        "elimfilters_equivalent": "THERM™",
-        "elimfilters_description": "Thermal protection for transmission fluid systems",
-        "homologation_status": "HOMOLOGATED",
-        "performance_match": "EXACT"
-      }
-    },
-    "MARINE_TECHNOLOGIES": {
-      "CORROSION_RESISTANT": {
-        "donaldson_tech": "Sea-Water Corrosion Resistant",
-        "elimfilters_equivalent": "MARINER PRO™",
-        "elimfilters_description": "Marine-grade corrosion and moisture protection",
-        "homologation_status": "HOMOLOGATED",
-        "performance_match": "EXACT"
-      }
-    },
-    "BRAKE_TECHNOLOGIES": {
-      "AIR_DRYER_TECH": {
-        "donaldson_tech": "Coalescing Air Dryer Media",
-        "elimfilters_equivalent": "BRAKEGUARD™",
-        "elimfilters_description": "Advanced moisture removal for pneumatic brake systems",
-        "homologation_status": "HOMOLOGATED",
-        "performance_match": "EXACT"
+      "AIR_SYSTEM": {
+        "pref": "EA1",
+        "tech": "NANOFORCE™",
+        "iso": "ISO 5011"
+      },
+      "FUEL_SYSTEM": {
+        "pref": "EF9",
+        "tech": "SYNTEPORE™",
+        "iso": "ISO 19438"
+      },
+      "TURBINE_FUEL": {
+        "pref": "ET9",
+        "tech": "AQUAGUARD®",
+        "iso": "ISO 16332",
+        "variants": ["P", "T", "S"]
+      },
+      "HYDRAULIC_SYS": {
+        "pref": "EH6",
+        "tech": "CINTEK™",
+        "iso": "ISO 16889"
+      },
+      "COOLANT_SYS": {
+        "pref": "EW7",
+        "tech": "THERM™",
+        "iso": "ASTM D6210"
+      },
+      "CABIN_SYS": {
+        "pref": "EC1",
+        "tech": "BIOGUARD™",
+        "iso": "ISO 11155"
       }
     }
   }
