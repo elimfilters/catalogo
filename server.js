@@ -5,7 +5,7 @@ const detectionService = require('./src/services/detectionService');
 
 const app = express();
 
-// CORRECCIÓN CORS: Permite que tu web en GoDaddy acceda sin bloqueos
+// CORRECCIÓN DE SEGURIDAD (CORS): Permite que elimfilters.com lea los datos
 app.use(cors({
     origin: ['https://elimfilters.com', 'https://www.elimfilters.com'],
     methods: ['GET', 'POST'],
@@ -14,10 +14,10 @@ app.use(cors({
 
 app.use(express.json());
 
-// Endpoint de Búsqueda sincronizado con WordPress
+// RUTA DE BÚSQUEDA: Sincronizada con el plugin de WordPress
 app.post('/api/search', async (req, res) => {
     const { searchTerm, type } = req.body;
-    console.log(`🔍 Petición Recibida: [${type}] ${searchTerm}`);
+    console.log(`🔍 Buscando [${type}]: ${searchTerm}`);
 
     if (!searchTerm) return res.status(400).json({ success: false, error: 'Término requerido' });
 
