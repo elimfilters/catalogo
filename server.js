@@ -5,7 +5,7 @@ const detectionService = require('./src/services/detectionService');
 
 const app = express();
 
-// CORRECCIÓN CORS: Permite que elimfilters.com lea los datos sin bloqueos
+// CORRECCIÓN CRÍTICA: Permite que elimfilters.com acceda a los datos
 app.use(cors({
     origin: ['https://elimfilters.com', 'https://www.elimfilters.com'],
     methods: ['GET', 'POST'],
@@ -14,10 +14,10 @@ app.use(cors({
 
 app.use(express.json());
 
-// RUTA DE BÚSQUEDA: Sincronizada con el plugin de WordPress
+// Endpoint de búsqueda sincronizado con el plugin
 app.post('/api/search', async (req, res) => {
     const { searchTerm, type } = req.body;
-    console.log(`🔍 Búsqueda: [${type}] ${searchTerm}`);
+    console.log(`🔍 Búsqueda recibida: [${type}] ${searchTerm}`);
 
     if (!searchTerm) return res.status(400).json({ success: false, error: 'Término requerido' });
 
