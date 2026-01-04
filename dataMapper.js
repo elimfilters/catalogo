@@ -3,10 +3,10 @@ const descriptions = require('../config/ELIM_MASTER_DESCRIPTIONS.json');
 module.exports = {
     mapToHorizontalRow: (aiData, query) => {
         const row = new Array(56).fill(""); 
-        row[0] = query; // Columna A: Input del usuario (Part/VIN/Equip)
+        row[0] = query; 
 
-        // 1. Detección de Prefijo y Contexto (Pieza vs Kit)
         let prefix = aiData.prefix;
+        // Detectar si la búsqueda proviene de las pestañas VIN o EQUIPMENT para asignar KIT
         const isKit = (aiData.search_type === 'VIN' || aiData.search_type === 'EQUIPMENT');
         
         if (isKit) {
@@ -16,7 +16,7 @@ module.exports = {
         const base = aiData.base_numeric_code;
         const config = descriptions.definitions[prefix] || { tech: "STANDARD", benefit: "protection" };
         
-        // Determinar forma física
+        // Detección de forma física para la redacción
         let form = descriptions.physical_form_logic["spin-on"];
         if (isKit) form = descriptions.physical_form_logic.kit;
         else if (aiData.is_cartridge) form = descriptions.physical_form_logic.cartridge;
@@ -25,18 +25,16 @@ module.exports = {
         // --- DISTRIBUCIÓN HORIZONTAL EN EL MASTER50 ---
 
         if (prefix === 'ET9') {
-            // REGLA ESPECIAL TURBINAS (P, T, S)
             const variants = [
                 { sfx: 'P', mic: '30μ', idxSKU: 6, idxDesc: 9 },
                 { sfx: 'T', mic: '10μ', idxSKU: 16, idxDesc: 19 },
-                { sfx: 'S', mic: '2μ', idxSKU: 26, idxDesc: 29 }
+                { sfx: 'S', idxSKU: 26, idxDesc: 29, mic: '2μ' }
             ];
             variants.forEach(v => {
                 row[v.idxSKU] = `ET9${base}${v.sfx}`;
                 row[v.idxDesc] = `Elimfilters® ET9${base}${v.sfx} (${config.tech}) ${form} is designed for reliable protection (${v.mic}). ${config.tech} offers unique features that provide significant benefits for ${config.benefit}.`;
             });
         } else {
-            // REGLA TRILOGY (Standard 9000, Performance 0949, Elite 7900)
             const tiers = [
                 { tier: 'STANDARD', sfx: '9000', idxSKU: 6, idxDesc: 9 },
                 { tier: 'PERFORMANCE', sfx: '0949', idxSKU: 16, idxDesc: 19 },
@@ -49,10 +47,10 @@ module.exports = {
             });
         }
 
-        // --- DATOS TÉCNICOS ---
-        row[39] = aiData.iso_norm || "ISO 9001:2015"; // Col AO (40)
-        row[52] = config.tech; // Col BA (53)
-        row[55] = aiData.duty; // Col BD (56): HD o LD
+        // --- COLUMNAS TÉCNICAS Y DE CONTROL ---
+        row[39] = aiData.iso_norm || "ISO 9001:2015";
+        row[52] = config.tech; // SISTEMGUARD™ para los EK
+        row[55] = aiData.duty; // HD o LD
 
         return row;
     }
