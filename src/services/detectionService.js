@@ -14,7 +14,7 @@ async function processSearch(searchTerm, type) {
     const sheet = doc.sheetsByIndex[0];
     const rows = await sheet.getRows();
 
-    // Búsqueda por SKU (Col B) o Referencias
+    // Búsqueda por SKU (Col B) o Referencias Cruzadas
     const row = rows.find(r => {
         const sku = r.get('SKU')?.toString().toLowerCase();
         const cross = r.get('CROSS_REFERENCE')?.toString().toLowerCase();
@@ -24,31 +24,29 @@ async function processSearch(searchTerm, type) {
 
     if (!row) return null;
 
-    // Mapeo Dinámico de Tecnologías (Columnas H a AQ)
+    // Mapeo de Tecnologías (H-AQ)
     const specs = [
-        { label: 'Height', value: row.get('H') },
+        { label: 'Height (mm)', value: row.get('H') },
         { label: 'Outer Diameter', value: row.get('I') },
-        { label: 'Inner Diameter', value: row.get('J') },
-        { label: 'Thread', value: row.get('K') },
-        { label: 'Micron', value: row.get('AQ') }
+        { label: 'Thread Size', value: row.get('K') },
+        { label: 'Micron Rating', value: row.get('AQ') }
     ].filter(s => s.value && s.value !== '-');
 
-    // Mapeo de Equipos (Columnas AT, AU, AV)
+    // Mapeo de Aplicaciones de Equipos (AT-AV)
     const equipmentList = rows.filter(r => r.get('SKU') === row.get('SKU')).map(r => ({
-        make: r.get('AT'),    // EQUIPO
-        model: r.get('AU'),   // MODELO
-        engine: r.get('AV')   // MOTOR
+        make: r.get('AT'),    // Marca
+        model: r.get('AU'),   // Modelo
+        engine: r.get('AV')   // Motor
     })).filter(e => e.make);
 
     return {
-        sku: row.get('SKU'),
-        description: row.get('DESCRIPTION'),
-        imageUrl: row.get('IMAGE_URL') || 'https://elimfilters.com/wp-content/uploads/2025/11/logo-sin-fondo.png',
+        sku: row.get('SKU'), // B
+        description: row.get('DESCRIPTION'), // C
+        imageUrl: row.get('IMAGE_URL') || 'https://elimfilters.com/default.jpg',
         specifications: specs,
         equipment: equipmentList,
         oemCodes: row.get('OEM_CODES')?.split(',') || [],
-        crossReference: row.get('CROSS_REFERENCE')?.split(',') || [],
-        maintenance: row.get('MAINTENANCE_KITS')
+        crossReference: row.get('CROSS_REFERENCE')?.split(',') || []
     };
 }
 
