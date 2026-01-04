@@ -18,20 +18,25 @@ app.use(express.json());
 
 /**
  * ENDPOINT PRINCIPAL - VERSIÓN 1
- * Recibe peticiones de las 3 tabs: PART, VIN y EQUIPMENT
+ * CORREGIDO: Recibe searchTerm y searchType (como envía el plugin)
  */
 app.post('/api/v1/search', async (req, res) => {
     try {
-        const { type, value } = req.body;
+        const { searchTerm, searchType } = req.body;
 
-        if (!type || !value) {
-            return res.status(400).json({ success: false, message: "Missing search data" });
+        if (!searchTerm || !searchType) {
+            return res.status(400).json({ 
+                success: false, 
+                message: "Missing search data. Required: searchTerm and searchType" 
+            });
         }
+
+        console.log('🔍 Search received:', { searchTerm, searchType });
 
         // Lógica de detección (Simulada para la prueba)
         // La IA detecta si el equipo/VIN es Heavy Duty (HD) o Light Duty (LD)
         let aiData = {
-            search_type: type,
+            search_type: searchType,
             base_numeric_code: "8000", // Código base generado
             is_cartridge: false,
             duty: "HD", // Por defecto HD para activar SISTEMGUARD™ EK5
@@ -40,33 +45,38 @@ app.post('/api/v1/search', async (req, res) => {
         };
 
         // Generamos la fila de 56 columnas usando el mapper
-        const resultRow = mapToHorizontalRow(aiData, value);
+        const resultRow = mapToHorizontalRow(aiData, searchTerm);
 
         res.json({
             success: true,
             data: resultRow
         });
     } catch (error) {
-        console.error("Error:", error);
+        console.error("❌ Error:", error);
         res.status(500).json({ success: false, message: "Internal Server Error" });
     }
 });
 
 /**
- * ENDPOINT ALTERNATIVO - SIN VERSIÓN (Para compatibilidad con plugin)
- * Hace lo mismo que /api/v1/search
+ * ENDPOINT ALTERNATIVO - SIN VERSIÓN (Para compatibilidad)
+ * CORREGIDO: Recibe searchTerm y searchType
  */
 app.post('/api/search', async (req, res) => {
     try {
-        const { type, value } = req.body;
+        const { searchTerm, searchType } = req.body;
 
-        if (!type || !value) {
-            return res.status(400).json({ success: false, message: "Missing search data" });
+        if (!searchTerm || !searchType) {
+            return res.status(400).json({ 
+                success: false, 
+                message: "Missing search data. Required: searchTerm and searchType" 
+            });
         }
+
+        console.log('🔍 Search received:', { searchTerm, searchType });
 
         // Lógica de detección (Simulada para la prueba)
         let aiData = {
-            search_type: type,
+            search_type: searchType,
             base_numeric_code: "8000",
             is_cartridge: false,
             duty: "HD",
@@ -75,14 +85,14 @@ app.post('/api/search', async (req, res) => {
         };
 
         // Generamos la fila de 56 columnas usando el mapper
-        const resultRow = mapToHorizontalRow(aiData, value);
+        const resultRow = mapToHorizontalRow(aiData, searchTerm);
 
         res.json({
             success: true,
             data: resultRow
         });
     } catch (error) {
-        console.error("Error:", error);
+        console.error("❌ Error:", error);
         res.status(500).json({ success: false, message: "Internal Server Error" });
     }
 });
