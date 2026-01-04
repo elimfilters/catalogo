@@ -16,8 +16,8 @@
     "EW7": { "name": "thermal-protection coolant", "tech": "THERM™", "benefit": "balancing coolant chemistry and preventing liner pitting" },
     "EM9": { "name": "mariner pro™ series", "tech": "MARINER PRO™", "benefit": "corrosion resistance and reliability in saltwater environments" },
     "ED4": { "name": "pneumatic air brake dryer", "tech": "BRAKEGUARD™", "benefit": "removing moisture to ensure the safety of braking systems" },
-    "EK5": { "name": "Heavy-Duty Master Service Kit", "tech": "ELIM-COMPLETE™", "benefit": "all-in-one comprehensive protection for heavy machinery" },
-    "EK3": { "name": "Light-Duty Service Kit", "tech": "ELIM-COMPLETE™", "benefit": "optimized maintenance package for passenger and light truck vehicles" }
+    "EK5": { "name": "Heavy-Duty Master Service Kit", "tech": "SISTEMGUARD™", "benefit": "all-in-one comprehensive protection for heavy machinery" },
+    "EK3": { "name": "Light-Duty Service Kit", "tech": "SISTEMGUARD™", "benefit": "optimized maintenance package for passenger and light truck vehicles" }
   },
   "physical_form_logic": {
     "spin-on": "spin-on filter",
