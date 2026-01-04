@@ -1,91 +1,60 @@
 const express = require('express');
 const cors = require('cors');
-const { Groq } = require('groq-sdk');
-const { MongoClient } = require('mongodb');
-const fs = require('fs');
-const path = require('path');
-
-const { appendToSheet } = require('./services/googleSheetsService');
-const { mapToRow } = require('./services/dataMapper');
+const { mapToHorizontalRow } = require('./services/dataMapper');
+// Importamos tus motores de IA o Base de Datos
+// const aiEngine = require('./services/aiEngine'); 
 
 const app = express();
-const PORT = process.env.PORT || 8080;
-
-// ============================================
-// DIAGNÓSTICO Y CONFIGURACIÓN
-// ============================================
-console.log("🔍 Variables detectadas por el sistema:", Object.keys(process.env).filter(k => !k.includes('SECRET') && !k.includes('KEY')));
-
-// Intenta leer todas las posibles variantes de nombre
-const MONGODB_URI = process.env.MONGODB_URL || process.env.MONGODB_URI;
-
-if (!MONGODB_URI) {
-    console.error("❌ ERROR CRÍTICO: No se detecta MONGODB_URL o MONGODB_URI.");
-    console.log("💡 Acción: Ve a Railway -> Variables y asegúrate de que MONGODB_URL sea igual a tu conexión de Mongo.");
-    process.exit(1);
-}
-
-const client = new MongoClient(MONGODB_URI);
-const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
-let db, filtersCollection;
-
-// Cargar Reglas de Negocio
-let filterConfig;
-try {
-    const configPath = path.join(__dirname, 'config', 'filters.json');
-    filterConfig = JSON.parse(fs.readFileSync(configPath, 'utf8'));
-    console.log("✅ Reglas de ingeniería cargadas");
-} catch (e) {
-    console.error("❌ Error cargando config/filters.json");
-    process.exit(1);
-}
-
 app.use(cors());
 app.use(express.json());
 
-app.get('/api/search', async (req, res) => {
-    const { query } = req.query;
-    if (!query) return res.status(400).json({ error: 'Query requerida' });
-
+/**
+ * ENDPOINT PRINCIPAL: Maneja Part Number, VIN y Equipment
+ */
+app.post('/api/v1/search', async (req, res) => {
     try {
-        const codigo = query.trim().toUpperCase();
-        console.log(`🔎 Buscando: ${codigo}`);
+        const { type, value, brand, model, year } = req.body;
 
-        // 1. IA Groq
-        const prompt = `Eres el Engineering Core de ELIMFILTERS. Genera la ficha técnica para: ${codigo}. 
-                        Usa las reglas de: ${JSON.stringify(filterConfig)}.
-                        Responde en JSON con array 'results'.`;
-
-        const completion = await groq.chat.completions.create({
-    messages: [{ role: "system", content: prompt }],
-    model: "llama-3.1-8b-instant",
-    response_format: { type: "json_object" }
-        });
-
-        const data = JSON.parse(completion.choices[0].message.content);
-
-        // 2. Procesar y Guardar
-        if (data.results) {
-            const rows = data.results.map(item => mapToRow(item, codigo));
-            await appendToSheet(rows);
-            // Guardar asíncrono en Mongo
-            data.results.forEach(r => filtersCollection.insertOne({...r, input_code: codigo}));
+        if (!type || (!value && !model)) {
+            return res.status(400).json({ error: "Missing search parameters" });
         }
 
-        res.json(data);
+        // 1. SIMULACIÓN DE ANÁLISIS TÉCNICO (Aquí llamamos a tu IA o DB)
+        // En producción, aquí obtendrás los datos reales del "fierro"
+        let aiAnalysis = {
+            search_type: type, // PART, VIN o EQUIPMENT
+            prefix: "EL8",     // Ejemplo detectado
+            base_numeric_code: "0425", 
+            is_cartridge: false,
+            duty: "HD",        // Detectado por el modelo o código
+            iso_norm: "ISO 4548-12"
+        };
+
+        // 2. Lógica específica por Pestaña
+        if (type === 'VIN' || type === 'EQUIPMENT') {
+            // Si es Kit, el duty define si es EK5 (HD) o EK3 (LD)
+            // Aquí la IA debería decirnos el código base del Kit
+            aiAnalysis.base_numeric_code = "8000"; // Ejemplo de código de Kit
+        }
+
+        // 3. MAPEO A FILA HORIZONTAL DE 56 COLUMNAS
+        // Pasamos el análisis y el valor original de búsqueda
+        const finalRow = mapToHorizontalRow(aiAnalysis, value || `${brand} ${model}`);
+
+        // 4. RESPUESTA AL PLUGIN DE WP
+        res.json({
+            success: true,
+            type: type,
+            data: finalRow
+        });
+
     } catch (error) {
-        res.status(500).json({ error: error.message });
+        console.error("API Error:", error);
+        res.status(500).json({ error: "Internal Server Error" });
     }
 });
 
-async function start() {
-    try {
-        await client.connect();
-        db = client.db('elimfilters');
-        filtersCollection = db.collection('filters');
-        app.listen(PORT, '0.0.0.0', () => console.log(`🚀 API ELIMFILTERS v7.2 Online`));
-    } catch (e) {
-        console.error("❌ Error de conexión Mongo:", e.message);
-    }
-}
-start();
+const PORT = process.env.PORT || 3000;
+app.listen(PORT, () => {
+    console.log(`ELIMFILTERS® API running on port ${PORT}`);
+});
