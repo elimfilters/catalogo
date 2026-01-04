@@ -1,72 +1,76 @@
 /**
- * ELIMFILTERS® Data Mapper v6.1
- * Especializado en mapeo de 56 columnas con lógica SISTEMGUARD™
+ * ELIMFILTERS® Data Mapper v6.1 
+ * TODO-EN-UNO (Sin necesidad de carpetas externas)
  */
-const descriptions = require('../config/ELIM_MASTER_DESCRIPTIONS.json');
 
+// --- DICCIONARIO DE INGENIERÍA INTEGRADO ---
+const descriptions = {
+  "brand_identity": "Elimfilters®",
+  "performance_tiers": {
+    "STANDARD": { "performance_claim": "reliable filtration for standard service intervals" },
+    "PERFORMANCE": { "performance_claim": "enhanced filtration efficiency and high dirt-holding capacity" },
+    "ELITE": { "performance_claim": "maximum synthetic protection for extreme service conditions" }
+  },
+  "definitions": {
+    "EL8": { "name": "full-flow lube", "tech": "SYNTRAX™", "benefit": "superior engine protection and consistent oil flow under high-pressure" },
+    "EA1": { "name": "primary air", "tech": "NANOFORCE™", "benefit": "longer service life and optimum performance when the job demands it" },
+    "EF9": { "name": "secondary high-efficiency fuel", "tech": "SYNTEPORE™", "benefit": "protecting sensitive high-pressure common rail (HPCR) systems" },
+    "ES9": { "name": "fuel/water separator", "tech": "AQUASEP™", "benefit": "effective water removal and particulate filtration to prevent corrosion" },
+    "ET9": { "name": "turbine series replacement", "tech": "AQUAGUARD®", "benefit": "active water repulsion and reliable protection for critical turbines" },
+    "EC1": { "name": "advanced cabin air", "tech": "BIOGUARD™", "benefit": "maintaining a clean environment by capturing allergens and odors" },
+    "EH6": { "name": "high-pressure hydraulic", "tech": "CINTEK™", "benefit": "maintaining fluid cleanliness in precision hydraulic circuits" },
+    "EW7": { "name": "thermal-protection coolant", "tech": "THERM™", "benefit": "balancing coolant chemistry and preventing liner pitting" },
+    "EM9": { "name": "mariner pro™ series", "tech": "MARINER PRO™", "benefit": "corrosion resistance and reliability in saltwater environments" },
+    "ED4": { "name": "pneumatic air brake dryer", "tech": "BRAKEGUARD™", "benefit": "removing moisture to ensure the safety of braking systems" },
+    "EK5": { "name": "Heavy-Duty Master Service Kit", "tech": "SISTEMGUARD™", "benefit": "all-in-one comprehensive protection for heavy machinery" },
+    "EK3": { "name": "Light-Duty Service Kit", "tech": "SISTEMGUARD™", "benefit": "optimized maintenance package for passenger and light truck vehicles" }
+  },
+  "physical_form_logic": {
+    "spin-on": "spin-on filter",
+    "cartridge": "cartridge filtration element",
+    "radial": "radial seal element",
+    "kit": "complete service package"
+  }
+};
+
+// --- LÓGICA DE MAPEO DE 56 COLUMNAS ---
 module.exports = {
     mapToHorizontalRow: (aiData, query) => {
-        // Inicializamos la fila de 56 columnas (Índices 0 a 55)
         const row = new Array(56).fill(""); 
-        
-        // Columna A (0): El término de búsqueda original
         row[0] = query; 
 
-        // 1. Detección de Contexto: ¿Pieza suelta o Kit de Servicio?
         let prefix = aiData.prefix;
         const isKit = (aiData.search_type === 'VIN' || aiData.search_type === 'EQUIPMENT');
         
-        // Si el usuario buscó por VIN o Equipo, forzamos el prefijo de Kit
         if (isKit) {
-            prefix = (aiData.duty === 'HD') ? 'EK5' : 'EK3'; // EK5 para Heavy Duty, EK3 para Light Duty
+            prefix = (aiData.duty === 'HD') ? 'EK5' : 'EK3';
         }
 
         const base = aiData.base_numeric_code;
         const config = descriptions.definitions[prefix] || { tech: "STANDARD", benefit: "protection" };
         
-        // 2. Definición de la forma física para la redacción técnica
+        // Determinar forma física
         let form = descriptions.physical_form_logic["spin-on"];
-        if (isKit) {
-            form = descriptions.physical_form_logic.kit; // "complete service package"
-        } else if (aiData.is_cartridge) {
-            form = descriptions.physical_form_logic.cartridge;
-        } else if (prefix === 'EA1') {
-            form = descriptions.physical_form_logic.radial;
-        }
+        if (isKit) form = descriptions.physical_form_logic.kit;
+        else if (aiData.is_cartridge) form = descriptions.physical_form_logic.cartridge;
+        else if (prefix === 'EA1') form = descriptions.physical_form_logic.radial;
 
-        // --- DISTRIBUCIÓN HORIZONTAL EN LA FILA MAESTRA ---
+        // Distribución en la fila (Trilogía: Std, Perf, Elite)
+        const tiers = [
+            { tier: 'STANDARD', sfx: '9000', idxSKU: 6, idxDesc: 9 },
+            { tier: 'PERFORMANCE', sfx: '0949', idxSKU: 16, idxDesc: 19 },
+            { tier: 'ELITE', sfx: '7900', idxSKU: 26, idxDesc: 29 }
+        ];
+        
+        tiers.forEach(t => {
+            row[t.idxSKU] = `${prefix}${base}${t.sfx}`;
+            const claim = descriptions.performance_tiers[t.tier].performance_claim;
+            row[t.idxDesc] = `Elimfilters® ${prefix}${base}${t.sfx} ${t.tier} (${config.tech}) ${form} is designed to ${claim}. ${config.tech} offers unique features that provide significant benefits for ${config.benefit}.`;
+        });
 
-        // CASO ESPECIAL: Turbinas ET9 (P, T, S)
-        if (prefix === 'ET9') {
-            const variants = [
-                { sfx: 'P', mic: '30μ', idxSKU: 6, idxDesc: 9 },
-                { sfx: 'T', mic: '10μ', idxSKU: 16, idxDesc: 19 },
-                { sfx: 'S', mic: '2μ', idxSKU: 26, idxDesc: 29 }
-            ];
-            variants.forEach(v => {
-                row[v.idxSKU] = `ET9${base}${v.sfx}`;
-                row[v.idxDesc] = `Elimfilters® ET9${base}${v.sfx} (${config.tech}) ${form} is designed for reliable protection (${v.mic}). ${config.tech} offers unique features that provide significant benefits for ${config.benefit}.`;
-            });
-        } 
-        // CASO ESTÁNDAR: Trilogía (Standard, Performance, Elite)
-        else {
-            const tiers = [
-                { tier: 'STANDARD', sfx: '9000', idxSKU: 6, idxDesc: 9 },    // Col G y J
-                { tier: 'PERFORMANCE', sfx: '0949', idxSKU: 16, idxDesc: 19 }, // Col Q y T
-                { tier: 'ELITE', sfx: '7900', idxSKU: 26, idxDesc: 29 }       // Col AA y AD
-            ];
-            
-            tiers.forEach(t => {
-                row[t.idxSKU] = `${prefix}${base}${t.sfx}`;
-                const claim = descriptions.performance_tiers[t.tier].performance_claim;
-                row[t.idxDesc] = `Elimfilters® ${prefix}${base}${t.sfx} ${t.tier} (${config.tech}) ${form} is designed to ${claim}. ${config.tech} offers unique features that provide significant benefits for ${config.benefit}.`;
-            });
-        }
-
-        // --- COLUMNAS TÉCNICAS ADICIONALES ---
-        row[39] = aiData.iso_norm || "ISO 9001:2015"; // Col AN (40)
-        row[52] = config.tech; // Col BA (53): SISTEMGUARD™, SYNTRAX™, etc.
-        row[55] = aiData.duty; // Col BD (56): HD o LD
+        row[39] = aiData.iso_norm || "ISO 9001:2015";
+        row[52] = config.tech; 
+        row[55] = aiData.duty; 
 
         return row;
     }
