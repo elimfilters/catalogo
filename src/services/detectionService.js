@@ -14,9 +14,9 @@ async function processSearch(searchTerm, type) {
     const sheet = doc.sheetsByIndex[0];
     const rows = await sheet.getRows();
 
-    // Búsqueda inteligente: SKU, Parte o Homologaciones
+    // Búsqueda por SKU (B), Part Number o Homologaciones
     const row = rows.find(r => {
-        const sku = r.get('SKU')?.toString().toLowerCase();
+        const sku = r.get('SKU')?.toString().toLowerCase(); // Columna B
         const part = r.get('PART_NUMBER')?.toString().toLowerCase();
         const cross = r.get('CROSS_REFERENCE')?.toString().toLowerCase();
         const term = searchTerm.toLowerCase();
@@ -25,31 +25,31 @@ async function processSearch(searchTerm, type) {
 
     if (!row) return null;
 
-    // Estructura completa enviada a WordPress
-    return {
-        sku: row.get('SKU'), // Columna B
-        description: row.get('DESCRIPTION'), // Columna C
-        imageUrl: row.get('IMAGE_URL'),
-        
-        // Tecnologías y Especificaciones (Mapeo H-AQ)
-        specifications: [
-            { label: 'Height (mm)', value: row.get('HEIGHT') },
-            { label: 'Outer Diameter', value: row.get('OUTER_DIAMETER') },
-            { label: 'Thread', value: row.get('THREAD') },
-            { label: 'Micron Rating', value: row.get('MICRON') },
-            { label: 'Efficiency', value: row.get('EFFICIENCY') }
-        ].filter(s => s.value), // Solo envía los que tengan datos
+    // 1. Mapeo de Tecnologías / Specs (Columnas H a AQ)
+    const specs = [
+        { label: 'Height (mm)', value: row.get('H') },
+        { label: 'Outer Diameter', value: row.get('I') },
+        // ... aquí puedes agregar todas hasta la AQ mapeando el encabezado del Excel
+        { label: 'Micron Rating', value: row.get('AQ') }
+    ].filter(s => s.value);
 
-        // Homologaciones y Códigos
+    // 2. Mapeo de Equipos / Aplicaciones (Columnas AT, AU, AV)
+    // Buscamos todas las filas que compartan el mismo SKU para listar todos los equipos
+    const allEquipments = rows.filter(r => r.get('SKU') === row.get('SKU')).map(r => ({
+        make: r.get('AT'),    // EQUIPO/MARCA
+        model: r.get('AU'),   // MODELO/SERIE
+        engine: r.get('AV')   // MOTOR
+    }));
+
+    return {
+        sku: row.get('SKU'), // B
+        description: row.get('DESCRIPTION'), // C
+        imageUrl: row.get('IMAGE_URL'),
+        specifications: specs,
+        equipment: allEquipments,
         oemCodes: row.get('OEM_CODES')?.split(',') || [],
         crossReference: row.get('CROSS_REFERENCE')?.split(',') || [],
-
-        // Equipos y Aplicaciones (Mapeo AT, AU, AV)
-        equipment: rows.filter(r => r.get('SKU') === row.get('SKU')).map(r => ({
-            make: r.get('EQUIPMENT_MAKE'), // AT
-            model: r.get('EQUIPMENT_MODEL'), // AU
-            engine: r.get('ENGINE_TYPE') // AV
-        }))
+        maintenance: row.get('MAINTENANCE_INFO')
     };
 }
 
