@@ -1,60 +1,69 @@
+require('dotenv').config(); // Carga las variables de entorno (.env)
 const express = require('express');
 const cors = require('cors');
 const { mapToHorizontalRow } = require('./services/dataMapper');
-// Importamos tus motores de IA o Base de Datos
-// const aiEngine = require('./services/aiEngine'); 
 
 const app = express();
-app.use(cors());
+
+// 1. Configuración de CORS con Variable de Entorno 🛡️
+const corsOptions = {
+    origin: process.env.FRONTEND_URL || 'https://elimfilters.com', 
+    methods: ['GET', 'POST'],
+    allowedHeaders: ['Content-Type'],
+    optionsSuccessStatus: 200
+};
+
+app.use(cors(corsOptions));
 app.use(express.json());
 
 /**
- * ENDPOINT PRINCIPAL: Maneja Part Number, VIN y Equipment
+ * ENDPOINT: /api/v1/search
+ * Este es el que definimos en el archivo elimfilters-search.php
  */
 app.post('/api/v1/search', async (req, res) => {
     try {
-        const { type, value, brand, model, year } = req.body;
+        // Recibimos 'type' (PART, VIN o EQUIPMENT) y 'value' desde el JS
+        const { type, value } = req.body;
 
-        if (!type || (!value && !model)) {
-            return res.status(400).json({ error: "Missing search parameters" });
+        if (!type || !value) {
+            return res.status(400).json({ 
+                success: false, 
+                message: "Missing type or search value" 
+            });
         }
 
-        // 1. SIMULACIÓN DE ANÁLISIS TÉCNICO (Aquí llamamos a tu IA o DB)
-        // En producción, aquí obtendrás los datos reales del "fierro"
-        let aiAnalysis = {
-            search_type: type, // PART, VIN o EQUIPMENT
-            prefix: "EL8",     // Ejemplo detectado
-            base_numeric_code: "0425", 
+        // 2. Lógica de Inteligencia de Prefijos
+        // Aquí simulamos la detección que haría tu base de datos o IA
+        let aiData = {
+            search_type: type,
+            base_numeric_code: "8425", // Ejemplo
             is_cartridge: false,
-            duty: "HD",        // Detectado por el modelo o código
-            iso_norm: "ISO 4548-12"
+            duty: "HD", // Por defecto Heavy Duty para este ejemplo
+            iso_norm: "ISO 9001:2015",
+            prefix: "EL8" // Prefijo por defecto si es PART
         };
 
-        // 2. Lógica específica por Pestaña
-        if (type === 'VIN' || type === 'EQUIPMENT') {
-            // Si es Kit, el duty define si es EK5 (HD) o EK3 (LD)
-            // Aquí la IA debería decirnos el código base del Kit
-            aiAnalysis.base_numeric_code = "8000"; // Ejemplo de código de Kit
-        }
+        // 3. Aplicación de Reglas SISTEMGUARD™
+        // Si la pestaña es VIN o EQUIPMENT, el dataMapper forzará EK5/EK3
+        const resultRow = mapToHorizontalRow(aiData, value);
 
-        // 3. MAPEO A FILA HORIZONTAL DE 56 COLUMNAS
-        // Pasamos el análisis y el valor original de búsqueda
-        const finalRow = mapToHorizontalRow(aiAnalysis, value || `${brand} ${model}`);
-
-        // 4. RESPUESTA AL PLUGIN DE WP
+        // 4. Respuesta exitosa para el Plugin de WP
         res.json({
             success: true,
-            type: type,
-            data: finalRow
+            data: resultRow
         });
 
     } catch (error) {
-        console.error("API Error:", error);
-        res.status(500).json({ error: "Internal Server Error" });
+        console.error("Server Error:", error);
+        res.status(500).json({ 
+            success: false, 
+            message: "Internal server error during search" 
+        });
     }
 });
 
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
-    console.log(`ELIMFILTERS® API running on port ${PORT}`);
+    console.log(`🚀 ELIMFILTERS API Running on port ${PORT}`);
+    console.log(`🔐 CORS allowed for: ${process.env.FRONTEND_URL || 'https://elimfilters.com'}`);
 });
