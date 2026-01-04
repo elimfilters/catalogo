@@ -1,72 +1,28 @@
 {
   "brand_identity": "Elimfilters®",
   "performance_tiers": {
-    "STANDARD": {
-      "performance_claim": "reliable filtration for standard service intervals"
-    },
-    "PERFORMANCE": {
-      "performance_claim": "enhanced filtration efficiency and high dirt-holding capacity"
-    },
-    "ELITE": {
-      "performance_claim": "maximum synthetic protection for extreme service conditions"
-    }
+    "STANDARD": { "performance_claim": "reliable filtration for standard service intervals" },
+    "PERFORMANCE": { "performance_claim": "enhanced filtration efficiency and high dirt-holding capacity" },
+    "ELITE": { "performance_claim": "maximum synthetic protection for extreme service conditions" }
   },
   "definitions": {
-    "EL8": {
-      "name": "full-flow lube",
-      "benefit": "superior engine protection and consistent oil flow under high-pressure conditions",
-      "tech": "SYNTRAX™"
-    },
-    "EA1": {
-      "name": "primary air",
-      "benefit": "longer service life and optimum performance when the job demands it",
-      "tech": "NANOFORCE™"
-    },
-    "EF9": {
-      "name": "secondary high-efficiency fuel",
-      "benefit": "removing fine contaminants to protect sensitive high-pressure common rail (HPCR) systems",
-      "tech": "SYNTEPORE™"
-    },
-    "ES9": {
-      "name": "fuel/water separator",
-      "benefit": "effective water removal and particulate filtration to prevent fuel system corrosion",
-      "tech": "AQUASEP™"
-    },
-    "ET9": {
-      "name": "turbine series replacement",
-      "benefit": "active water repulsion and reliable protection for critical marine and industrial turbines",
-      "tech": "AQUAGUARD®"
-    },
-    "EC1": {
-      "name": "advanced cabin air",
-      "benefit": "maintaining a clean and healthy environment by capturing allergens, dust, and odors",
-      "tech": "BIOGUARD™"
-    },
-    "EH6": {
-      "name": "high-pressure hydraulic",
-      "benefit": "maintaining fluid cleanliness and preventing component wear in precision hydraulic circuits",
-      "tech": "CINTEK™"
-    },
-    "EW7": {
-      "name": "thermal-protection coolant",
-      "benefit": "balancing coolant chemistry and preventing liner pitting and scale build-up",
-      "tech": "THERM™"
-    },
-    "EM9": {
-      "name": "mariner pro™ series",
-      "benefit": "corrosion resistance and maximum reliability in harsh saltwater environments",
-      "tech": "MARINER PRO™"
-    },
-    "ED4": {
-      "name": "pneumatic air brake dryer",
-      "benefit": "removing moisture and oil aerosols to ensure the safety of pneumatic braking systems",
-      "tech": "BRAKEGUARD™"
-    }
+    "EL8": { "name": "full-flow lube", "tech": "SYNTRAX™", "benefit": "superior engine protection and consistent oil flow under high-pressure" },
+    "EA1": { "name": "primary air", "tech": "NANOFORCE™", "benefit": "longer service life and optimum performance when the job demands it" },
+    "EF9": { "name": "secondary high-efficiency fuel", "tech": "SYNTEPORE™", "benefit": "protecting sensitive high-pressure common rail (HPCR) systems" },
+    "ES9": { "name": "fuel/water separator", "tech": "AQUASEP™", "benefit": "effective water removal and particulate filtration to prevent corrosion" },
+    "ET9": { "name": "turbine series replacement", "tech": "AQUAGUARD®", "benefit": "active water repulsion and reliable protection for critical turbines" },
+    "EC1": { "name": "advanced cabin air", "tech": "BIOGUARD™", "benefit": "maintaining a clean environment by capturing allergens and odors" },
+    "EH6": { "name": "high-pressure hydraulic", "tech": "CINTEK™", "benefit": "maintaining fluid cleanliness in precision hydraulic circuits" },
+    "EW7": { "name": "thermal-protection coolant", "tech": "THERM™", "benefit": "balancing coolant chemistry and preventing liner pitting" },
+    "EM9": { "name": "mariner pro™ series", "tech": "MARINER PRO™", "benefit": "corrosion resistance and reliability in saltwater environments" },
+    "ED4": { "name": "pneumatic air brake dryer", "tech": "BRAKEGUARD™", "benefit": "removing moisture to ensure the safety of braking systems" },
+    "EK5": { "name": "Heavy-Duty Master Service Kit", "tech": "ELIM-COMPLETE™", "benefit": "all-in-one comprehensive protection for heavy machinery" },
+    "EK3": { "name": "Light-Duty Service Kit", "tech": "ELIM-COMPLETE™", "benefit": "optimized maintenance package for passenger and light truck vehicles" }
   },
   "physical_form_logic": {
     "spin-on": "spin-on filter",
     "cartridge": "cartridge filtration element",
     "radial": "radial seal element",
-    "panel": "panel element"
+    "kit": "complete service package"
   }
 }
