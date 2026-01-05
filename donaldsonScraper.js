@@ -114,13 +114,69 @@ class DonaldsonScraper {
                 equipment: []
             };
 
-            // 1. CÓDIGO PRINCIPAL
-            const mainCode = $('h1, .product-id, [data-product-id]').first().text().trim();
-            const description = $('.product-description, .product-name, h2').first().text().trim();
+            // 1. CÓDIGO PRINCIPAL - EXTRACCIÓN AGRESIVA
+            let mainCode = null;
+            
+            // Estrategia 1: Selectores comunes
+            const codeSelectors = [
+                'h1',
+                '.product-id',
+                '.product-number',
+                '.part-number',
+                '[data-product-id]',
+                '[data-part-number]',
+                '.product-code'
+            ];
+            
+            for (const selector of codeSelectors) {
+                const code = $(selector).first().text().trim();
+                if (code && code.match(/^(P|DBL|DBA)\d+/i)) {
+                    mainCode = code;
+                    console.log(`   ✅ Código encontrado con selector: ${selector}`);
+                    break;
+                }
+            }
+            
+            // Estrategia 2: Extraer de la URL
+            if (!mainCode) {
+                const urlMatch = productUrl.match(/\/(P\d{6}|DBL\d{4}|DBA\d{4})/i);
+                if (urlMatch) {
+                    mainCode = urlMatch[1].toUpperCase();
+                    console.log(`   ✅ Código extraído de URL: ${mainCode}`);
+                }
+            }
+            
+            // Estrategia 3: Buscar en el texto de la página
+            if (!mainCode) {
+                const pageText = $('body').text();
+                const match = pageText.match(/(P\d{6}|DBL\d{4}|DBA\d{4})/i);
+                if (match) {
+                    mainCode = match[1].toUpperCase();
+                    console.log(`   ✅ Código extraído del texto: ${mainCode}`);
+                }
+            }
             
             if (!mainCode) {
-                console.log('   ⚠️ No se pudo extraer código principal');
+                console.log('   ❌ No se pudo extraer código principal');
                 return null;
+            }
+            
+            // Descripción
+            let description = '';
+            const descSelectors = [
+                '.product-description',
+                '.product-name',
+                'h2',
+                '.description',
+                '.product-title'
+            ];
+            
+            for (const selector of descSelectors) {
+                const desc = $(selector).first().text().trim();
+                if (desc && desc.length > 5) {
+                    description = desc;
+                    break;
+                }
             }
             
             result.mainProduct = {
@@ -132,104 +188,86 @@ class DonaldsonScraper {
 
             console.log(`   📦 Producto: ${mainCode}`);
 
-            // 2. ESPECIFICACIONES TÉCNICAS
-            $('table tr, .specification-row, .spec-item').each((i, el) => {
-                let key = $(el).find('td:first-child, th, .spec-label, .label').text().trim();
-                let value = $(el).find('td:last-child, .spec-value, .value').text().trim();
-                
-                // Limpiar
-                key = key.replace(':', '').trim();
-                
-                if (key && value && key !== value && key.length > 1) {
-                    result.specifications[key] = value;
-                }
+            // 2. ESPECIFICACIONES
+            $('table').each((i, table) => {
+                $(table).find('tr').each((j, el) => {
+                    const cells = $(el).find('td, th');
+                    if (cells.length >= 2) {
+                        const key = $(cells[0]).text().trim().replace(':', '');
+                        const value = $(cells[1]).text().trim();
+                        
+                        if (key && value && key !== value && key.length > 1) {
+                            result.specifications[key] = value;
+                        }
+                    }
+                });
             });
 
             console.log(`   📊 Especificaciones: ${Object.keys(result.specifications).length}`);
 
-            // 3. PRODUCTOS ALTERNATIVOS (TRILOGY)
-            const alternativeSelectors = [
-                '.alternative-product',
-                '.variant-item',
-                '.related-product',
-                '[data-alternative-product]',
-                '#alternatives .product-item'
-            ];
-
-            alternativeSelectors.forEach(selector => {
-                $(selector).each((i, el) => {
-                    const code = $(el).find('.product-number, .part-number, .code').text().trim();
-                    const desc = $(el).find('.product-name, .description, .name').text().trim();
-                    
-                    if (code && code !== mainCode && code.match(/^(P|DBL|DBA)/i)) {
-                        if (!result.alternatives.find(a => a.code === code)) {
-                            result.alternatives.push({
-                                code: code,
-                                description: desc,
-                                tier: this.identifyTier(code)
-                            });
-                        }
+            // 3. ALTERNATIVOS
+            $('.alternative-product, .variant-item, .related-product').each((i, el) => {
+                const code = $(el).find('.product-number, .part-number').text().trim();
+                const desc = $(el).find('.product-name, .description').text().trim();
+                
+                if (code && code !== mainCode && code.match(/^(P|DBL|DBA)/i)) {
+                    if (!result.alternatives.find(a => a.code === code)) {
+                        result.alternatives.push({
+                            code: code,
+                            description: desc,
+                            tier: this.identifyTier(code)
+                        });
                     }
-                });
+                }
             });
 
             console.log(`   🔄 Alternativos: ${result.alternatives.length}`);
 
             // 4. CROSS-REFERENCES
-            const crossRefSelectors = [
-                '#cross-reference table tr',
-                '.cross-reference-table tr',
-                '.competitor-reference tr',
-                '[data-cross-reference] tr'
-            ];
-
-            crossRefSelectors.forEach(selector => {
-                $(selector).each((i, el) => {
-                    const cells = $(el).find('td');
-                    if (cells.length >= 2) {
-                        const brand = $(cells[0]).text().trim();
-                        const code = $(cells[1]).text().trim();
-                        
-                        if (brand && code && brand.length > 1 && code.length > 1) {
-                            if (!result.crossReferences.find(r => r.code === code)) {
-                                result.crossReferences.push({
-                                    brand: brand,
-                                    code: code,
-                                    type: this.isOEMBrand(brand) ? 'OEM' : 'Aftermarket'
-                                });
+            $('table').each((i, table) => {
+                const tableText = $(table).text().toLowerCase();
+                
+                if (tableText.includes('cross') || tableText.includes('reference') || tableText.includes('competitor')) {
+                    $(table).find('tr').each((j, el) => {
+                        const cells = $(el).find('td');
+                        if (cells.length >= 2) {
+                            const brand = $(cells[0]).text().trim();
+                            const code = $(cells[1]).text().trim();
+                            
+                            if (brand && code && brand.length > 1 && code.length > 2) {
+                                if (!result.crossReferences.find(r => r.code === code)) {
+                                    result.crossReferences.push({
+                                        brand: brand,
+                                        code: code,
+                                        type: this.isOEMBrand(brand) ? 'OEM' : 'Aftermarket'
+                                    });
+                                }
                             }
                         }
-                    }
-                });
+                    });
+                }
             });
 
             console.log(`   🔗 Cross-references: ${result.crossReferences.length}`);
 
-            // 5. APLICACIONES DE EQUIPOS
-            const equipmentSelectors = [
-                '#equipment table tr',
-                '.equipment-table tr',
-                '.application-table tr',
-                '[data-equipment] tr'
-            ];
-
-            equipmentSelectors.forEach(selector => {
-                $(selector).each((i, el) => {
-                    const cells = $(el).find('td');
-                    if (cells.length >= 2) {
-                        const equipment = $(cells[0]).text().trim();
-                        const engine = $(cells[1]).text().trim();
-                        const year = cells.length >= 3 ? $(cells[2]).text().trim() : '';
-                        
-                        if (equipment && engine) {
-                            result.equipment.push({
-                                equipment: equipment,
-                                engine: engine,
-                                year: year
-                            });
+            // 5. EQUIPOS
+            $('table').each((i, table) => {
+                const tableText = $(table).text().toLowerCase();
+                
+                if (tableText.includes('equipment') || tableText.includes('application') || tableText.includes('vehicle')) {
+                    $(table).find('tr').each((j, el) => {
+                        const cells = $(el).find('td');
+                        if (cells.length >= 2) {
+                            const equipment = $(cells[0]).text().trim();
+                            const engine = $(cells[1]).text().trim();
+                            const year = cells.length >= 3 ? $(cells[2]).text().trim() : '';
+                            
+                            if (equipment && engine && equipment.length > 2) {
+                                result.equipment.push({ equipment, engine, year });
+                            }
                         }
-                    }
-                });
+                    });
+                }
             });
 
             console.log(`   🚛 Equipos: ${result.equipment.length}`);
