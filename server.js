@@ -10,32 +10,36 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
-// Conexión Mandatoria MongoDB
-mongoose.connect(process.env.MONGO_URI)
-    .then(() => console.log("✅ MongoDB Connected"))
-    .catch(err => console.error("❌ Mongo Error:", err));
+// 1. CONEXIÓN A MONGODB (Elliot2025)
+const MONGO_URI = process.env.MONGO_URI || 'mongodb+srv://elimfilters:Elliot2025@cluster0.vairwow.mongodb.net/elimfilters';
+mongoose.connect(MONGO_URI)
+    .then(() => console.log("✅ ELIMFILTERS®: MongoDB Cluster0 Conectado"))
+    .catch(err => console.error("❌ Error en conexión Mongo:", err));
 
-// ENDPOINT: Part Number
+// 2. ENDPOINT: Búsqueda de Filtros Individuales (v1/search)
 app.post('/api/v1/search', async (req, res) => {
+    const { searchTerm, manufacturer } = req.body;
     try {
-        const result = await detectionService.findAndProcess(req.body.searchTerm, req.body.manufacturer);
-        res.json({ success: true, data: result });
-    } catch (e) {
-        res.status(500).json({ success: false, error: e.message });
+        const results = await detectionService.findAndProcess(searchTerm, manufacturer);
+        res.json({ success: true, data: results });
+    } catch (error) {
+        res.status(500).json({ success: false, error: error.message });
     }
 });
 
-// ENDPOINT: Kits (VIN/Equipment)
+// 3. ENDPOINT: Búsqueda de Kits de Mantenimiento (v1/kits)
 app.post('/api/v1/kits', async (req, res) => {
+    const { searchTerm, type } = req.body; // type: 'VIN' o 'Equipment'
     try {
-        const kits = await kitsService.getKitsData(req.body.searchTerm, req.body.type);
+        const kits = await kitsService.getKitsData(searchTerm, type);
         res.json({ success: true, data: kits });
-    } catch (e) {
-        res.status(500).json({ success: false, error: e.message });
+    } catch (error) {
+        res.status(500).json({ success: false, error: error.message });
     }
 });
 
-app.get('/health', (req, res) => res.send('🚀 ELIMFILTERS V9.1 OK'));
+// 4. Health Check
+app.get('/health', (req, res) => res.status(200).send('🚀 ELIMFILTERS® API v9.1 Online'));
 
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => console.log(`🚀 Server Online en puerto ${PORT}`));
+app.listen(PORT, () => console.log(`🚀 Servidor ElimFilters activo en puerto ${PORT}`));
