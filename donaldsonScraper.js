@@ -1,89 +1,98 @@
 /**
- * ELIMFILTERS® Engineering Core - Donaldson Scraper (HD Specialist)
- * v9.9 - Extracción Completa de 40+ Especificaciones Técnicas
+ * ELIMFILTERS® Engineering Core - Donaldson Scraper
+ * v15.0 - Auditoría Total y Mapeo de Tecnologías Propietarias
  */
 
-async function getThreeOptions(searchTerm) {
-    console.log(`🔍 Extrayendo Ingeniería para el Protocolo 1R1808: ${searchTerm}`);
-    
-    // En una implementación real, aquí se usaría un motor de scraping (Puppeteer/Cheerio)
-    // para obtener estos valores directamente de la ficha técnica de Donaldson.
-    
-    return [
-        {
-            code: 'DBL7405',
-            tier: 'ELITE',
-            type: 'Lube',
-            media: 'Synteq™ (Full Synthetic)',
-            microns: 15,
-            claim: 'Maximum synthetic protection for extreme service',
-            specs: mapFullTechnicalSpecs('DBL7405', 'ELITE')
-        },
-        {
-            code: 'P551808',
-            tier: 'PERFORMANCE',
-            type: 'Lube',
-            media: 'Enhanced Cellulose',
-            microns: 21,
-            claim: 'Enhanced efficiency and dirt-holding capacity',
-            specs: mapFullTechnicalSpecs('P551808', 'PERFORMANCE')
-        },
-        {
-            code: 'P554005',
-            tier: 'STANDARD',
-            type: 'Lube',
-            media: 'Standard Cellulose',
-            microns: 40,
-            claim: 'Engineered for everyday operational demands',
-            specs: mapFullTechnicalSpecs('P554005', 'STANDARD')
+const axios = require('axios');
+const cheerio = require('cheerio');
+const homologationMap = require('../config/homologation_map.json'); // Tu archivo JSON
+
+const donaldsonScraper = {
+    getThreeOptions: async (searchTerm) => {
+        try {
+            // 1. NAVEGACIÓN PROFUNDA: Obtener la URL real del producto
+            const searchUrl = `https://shop.donaldson.com/store/en-us/search?Ntt=${searchTerm}`;
+            const searchResponse = await axios.get(searchUrl, {
+                headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36' }
+            });
+            const $search = cheerio.load(searchResponse.data);
+            const productLink = $search('.product-description-wrapper a, .product-list-item a').first().attr('href');
+
+            if (!productLink) throw new Error("Producto no identificado en Donaldson.");
+
+            const productUrl = productLink.startsWith('http') ? productLink : `https://shop.donaldson.com${productLink}`;
+
+            // 2. ENTRADA A LA FICHA TÉCNICA (Tabs de Atributos y Alternativas)
+            const { data: productPage } = await axios.get(productUrl);
+            const $ = cheerio.load(productPage);
+
+            // 3. EXTRACCIÓN DE ATRIBUTOS PARA LAS 59 COLUMNAS
+            const techSpecs = {};
+            $('.product-attributes-table tr, .attributes-table tr').each((i, row) => {
+                const label = $(row).find('td:first-child').text().trim();
+                const value = $(row).find('td:last-child').text().trim();
+                if (label && value) techSpecs[label] = value;
+            });
+
+            // 4. AUDITORÍA SEMÁNTICA (Determinación del Sistema)
+            const productTitle = $('.product-title, h1').text().toUpperCase();
+            const productDesc = $('.product-description').text().toUpperCase();
+            const fullDescription = `${productTitle} ${productDesc}`;
+
+            let systemKey = "FUEL_SYSTEM"; // Default
+            if (fullDescription.includes("SEPARADOR DE AGUA") || fullDescription.includes("WATER SEPARATOR")) {
+                systemKey = "FUEL_SEPARATOR";
+            } else if (fullDescription.includes("LUBE") || fullDescription.includes("OIL")) {
+                systemKey = "LUBE_OIL";
+            } else if (fullDescription.includes("AIR") && !fullDescription.includes("DRYER")) {
+                systemKey = "AIR_SYSTEM";
+            } else if (fullDescription.includes("HYDRAULIC")) {
+                systemKey = "HYDRAULIC_SYS";
+            }
+            // Agregar más reglas según sea necesario...
+
+            // 5. HOMOLOGACIÓN ELIMFILTERS® (Uso del MAPA OFICIAL)
+            const mapping = homologationMap.TECHNOLOGY_HOMOLOGATION_MAP.MAPPING_RULES[systemKey];
+            const prefix = mapping.pref; // ej: ES9, EF9, EA1
+            const technology = mapping.tech; // ej: AQUAGUARD®, SYNTEPORE™
+            const isoStandard = mapping.iso; // ej: ISO 4020, ISO 19438
+
+            let options = [];
+            const baseCode = $('.product-number, .sku-id').first().text().trim() || searchTerm;
+
+            // Fila 1: STANDARD
+            options.push({
+                tier: "STANDARD",
+                code: baseCode,
+                sku: `${prefix}${baseCode.replace(/[^0-9]/g, '').slice(-4)}`,
+                technology: technology,
+                iso: isoStandard,
+                specs: { ...techSpecs, SpecialFeatures: systemKey }
+            });
+
+            // 6. EXTRACCIÓN DE ALTERNATIVAS REALES (Sin Alucinaciones)
+            $('.alternative-products-list .product-number, .related-items-list .sku-id').each((i, el) => {
+                const altCode = $(el).text().trim();
+                if (altCode && altCode !== baseCode) {
+                    const isElite = altCode.startsWith('DB') || altCode.includes('Blue');
+                    options.push({
+                        tier: isElite ? "ELITE" : "PERFORMANCE",
+                        code: altCode,
+                        sku: `${prefix}${altCode.replace(/[^0-9]/g, '').slice(-4)}`,
+                        technology: technology, // Hereda la tecnología homologada
+                        iso: isoStandard,
+                        specs: { ...techSpecs, Media: isElite ? technology : "Premium Cellulose" }
+                    });
+                }
+            });
+
+            return options;
+
+        } catch (error) {
+            console.error("❌ [ELIMFILTERS SCRAPER ERROR]:", error.message);
+            return [];
         }
-    ];
-}
+    }
+};
 
-/**
- * Mapea los 40 campos técnicos requeridos por ELIMFILTERS®
- */
-function mapFullTechnicalSpecs(code, tier) {
-    // Estos valores se extraen dinámicamente del sitio de Donaldson
-    return {
-        ApplicationTier: "Heavy Duty Engine",
-        System: "Lubrication",
-        ThreadSize: "1 1/2-16 UN",
-        Height_mm: 300,
-        Height_inch: 11.81,
-        OuterDiameter_mm: 118,
-        OuterDiameter_inch: 4.65,
-        InnerDiameter_mm: 0,
-        GasketOD_mm: 110,
-        GasketOD_inch: 4.33,
-        GasketID_mm: 100,
-        GasketID_inch: 3.94,
-        ISOTestMethod: "ISO 4548-12",
-        MicronRating: tier === 'ELITE' ? 15 : (tier === 'PERFORMANCE' ? 21 : 40),
-        BetaRatio: tier === 'ELITE' ? "200" : "75",
-        NominalEfficiency: tier === 'ELITE' ? 99.9 : 99,
-        RatedFlow_Lmin: 100,
-        RatedFlow_GPM: 26.4,
-        RatedFlow_CFM: 0,
-        MaxPressure_PSI: 100,
-        BurstPressure_PSI: 300,
-        CollapsePressure_PSI: 150,
-        BypassValvePressure_PSI: 50,
-        MediaType: tier === 'ELITE' ? 'Full Synthetic' : 'Cellulose',
-        SealMaterial: "Nitrile",
-        HousingMaterial: "Steel",
-        EndCapMaterial: "Steel",
-        AntiDrainbackValve: "Yes",
-        DirtHoldingCapacity_g: tier === 'ELITE' ? 150 : 100,
-        ServiceLife_hours: tier === 'ELITE' ? 1000 : 500,
-        ChangeInterval_km: tier === 'ELITE' ? 45000 : 25000,
-        OperatingTempMin_C: -40,
-        OperatingTempMax_C: 121,
-        FluidCompatibility: "Petroleum, Synthetic, Bio-Diesel",
-        BiodieselCompatible: "Yes",
-        FiltrationTechnology: tier === 'ELITE' ? "Nanofiber" : "Depth Media",
-        SpecialFeatures: "Full-Flow High Protection"
-    };
-}
-
-module.exports = { getThreeOptions };
+module.exports = donaldsonScraper;
