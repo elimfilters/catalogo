@@ -1,54 +1,133 @@
-/**
- * ELIMFILTERS® Engineering Core - AI Duty Analyzer
- * v10.1 - Producción Railway
- */
+const axios = require('axios');
 
-const Groq = require('groq-sdk');
-require('dotenv').config();
+class GroqService {
+    constructor() {
+        this.apiKey = process.env.GROQ_API_KEY;
+        this.model = 'llama-3.1-8b-instant';
+        this.baseUrl = 'https://api.groq.com/openai/v1/chat/completions';
+    }
 
-// Inicialización del SDK de Groq con la API Key del entorno
-const groq = new Groq({
-    apiKey: process.env.GROQ_API_KEY 
-});
+    async detectDuty(filterCode) {
+        const prompt = `You are a heavy equipment and automotive filter classification expert.
 
-/**
- * Analiza si un fabricante/motor es Heavy Duty (HD) o Light Duty (LD)
- * @param {String} manufacturer - Marca (ej. Caterpillar, Toyota)
- * @param {String} engineType - Tipo (ej. C15, V6 3.5L)
- */
-async function analyzeDuty(manufacturer, engineType) {
-    try {
-        console.log(`🧠 [GROQ] Analizando Duty para: ${manufacturer} / ${engineType}`);
-        
-        const prompt = `Act as an industrial filtration engineer for ELIMFILTERS®. 
-        Analyze if the following manufacturer and engine type belong to Heavy Duty (HD) or Light Duty (LD) applications.
-        Manufacturer: ${manufacturer}
-        Engine: ${engineType}
-        Return ONLY a valid JSON object: {"duty": "HD"} or {"duty": "LD"}`;
+Analyze this filter part number: "${filterCode}"
 
-        const chatCompletion = await groq.chat.completions.create({
-            messages: [
+RULES:
+1. NEVER decode the prefix - focus ONLY on technical specifications and manufacturer patterns
+2. Determine if this filter is for Heavy Duty (HD) or Light Duty (LD) equipment
+3. HD manufacturers: Caterpillar, CAT, John Deere, Cummins, Volvo, Mack, Freightliner, Komatsu, Bobcat, Case, New Holland, International, Peterbilt, Kenworth, Navistar
+4. LD manufacturers: Ford, Toyota, BMW, Mercedes-Benz, Honda, Nissan, Chevrolet, GMC, Dodge, Ram, Volkswagen, Audi, Hyundai, Kia, Mazda, Subaru
+
+Respond ONLY with valid JSON (no markdown, no backticks):
+{
+  "duty": "HD" or "LD",
+  "confidence": 0-100,
+  "manufacturer": "detected manufacturer name or 'Unknown'",
+  "reasoning": "brief explanation"
+}`;
+
+        try {
+            const response = await axios.post(
+                this.baseUrl,
                 {
-                    role: "user",
-                    content: prompt,
+                    model: this.model,
+                    messages: [
+                        { role: 'system', content: 'You are a technical filter classification expert. Respond ONLY with valid JSON, no markdown formatting.' },
+                        { role: 'user', content: prompt }
+                    ],
+                    temperature: 0.1,
+                    max_tokens: 500
                 },
-            ],
-            model: "llama3-8b-8192", 
-            response_format: { type: "json_object" }
-        });
+                {
+                    headers: {
+                        'Authorization': `Bearer ${this.apiKey}`,
+                        'Content-Type': 'application/json'
+                    }
+                }
+            );
 
-        const responseContent = chatCompletion.choices[0]?.message?.content;
-        const result = JSON.parse(responseContent);
-        
-        console.log(`✅ [GROQ RESULT]: ${result.duty}`);
-        return result;
+            const content = response.data.choices[0].message.content.trim();
+            const cleanContent = content.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
+            const result = JSON.parse(cleanContent);
+            
+            console.log(`🤖 GROQ DUTY Detection: ${filterCode} → ${result.duty} (${result.confidence}% confidence)`);
+            
+            return result;
+        } catch (error) {
+            console.error('❌ GROQ Error:', error.response?.data || error.message);
+            return {
+                duty: 'HD',
+                confidence: 50,
+                manufacturer: 'Unknown',
+                reasoning: 'Fallback to HD due to GROQ error'
+            };
+        }
+    }
 
-    } catch (error) {
-        console.error("❌ [GROQ ERROR]:", error.message);
-        // Fallback Crítico: Si la IA no responde, ELIMFILTERS® asume HD por seguridad técnica
-        return { duty: "HD" };
+    async analyzeTechnicalSpecs(crossReferences) {
+        const prompt = `You are a filter technology expert specializing in filtration media analysis.
+
+Analyze these filter cross-references and assign the correct TIER based on technical specifications:
+
+${crossReferences.map((ref, i) => `${i + 1}. ${ref.code}: ${ref.description || 'No description'}`).join('\n')}
+
+TIER ASSIGNMENT RULES:
+- STANDARD (9000): 40+ microns, Celulosa/Paper media, basic filtration
+- PERFORMANCE (0949): 15-25 microns, Celulosa Enhanced or Blend media, improved efficiency  
+- ELITE (7900): <15 microns, Synthetic media (Synteq™, NanoForce™, etc.), maximum protection
+
+Respond ONLY with valid JSON (no markdown, no backticks):
+{
+  "results": [
+    {
+      "code": "filter code",
+      "tier": "STANDARD" or "PERFORMANCE" or "ELITE",
+      "microns": estimated micron rating (number),
+      "media_type": "type of filtration media",
+      "technology": "ELIMFILTERS technology mapping"
+    }
+  ]
+}`;
+
+        try {
+            const response = await axios.post(
+                this.baseUrl,
+                {
+                    model: this.model,
+                    messages: [
+                        { role: 'system', content: 'You are a filter technology expert. Respond ONLY with valid JSON, no markdown formatting.' },
+                        { role: 'user', content: prompt }
+                    ],
+                    temperature: 0.2,
+                    max_tokens: 1000
+                },
+                {
+                    headers: {
+                        'Authorization': `Bearer ${this.apiKey}`,
+                        'Content-Type': 'application/json'
+                    }
+                }
+            );
+
+            const content = response.data.choices[0].message.content.trim();
+            const cleanContent = content.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
+            const result = JSON.parse(cleanContent);
+            
+            console.log(`🔬 GROQ Technical Analysis: ${result.results.length} filters analyzed`);
+            
+            return result.results;
+        } catch (error) {
+            console.error('❌ GROQ Technical Analysis Error:', error.response?.data || error.message);
+            
+            return crossReferences.map((ref, index) => ({
+                code: ref.code,
+                tier: index === 0 ? 'PERFORMANCE' : index === 1 ? 'STANDARD' : 'ELITE',
+                microns: index === 0 ? 21 : index === 1 ? 40 : 15,
+                media_type: index === 0 ? 'Celulosa' : index === 1 ? 'Blend' : 'Synthetic',
+                technology: index === 0 ? 'SYNTRAX™' : index === 1 ? 'SYNTRAX™' : 'NANOFORCE™'
+            }));
+        }
     }
 }
 
-// ESTA LÍNEA ES VITAL: Exporta la función como un objeto para que detectionService la reconozca
-module.exports = { analyzeDuty };
+module.exports = new GroqService();
