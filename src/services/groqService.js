@@ -1,32 +1,28 @@
+// src/services/groqService.js
 const Groq = require('groq-sdk');
 const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
 
-async function analyzeTechnicalSpecs(manufacturer, searchTerm) {
-    try {
-        const completion = await groq.chat.completions.create({
-            messages: [
-                {
-                    role: "system",
-                    content: `Eres el Ingeniero Jefe de ELIMFILTERS®. 
-                    Tu tarea es analizar un código de filtro y su fabricante para:
-                    1. Determinar DUTY: 'HD' (Heavy Duty) para camiones/maquinaria o 'LD' (Light Duty) para autos.
-                    2. Analizar TIER: 'ELITE' (Sintético/15μ), 'PERFORMANCE' (Celulosa/21μ), 'STANDARD' (Mezcla/40μ).
-                    Responde estrictamente en formato JSON: {"duty": "HD"|"LD", "tier": "ELITE"|"PERFORMANCE"|"STANDARD", "reason": "breve explicacion"}`
-                },
-                {
-                    role: "user",
-                    content: `Fabricante: ${manufacturer}. Código de búsqueda: ${searchTerm}`
-                }
-            ],
-            model: "llama-3.1-8b-instant",
-            response_format: { type: "json_object" }
-        });
+async function analyzeTechnicalSpecs(manufacturer, engineType, scraperData) {
+    const prompt = `
+    Como Director de Ingeniería de ELIMFILTERS®, tu análisis debe ser TECHNICAL_SPECS_DRIVEN.
+    IGNORA el prefijo o formato del código OEM.
+    BASATE ÚNICAMENTE EN:
+    1. Tipo de Motor/Fabricante: ${manufacturer} / ${engineType}.
+    2. Datos Técnicos: Micrones (${scraperData.microns}), Medio Filtrante (${scraperData.media}), Aplicación (${scraperData.application}).
 
-        return JSON.parse(completion.choices[0].message.content);
-    } catch (error) {
-        console.error("❌ Error en Groq Service:", error);
-        return { duty: "HD", tier: "PERFORMANCE", reason: "Fallback por error de conexión" };
-    }
+    TAREAS:
+    - Clasifica el DUTY: HD (Heavy Duty) o LD (Light Duty) basándote en el motor.
+    - Asigna el TIER: 
+        - ELITE: Si el medio es 100% Sintético y micraje ≤ 15μm.
+        - PERFORMANCE: Si es Celulosa Reforzada/Mezcla y micraje ~21μm.
+        - STANDARD: Si es Celulosa Estándar y micraje ≥ 40μm.
+    
+    RESPUESTA JSON: {"duty": "HD"|"LD", "tier": "ELITE"|"PERFORMANCE"|"STANDARD", "tech_justification": "..."}`;
+
+    const chat = await groq.chat.completions.create({
+        messages: [{ role: "system", content: prompt }],
+        model: "llama-3.1-8b-instant",
+        response_format: { type: "json_object" }
+    });
+    return JSON.parse(chat.choices[0].message.content);
 }
-
-module.exports = { analyzeTechnicalSpecs };
