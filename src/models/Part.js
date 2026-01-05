@@ -1,23 +1,36 @@
 const mongoose = require('mongoose');
 
-/**
- * ELIMFILTERS® Engineering Core - Part Schema
- * v9.7 - Technical Specs & Trilogy Ready
- */
 const PartSchema = new mongoose.Schema({
-    sku: { type: String, required: true, unique: true }, // Ej: EL87405
+    // Identificación Básica
+    sku: { type: String, required: true, unique: true },
     brand: { type: String, default: "ELIMFILTERS® Engineering Core" },
-    tier: { type: String, enum: ['ELITE', 'PERFORMANCE', 'STANDARD'] }, //
-    duty: { type: String, enum: ['HD', 'LD'] }, // Determinado por Groq
-    microns: Number, // Física del filtro
-    media: String,   // Dato extraído por el Scraper
-    performance_claim: String, // Justificación técnica
-    cross_reference: { type: String, index: true }, // El código buscado (1R1808)
-    original_code: String, // El código hallado (DBL7405)
+    tier: String, // ELITE, PERFORMANCE, STANDARD
+    duty: String, // HD o LD
+    cross_reference: { type: String, index: true },
+    original_code: String,
+
+    // Especificaciones Técnicas (La Lista Completa)
+    technical_specs: {
+        application: String, system: String, thread_size: String,
+        height_mm: Number, height_inch: Number,
+        outer_diameter_mm: Number, outer_diameter_inch: Number,
+        inner_diameter_mm: Number,
+        gasket_od_mm: Number, gasket_od_inch: Number,
+        gasket_id_mm: Number, gasket_id_inch: Number,
+        iso_test_method: String, micron_rating: Number,
+        beta_ratio: String, nominal_efficiency: Number,
+        rated_flow_lmin: Number, rated_flow_gpm: Number, rated_flow_cfm: Number,
+        max_pressure_psi: Number, burst_pressure_psi: Number,
+        collapse_pressure_psi: Number, bypass_valve_pressure_psi: Number,
+        media_type: String, seal_material: String,
+        housing_material: String, end_cap_material: String,
+        anti_drainback_valve: String, dirt_holding_capacity_g: Number,
+        service_life_hours: Number, change_interval_km: Number,
+        operating_temp_min_c: Number, operating_temp_max_c: Number,
+        fluid_compatibility: String, biodiesel_compatible: String,
+        filtration_technology: String, special_features: String
+    },
     date_created: { type: Date, default: Date.now }
 });
-
-// Índice para que la búsqueda por código original sea instantánea
-PartSchema.index({ cross_reference: 1 });
 
 module.exports = mongoose.model('Part', PartSchema);
