@@ -1,45 +1,35 @@
 /**
  * ELIMFILTERS® Engineering Core - Detection Service
- * v12.0 - Auditoría de Duty y Búsqueda Cruzada
+ * v12.0 - Auditoría Duty HD/LD y Ruteo de Pestañas
  */
 
-const donaldsonScraper = require('../scrapers/donaldsonScraper');
-const mongoService = require('./mongoService'); // Verifica en MongoDB
-const sheetsService = require('./sheetsService'); // Verifica en Sheets
-const sheetsWriter = require('./sheetsWriter');
+const HD_BRANDS = ['CATERPILLAR', 'CAT', 'JOHN DEERE', 'BOBCAT', 'KOMATSU', 'MACK', 'FREIGHTLINER'];
+const LD_BRANDS = ['FORD', 'TOYOTA', 'BMW', 'MERCEDES BENZ', 'NISSAN', 'CHEVROLET'];
 
-const HD_BRANDS = ['CATERPILLAR', 'CAT', 'JOHN DEERE', 'BOBCAT', 'KOMATSU', 'MACK', 'FREIGHTLINER', 'PERKINS'];
+async function handleElimfiltersLogic(query, searchType, brand) {
+    // 1. Verificación Inicial (Sheets & Mongo)
+    const sheetTab = (searchType === 'VIN' || searchType === 'EQUIPMENT') 
+        ? 'MASTER_KITS_V1' 
+        : 'MASTER_UNIFIED_V5';
+    
+    const existing = await checkDatabase(query, sheetTab);
+    if (existing) return formatPart2(existing); // Retorna al plugin
 
-const detectionService = {
-    processSearch: async (query, userBrand) => {
-        // PASO 1: Búsqueda previa en Base de Datos y Sheets
-        const existingData = await mongoService.findByOriginalCode(query);
-        if (existingData) return existingData; // Devuelve al plugin Parte 2
+    // 2. Determinación de Duty
+    const duty = HD_BRANDS.includes(brand.toUpperCase()) ? 'HD' : 'LD';
 
-        // PASO 2: Determinar DUTY
-        const duty = HD_BRANDS.includes(userBrand.toUpperCase()) ? 'HD' : 'LD';
-        console.log(`🔍 Duty Detectado: ${duty} para la marca ${userBrand}`);
-
-        let crossResults = [];
-        if (duty === 'HD') {
-            // Activa Protocolo Donaldson (HD)
-            crossResults = await donaldsonScraper.getThreeOptions(query);
-        } else {
-            // Activa Protocolo FRAM (LD) - Requiere FramScraper.js
-            // crossResults = await framScraper.getThreeOptions(query);
-            console.log("⚠️ Scraper FRAM en desarrollo.");
-        }
-
-        // PASO 3: Creación de Trilogía y Registro en Sheet
-        if (crossResults.length > 0) {
-            for (const item of crossResults) {
-                // El sheetsWriter v11.0 ya aplica el rowMapper de 56 columnas
-                await sheetsWriter.writeToMaster(item, query);
-            }
-        }
-
-        return crossResults;
+    // 3. Protocolo de Scraping y Calco
+    let results = [];
+    if (duty === 'HD') {
+        results = await donaldsonScraper.getTrilogy(query); // Protocolo Donaldson
+    } else {
+        results = await framScraper.getTrilogy(query); // Protocolo FRAM
     }
-};
 
-module.exports = detectionService;
+    // 4. Registro y Mapeo (Regla 4 dígitos + Prefijo)
+    for (const item of results) {
+        await sheetsWriter.writeToMaster(item, sheetTab); // Escribe en la pestaña correcta
+    }
+    
+    return formatPart2(results);
+}
