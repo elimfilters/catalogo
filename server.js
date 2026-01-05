@@ -1,42 +1,41 @@
-const { GoogleSpreadsheet } = require('google-spreadsheet');
-const { JWT } = require('google-auth-library');
+const express = require('express');
+const mongoose = require('mongoose');
+const cors = require('cors');
+require('dotenv').config();
 
-const auth = new JWT({
-    email: process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL,
-    key: process.env.GOOGLE_PRIVATE_KEY.replace(/\\n/g, '\n'),
-    scopes: ['https://www.googleapis.com/auth/spreadsheets'],
+const detectionService = require('./src/services/detectionService');
+const kitsService = require('./src/services/kitsService');
+
+const app = express();
+app.use(cors());
+app.use(express.json());
+
+// Conexión Mandatoria MongoDB
+mongoose.connect(process.env.MONGO_URI)
+    .then(() => console.log("✅ MongoDB Connected"))
+    .catch(err => console.error("❌ Mongo Error:", err));
+
+// ENDPOINT: Part Number
+app.post('/api/v1/search', async (req, res) => {
+    try {
+        const result = await detectionService.findAndProcess(req.body.searchTerm, req.body.manufacturer);
+        res.json({ success: true, data: result });
+    } catch (e) {
+        res.status(500).json({ success: false, error: e.message });
+    }
 });
 
-const doc = new GoogleSpreadsheet(process.env.GOOGLE_SHEETS_ID, auth);
+// ENDPOINT: Kits (VIN/Equipment)
+app.post('/api/v1/kits', async (req, res) => {
+    try {
+        const kits = await kitsService.getKitsData(req.body.searchTerm, req.body.type);
+        res.json({ success: true, data: kits });
+    } catch (e) {
+        res.status(500).json({ success: false, error: e.message });
+    }
+});
 
-async function processSearch(searchTerm) {
-    await doc.loadInfo();
-    const sheet = doc.sheetsByIndex[0];
-    const rows = await sheet.getRows();
+app.get('/health', (req, res) => res.send('🚀 ELIMFILTERS V9.1 OK'));
 
-    const row = rows.find(r => 
-        r.get('SKU')?.toString().toLowerCase() === searchTerm.toLowerCase() ||
-        r.get('CROSS_REFERENCE')?.toString().toLowerCase().includes(searchTerm.toLowerCase())
-    );
-
-    if (!row) return null;
-
-    // ESTO ES LO QUE BUSCABAS: Mapeo de Tecnologías (H-AQ) y Aplicaciones (AT-AV)
-    return {
-        sku: row.get('SKU'),
-        description: row.get('DESCRIPTION'),
-        imageUrl: row.get('IMAGE_URL'),
-        specifications: [
-            { label: 'Height', value: row.get('H') }, // Columna H
-            { label: 'Outer Diameter', value: row.get('I') }, // Columna I
-            { label: 'Micron Rating', value: row.get('AQ') } // Columna AQ
-        ].filter(s => s.value),
-        equipment: rows.filter(r => r.get('SKU') === row.get('SKU')).map(r => ({
-            make: r.get('AT'),   // EQUIPO
-            model: r.get('AU'),  // MODELO
-            engine: r.get('AV')  // MOTOR
-        }))
-    };
-}
-
-module.exports = { processSearch };
+const PORT = process.env.PORT || 3000;
+app.listen(PORT, () => console.log(`🚀 Server Online en puerto ${PORT}`));
