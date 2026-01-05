@@ -5,43 +5,45 @@ class DonaldsonScraper {
     async search(searchTerm) {
         try {
             const cleanTerm = searchTerm.replace(/[^a-zA-Z0-9]/g, '');
-            // Accedemos a la tienda en español como en tus capturas
-            const url = `https://shop.donaldson.com/store/es-us/search?Ntt=${cleanTerm}`;
             
-            const { data } = await axios.get(url, {
+            // LA LLAVE MAESTRA: Forzamos la búsqueda dentro del portafolio de Motores (N=4130398073)
+            const masterUrl = `https://shop.donaldson.com/store/es-us/search?Ntt=${cleanTerm}&N=4130398073&catNav=true`;
+            
+            const { data: searchPage } = await axios.get(masterUrl, {
                 headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36' }
             });
 
-            const $ = cheerio.load(data);
+            const $search = cheerio.load(searchPage);
             
-            // ESCENARIO 1: Si ya estamos en la ruta final (como en tu image_ab30e5.png)
-            if ($('.product-specification-table').length > 0 || $('.product-number').length > 0) {
-                console.log("✅ Ruta de producto detectada directamente");
-                return this.extractFromDetailPage($);
+            // 1. Buscamos el link del producto dentro del portafolio de Motores
+            const resultLink = $search('.product-list-item a, .search-result-item a, .product-name a').first().attr('href');
+
+            if (resultLink) {
+                const detailUrl = resultLink.startsWith('http') ? resultLink : `https://shop.donaldson.com${resultLink}`;
+                console.log(`✅ Accediendo al Portafolio: ${detailUrl}`);
+                
+                const { data: detailPage } = await axios.get(detailUrl);
+                return this.extractFullData(cheerio.load(detailPage));
             }
 
-            // ESCENARIO 2: Si hay que "pulsar" el resultado (como en tu image_ab2d21.png)
-            const productLink = $('.product-list-item a, .search-result-item a, .product-name a').first().attr('href');
-            if (productLink) {
-                console.log(`🔗 Siguiendo ruta hacia el código Donaldson: ${productLink}`);
-                const detailUrl = productLink.startsWith('http') ? productLink : `https://shop.donaldson.com${productLink}`;
-                const { data: detailData } = await axios.get(detailUrl);
-                return this.extractFromDetailPage(cheerio.load(detailData));
+            // Si entra directo por ser un código exacto (p527682)
+            if ($search('.product-specification-table').length > 0) {
+                return this.extractFullData($search);
             }
 
             return [];
-        } catch (error) { 
-            console.error("❌ Error en Scraper:", error.message);
-            return []; 
+        } catch (error) {
+            console.error("❌ Error en Portafolio Donaldson:", error.message);
+            return [];
         }
     }
 
-    extractFromDetailPage($) {
+    extractFullData($) {
         const results = [];
-        const mainCode = $('.product-number').first().text().trim(); // El P552100 de tu imagen
+        const mainCode = $('.product-number').first().text().trim();
         const specs = {};
 
-        // Extraer la tabla de atributos técnicos
+        // Extraer la tabla técnica del portafolio
         $('.product-specification-table tr').each((i, el) => {
             const key = $(el).find('td:first-child').text().trim().replace(':', '');
             const value = $(el).find('td:last-child').text().trim();
@@ -49,24 +51,22 @@ class DonaldsonScraper {
         });
 
         if (mainCode) {
-            // Producto principal
             results.push({
                 originalCode: mainCode,
                 description: $('.product-name').first().text().trim(),
                 tier: this.identifyTier(mainCode),
                 systemKey: 'LUBE_OIL',
-                specs: specs,
-                source: 'Donaldson Mirror'
+                specs: specs
             });
 
-            // Capturar la "Trilogía" (Alternativos como DBL3998 o P551016)
-            $('.alternative-product-item, .equivalent-item').each((i, el) => {
+            // Extraer Alternativos (DBL3998, P551016) que siempre están en este portafolio
+            $('.alternative-product-item, .equivalent-item, .search-result-item').each((i, el) => {
                 const altCode = $(el).find('.product-number, .alt-code').text().trim();
                 if (altCode && altCode !== mainCode) {
                     results.push({
                         originalCode: altCode,
                         tier: this.identifyTier(altCode),
-                        specs: specs, 
+                        specs: specs,
                         systemKey: 'LUBE_OIL'
                     });
                 }
