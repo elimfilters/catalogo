@@ -1,43 +1,26 @@
-/**
- * ELIMFILTERS® Engineering Core - Donaldson Scraper
- * v17.0 - FINAL: Deep Navigation, Attribute Extraction & Identity Mapping
- */
-
 const axios = require('axios');
 const cheerio = require('cheerio');
 const path = require('path');
 
-// Carga robusta del mapa de homologación institucional
-let homologationMap;
-try {
-    // Ajustado para funcionar en la estructura de carpetas de Railway
-    const configPath = path.join(__dirname, '../config/homologation_map.json');
-    homologationMap = require(configPath);
-} catch (e) {
-    console.error("❌ [CRITICAL ERROR]: No se pudo cargar el mapa de homologación en src/config/");
-}
+const homologationMap = require('../config/homologation_map.json');
 
 const donaldsonScraper = {
     getThreeOptions: async (searchTerm) => {
         try {
-            // --- ACCIÓN 1: BÚSQUEDA Y DESCUBRIMIENTO ---
+            // A1. Búsqueda Inicial
             const searchUrl = `https://shop.donaldson.com/store/en-us/search?Ntt=${searchTerm}`;
-            const { data: searchHtml } = await axios.get(searchUrl, {
-                headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36' }
-            });
+            const { data: searchHtml } = await axios.get(searchUrl, { headers: { 'User-Agent': 'Mozilla/5.0' } });
             const $search = cheerio.load(searchHtml);
+            
+            const productPath = $search('.product-description-wrapper a').first().attr('href');
+            if (!productPath) return [];
 
-            // Obtener el link exacto de la ficha técnica (Evita el resumen de búsqueda)
-            const productPath = $search('.product-description-wrapper a, .product-list-item a').first().attr('href');
-            if (!productPath) throw new Error(`Referencia ${searchTerm} no localizada.`);
-
-            const productUrl = productPath.startsWith('http') ? productPath : `https://shop.donaldson.com${productPath}`;
-
-            // --- ACCIÓN 2: NAVEGACIÓN PROFUNDA (DETALLE DEL PRODUCTO) ---
+            // A2. Navegación a Ficha Técnica
+            const productUrl = `https://shop.donaldson.com${productPath}`;
             const { data: productHtml } = await axios.get(productUrl);
             const $ = cheerio.load(productHtml);
 
-            // --- ACCIÓN 3: EXTRACCIÓN DEL TAB DE ATRIBUTOS (PARA LAS 59 COLUMNAS) ---
+            // A3. Extracción masiva de Atributos (Las 59 columnas)
             const techSpecs = {};
             $('.product-attributes-table tr, .attributes-table tr').each((i, row) => {
                 const label = $(row).find('td:first-child').text().trim().replace(/:/g, '');
@@ -45,61 +28,49 @@ const donaldsonScraper = {
                 if (label && value) techSpecs[label] = value;
             });
 
-            // --- ACCIÓN 4: AUDITORÍA SEMÁNTICA PARA ASIGNACIÓN DE IDENTIDAD ---
-            const title = $('h1').text().trim().toUpperCase();
-            const desc = $('.product-description').text().trim().toUpperCase();
-            const fullContext = `${title} ${desc}`;
-
-            // Selección de sistema basada en tu JSON de Homologación
-            let systemKey = "FUEL_SYSTEM"; // Default
-            if (fullContext.includes("SEPARATOR") || fullContext.includes("SEPARADOR")) {
-                systemKey = "FUEL_SEPARATOR";
-            } else if (fullContext.includes("LUBE") || fullContext.includes("OIL") || fullContext.includes("ACEITE")) {
-                systemKey = "LUBE_OIL";
-            } else if (fullContext.includes("AIR") || fullContext.includes("AIRE")) {
-                systemKey = "AIR_SYSTEM";
-            } else if (fullContext.includes("HYDRAULIC") || fullContext.includes("HIDRAULICO")) {
-                systemKey = "HYDRAULIC_SYS";
-            }
+            // A4. Determinación de Sistema por Descripción
+            const description = $('.product-description').text().toUpperCase();
+            let systemKey = "FUEL_SYSTEM";
+            if (description.includes("SEPARATOR") || description.includes("SEPARADOR")) systemKey = "FUEL_SEPARATOR";
+            if (description.includes("LUBE") || description.includes("OIL")) systemKey = "LUBE_OIL";
+            if (description.includes("AIR") && !description.includes("DRYER")) systemKey = "AIR_SYSTEM";
+            if (description.includes("HYDRAULIC")) systemKey = "HYDRAULIC_SYS";
+            if (description.includes("DRYER")) systemKey = "AIR_DRYER";
 
             const rules = homologationMap.TECHNOLOGY_HOMOLOGATION_MAP.MAPPING_RULES[systemKey];
 
-            // --- ACCIÓN 5: CONSTRUCCIÓN DEL CALCO (TIER STANDARD) ---
-            const baseCode = $('.product-number, .sku-id').first().text().trim() || searchTerm.toUpperCase();
-            let options = [];
+            let results = [];
+            const baseCode = searchTerm.toUpperCase();
 
-            options.push({
+            // OPCIÓN STANDARD
+            results.push({
                 tier: "STANDARD",
                 donaldson_code: baseCode,
                 sku: `${rules.pref}${baseCode.replace(/[^0-9]/g, '').slice(-4)}`,
                 technology: rules.tech,
-                iso_standard: rules.iso,
-                description: `ELIMFILTERS® ${rules.tech} - ${title}`,
-                specs: { ...techSpecs } // Calca rosca, micraje, medidas, etc.
+                iso: rules.iso,
+                specs: techSpecs
             });
 
-            // --- ACCIÓN 6: EXPLORACIÓN DEL TAB DE ALTERNATIVAS (TIER PERFORMANCE/ELITE) ---
-            $('.alternative-products-list .product-number, .related-items .sku-id').each((i, el) => {
+            // OPCIONES ALTERNATIVAS (Performance/Elite)
+            $('.alternative-products-list .product-number').each((i, el) => {
                 const altCode = $(el).text().trim();
-                if (altCode && altCode !== baseCode && options.length < 3) {
-                    const isBlue = altCode.startsWith('DB') || altCode.includes('Blue');
-                    
-                    options.push({
-                        tier: isBlue ? "ELITE" : "PERFORMANCE",
+                if (altCode && altCode !== baseCode && results.length < 3) {
+                    const isElite = altCode.startsWith('DB') || altCode.includes('Blue');
+                    results.push({
+                        tier: isElite ? "ELITE" : "PERFORMANCE",
                         donaldson_code: altCode,
                         sku: `${rules.pref}${altCode.replace(/[^0-9]/g, '').slice(-4)}`,
-                        technology: rules.tech, // Hereda la tecnología homologada (ej: AQUAGUARD®)
-                        iso_standard: rules.iso,
-                        description: `ELIMFILTERS® ${isElite ? rules.tech : 'High Performance'}`,
-                        specs: { ...techSpecs } // Hereda compatibilidad física
+                        technology: rules.tech,
+                        iso: rules.iso,
+                        specs: techSpecs // Calca la compatibilidad física
                     });
                 }
             });
 
-            return options;
-
+            return results;
         } catch (error) {
-            console.error("❌ [SCRAPER v17.0 FINAL ERROR]:", error.message);
+            console.error("Scraper Error:", error.message);
             return [];
         }
     }
