@@ -6,11 +6,10 @@ const donaldsonScraper = require('../../donaldsonScraper');
 const framScraper = require('../../framScraper');
 
 /**
- * Detection Service v11.0 - ELIMFILTERS
- * LOGICA DE PREFIJOS Y KITS INTEGRADA
+ * Detection Service v11.0.2 - ELIMFILTERS
+ * LOGICA DE ESPEJO REAL - NO INVENTA TIERS
  */
 
-// Diccionario Maestro de Prefijos
 const PREFIX_MAP = {
     'LUBE_OIL': 'EL8', 'FUEL_SYSTEM': 'EF9', 'FUEL_SEPARATOR': 'ES9',
     'AIR_SYSTEM': 'EA1', 'CABIN_FILTER': 'EC1', 'COOLANT_SYS': 'EW7',
@@ -77,7 +76,6 @@ class DetectionService {
             });
             
             if (matchingRows.length > 0) {
-                // Buscamos si estos SKUs pertenecen a algún KIT en la pestaña MASTER_KITS_V1
                 const finalResults = [];
                 for (const row of matchingRows) {
                     const sku = row.get('ELIMFILTERS SKU');
@@ -99,7 +97,7 @@ class DetectionService {
                         equipment: row.get('Equipment Applications'),
                         oem_codes: row.get('OEM Codes'),
                         cross_references: row.get('Cross Reference Codes'),
-                        maintenance_kits: maintenanceKits, // Se agrega debajo de specs
+                        maintenance_kits: maintenanceKits,
                         source: 'Google Sheets'
                     });
                 }
@@ -112,7 +110,6 @@ class DetectionService {
         }
     }
 
-    // Nueva función para buscar Kits relacionados
     async getKitsForSku(sku) {
         try {
             const kitSheet = this.doc.sheetsByTitle['MASTER_KITS_V1'];
@@ -148,11 +145,14 @@ class DetectionService {
             
             if (!scraperResults || scraperResults.length === 0) throw new Error('No cross-references found');
 
+            // CORRECCIÓN ESPEJO: Mapeamos los productos reales encontrados (1, 2 o 3)
             const skuData = scraperResults.map(result => {
                 const prefix = PREFIX_MAP[result.systemKey] || 'EL8';
-                const last4Digits = result.code.replace(/[^0-9]/g, '').slice(-4).padStart(4, '0');
                 
-                // Lógica de sufijos ET9 (Turbine)
+                // CORRECCIÓN: Usamos result.originalCode (ej. P554105) en lugar del término buscado
+                const codeToUse = result.originalCode || searchTerm;
+                const last4Digits = codeToUse.replace(/[^0-9]/g, '').slice(-4).padStart(4, '0');
+                
                 let sku = `${prefix}${last4Digits}`;
                 if (prefix === 'ET9') {
                     if (result.microns == 2) sku += 'S';
@@ -164,11 +164,11 @@ class DetectionService {
                     sku: sku,
                     tier: result.tier,
                     tier_description: TIER_DESCRIPTIONS[result.tier] || '',
-                    crossRefCode: result.code,
+                    crossRefCode: codeToUse, // El código real del espejo
                     prefix: prefix,
-                    microns: result.microns,
-                    specs: result.specs,
-                    description: result.description,
+                    microns: result.microns || (result.tier === 'ELITE' ? 15 : 21),
+                    specs: result.specs, // Mantiene la tabla técnica del espejo
+                    description: result.description || `${result.tier} Filter`,
                     systemKey: result.systemKey
                 };
             });
@@ -186,11 +186,11 @@ class DetectionService {
                 filterType: sku.systemKey?.replace(/_/g, ' '),
                 duty: dutyAnalysis.duty,
                 microns: sku.microns,
-                specifications: sku.specs,
+                specifications: sku.specs, // Ya no vendrá "N/A" si el scraper lo capturó
                 equipment: dutyAnalysis.duty === 'HD' ? 'Heavy Duty Equipment (CAT, Cummins)' : 'Light Duty Vehicles',
                 oem_codes: searchTerm,
                 cross_references: sku.crossRefCode,
-                maintenance_kits: [], // Generados no tienen kits aún
+                maintenance_kits: [],
                 source: 'AI Generated'
             }));
 
@@ -223,7 +223,7 @@ class DetectionService {
             'Prefix': prefix,
             'Duty': duty.duty,
             'Tier System': tier,
-            'Thread Size': specs['Thread Size'] || '',
+            'Thread Size': specs ? specs['Thread Size'] || '' : '',
             'Micron Rating': microns,
             'Media Type': skuData.mediaType || 'Cellulose',
             'OEM Codes': originalCode,
