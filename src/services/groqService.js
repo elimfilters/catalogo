@@ -1,15 +1,16 @@
-const axios = require('axios');
+const Groq = require('groq-sdk');
+const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
 
-const analyzeCode = async (code) => {
-    const response = await axios.post('https://api.groq.com/openai/v1/chat/completions', {
-        model: "llama-3.1-70b-versatile",
-        messages: [{
-            role: "system",
-            content: "Eres un experto en filtros industriales. Si el motor es Caterpillar/Cummins es HD. Si es Toyota/RAV4 es LD. Devuelve JSON: {duty: 'HD'|'LD', prefix: 'EL8'|'EA1', description: 'string'}"
-        }, { role: "user", content: code }]
-    }, { headers: { Authorization: `Bearer ${process.env.GROQ_API_KEY}` } });
-    
-    return JSON.parse(response.data.choices[0].message.content);
-};
+async function analyzeTechnicalSpecs(manufacturer, searchTerm) {
+    const chat = await groq.chat.completions.create({
+        messages: [
+            { role: "system", content: "Determine DUTY: HD (Heavy Duty) or LD (Light Duty). Output JSON: { 'duty': 'HD'|'LD' }" },
+            { role: "user", content: `Manufacturer: ${manufacturer}, Code: ${searchTerm}` }
+        ],
+        model: "llama-3.1-8b-instant",
+        response_format: { type: "json_object" }
+    });
+    return JSON.parse(chat.choices[0].message.content);
+}
 
-module.exports = { analyzeCode };
+module.exports = { analyzeTechnicalSpecs };
