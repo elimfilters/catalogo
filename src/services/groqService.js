@@ -1,6 +1,6 @@
 const Groq = require('groq-sdk');
 
-// SEGURIDAD: Usamos process.env para proteger tu llave
+// SEGURIDAD: Usamos process.env para proteger tu llave técnica
 const groq = new Groq({ 
     apiKey: process.env.GROQ_API_KEY 
 });
