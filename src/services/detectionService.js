@@ -1,14 +1,15 @@
 /**
  * ELIMFILTERS® Engineering Core - Detection Service
- * v12.2 - Integración Dual HD/LD
+ * v12.2 - Auditoría de Doble Flujo HD/LD
  */
 
-const donaldsonScraper = require('../../donaldsonScraper');
-const framScraper = require('../scrapers/framScraper'); // Nuevo Scraper
+const donaldsonScraper = require('../../donaldsonScraper'); // Para HD
+const framScraper = require('../scrapers/framScraper');      // Para LD (Nuevo)
 const sheetsWriter = require('./sheetsWriter');
 
-const HD_BRANDS = ['CATERPILLAR', 'CAT', 'JOHN DEERE', 'BOBCAT', 'KOMATSU', 'MACK', 'FREIGHTLINER', 'CUMMINS'];
-const LD_BRANDS = ['FORD', 'TOYOTA', 'BMW', 'MERCEDES BENZ', 'MERCEDES', 'NISSAN', 'CHEVROLET', 'HONDA', 'HYUNDAI'];
+// Diccionarios de Auditoría Técnica
+const HD_BRANDS = ['CATERPILLAR', 'CAT', 'JOHN DEERE', 'BOBCAT', 'KOMATSU', 'MACK', 'FREIGHTLINER', 'CUMMINS', 'PERKINS'];
+const LD_BRANDS = ['FORD', 'TOYOTA', 'BMW', 'MERCEDES BENZ', 'NISSAN', 'CHEVROLET', 'HONDA', 'HYUNDAI', 'MAZDA'];
 
 const detectionService = {
     findAndProcess: async (searchTerm, brand, searchType) => {
@@ -19,17 +20,23 @@ const detectionService = {
 
             let trilogy = [];
 
+            // RUTA 1: Protocolo Heavy Duty (Donaldson)
             if (isHD) {
-                console.log(`🚛 Protocolo HD Activado: Buscando ${searchTerm} en Donaldson...`);
+                console.log(`🚛 [AUDITORÍA HD]: Buscando ${searchTerm} en Donaldson...`);
                 trilogy = await donaldsonScraper.getThreeOptions(searchTerm);
-            } else if (isLD) {
-                console.log(`🚗 Protocolo LD Activado: Buscando ${searchTerm} en FRAM...`);
+            } 
+            // RUTA 2: Protocolo Light Duty (FRAM)
+            else if (isLD) {
+                console.log(`🚗 [AUDITORÍA LD]: Buscando ${searchTerm} en FRAM...`);
                 trilogy = await framScraper.getThreeOptions(searchTerm);
-            } else {
-                // Si la marca no está en las listas, por defecto buscamos en Donaldson por seguridad HD
+            } 
+            // RUTA 3: Default por seguridad técnica (Donaldson)
+            else {
+                console.log(`⚠️ Marca no clasificada. Aplicando Protocolo HD por seguridad.`);
                 trilogy = await donaldsonScraper.getThreeOptions(searchTerm);
             }
 
+            // PROCESAMIENTO COMÚN: Registro en Sheet de 56 columnas
             if (trilogy && trilogy.length > 0) {
                 for (const item of trilogy) {
                     await sheetsWriter.writeToMaster(item, searchTerm);
@@ -37,7 +44,7 @@ const detectionService = {
                 return { success: true, data: trilogy };
             }
 
-            return { success: false, error: "No se encontraron equivalentes para esta marca." };
+            return { success: false, error: "No se encontraron equivalentes." };
 
         } catch (error) {
             console.error("❌ Error en detectionService:", error.message);
