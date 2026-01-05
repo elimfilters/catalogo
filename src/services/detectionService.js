@@ -1,53 +1,59 @@
-const { GoogleSpreadsheet } = require('google-spreadsheet');
-const { JWT } = require('google-auth-library');
+const Part = require('../models/Part');
+const groqService = require('./groqService');
+const skuBuilder = require('./skuBuilder');
+const sheetsWriter = require('./sheetsWriter');
+const donaldson = require('../../donaldsonScraper');
+const fram = require('../../framScraper');
 
-const auth = new JWT({
-    email: process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL,
-    key: process.env.GOOGLE_PRIVATE_KEY.replace(/\\n/g, '\n'),
-    scopes: ['https://www.googleapis.com/auth/spreadsheets'],
-});
+// Configuración de Exclusividad
+const HD_ONLY_PREFIXES = ['EH6', 'EW7', 'ED4', 'ES9'];
 
-const doc = new GoogleSpreadsheet(process.env.GOOGLE_SHEETS_ID, auth);
+async function findAndProcess(searchTerm, manufacturer) {
+    // 1. PRIORIDAD 1: Buscar en MongoDB (Caché local)
+    const cachedResults = await Part.find({ cross_reference: searchTerm });
+    if (cachedResults.length > 0) return cachedResults;
 
-async function processSearch(searchTerm, type) {
-    await doc.loadInfo();
-    const sheet = doc.sheetsByIndex[0];
-    const rows = await sheet.getRows();
+    // 2. PRIORIDAD 2: Protocolo Externo (Si no existe en base de datos)
+    // Determinamos Duty Inicial con Groq
+    const analysis = await groqService.analyzeTechnicalSpecs(manufacturer, searchTerm);
+    
+    // Seleccionar Scraper: Donaldson para HD, FRAM para LD
+    const scraper = (analysis.duty === 'HD') ? donaldson : fram;
+    const externalOptions = await scraper.getThreeOptions(searchTerm);
 
-    // Búsqueda por SKU (Col B) o Referencias Cruzadas
-    const row = rows.find(r => {
-        const sku = r.get('SKU')?.toString().toLowerCase();
-        const cross = r.get('CROSS_REFERENCE')?.toString().toLowerCase();
-        const term = searchTerm.toLowerCase();
-        return sku === term || cross?.includes(term);
-    });
+    // 3. PROCESAMIENTO DE LA TRILOGÍA ELIMFILTERS
+    const finalResults = externalOptions.map(ext => {
+        const prefix = ext.prefix; // Determinado por el scraper (EL8, EF9, etc.)
 
-    if (!row) return null;
+        // VALIDACIÓN DE SEGURIDAD: Exclusividad HD
+        if (analysis.duty === 'LD' && HD_ONLY_PREFIXES.includes(prefix)) {
+            console.warn(`⚠️ Conflicto detectado: Prefijo ${prefix} es exclusivo para Heavy Duty.`);
+            return null; // No genera SKU para aplicaciones LD prohibidas
+        }
 
-    // Mapeo de Tecnologías (H-AQ)
-    const specs = [
-        { label: 'Height (mm)', value: row.get('H') },
-        { label: 'Outer Diameter', value: row.get('I') },
-        { label: 'Thread Size', value: row.get('K') },
-        { label: 'Micron Rating', value: row.get('AQ') }
-    ].filter(s => s.value && s.value !== '-');
+        // CONSTRUCCIÓN DE SKU (Incluye lógica ET9 S/T/P)
+        const generatedSku = skuBuilder.buildDynamicSKU(prefix, ext.code, ext.microns);
 
-    // Mapeo de Aplicaciones de Equipos (AT-AV)
-    const equipmentList = rows.filter(r => r.get('SKU') === row.get('SKU')).map(r => ({
-        make: r.get('AT'),    // Marca
-        model: r.get('AU'),   // Modelo
-        engine: r.get('AV')   // Motor
-    })).filter(e => e.make);
+        return {
+            sku: generatedSku,
+            brand: "ELIMFILTERS® Engineering Core",
+            tier: ext.tier, // ELITE, PERFORMANCE o STANDARD
+            duty: analysis.duty,
+            microns: ext.microns,
+            performance_claim: ext.claim,
+            specifications: ext.specs,
+            cross_reference: searchTerm,
+            original_code: ext.code
+        };
+    }).filter(res => res !== null); // Filtra los resultados invalidados por duty
 
-    return {
-        sku: row.get('SKU'), // B
-        description: row.get('DESCRIPTION'), // C
-        imageUrl: row.get('IMAGE_URL') || 'https://elimfilters.com/default.jpg',
-        specifications: specs,
-        equipment: equipmentList,
-        oemCodes: row.get('OEM_CODES')?.split(',') || [],
-        crossReference: row.get('CROSS_REFERENCE')?.split(',') || []
-    };
+    // 4. PERSISTENCIA DOBLE (MongoDB + Google Sheets)
+    if (finalResults.length > 0) {
+        await Part.insertMany(finalResults);
+        await sheetsWriter.saveThreeRows(finalResults);
+    }
+
+    return finalResults;
 }
 
-module.exports = { processSearch };
+module.exports = { findAndProcess };
