@@ -7,15 +7,25 @@ async function getKitsData(searchTerm, type) {
     const sheet = doc.sheetsByTitle['MASTER_KITS_V1'];
     const rows = await sheet.getRows();
 
-    const kit = rows.find(r => r.get('VIN') === searchTerm || r.get('EQUIPMENT')?.includes(searchTerm));
+    // Búsqueda por VIN o por nombre de Equipo
+    const kit = rows.find(r => 
+        r.get('VIN') === searchTerm || 
+        r.get('EQUIPMENT')?.toString().toLowerCase().includes(searchTerm.toLowerCase())
+    );
+
     if (!kit) return null;
 
-    const duty = kit.get('DUTY');
+    const duty = kit.get('DUTY'); // Debe ser HD o LD en el Excel
+    const prefix = (duty === 'HD') ? 'EK5' : 'EK3';
+
     return {
-        kit_sku: `${duty === 'HD' ? 'EK5' : 'EK3'}-${kit.get('ID')}`,
+        kit_sku: `${prefix}-${kit.get('ID')}`,
+        equipment: kit.get('EQUIPMENT'),
+        duty: duty,
         components: [
-            { type: 'Oil', sku: kit.get('OIL_SKU') },
-            { type: 'Fuel', sku: kit.get('FUEL_SKU') }
+            { label: "Aceite", sku: kit.get('OIL_SKU') },
+            { label: "Combustible", sku: kit.get('FUEL_SKU') },
+            { label: "Aire", sku: kit.get('AIR_SKU') }
         ]
     };
 }
