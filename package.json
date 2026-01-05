@@ -1,11 +1,10 @@
 {
-  "name": "elimfilters-backend-v9-1",
+  "name": "elimfilters-api",
   "version": "9.1.0",
-  "description": "ELIMFILTERS® Engineering Core - AI Powered",
+  "description": "ELIMFILTERS® Engineering Core - AI & Mongo Powered",
   "main": "server.js",
   "scripts": {
-    "start": "node server.js",
-    "dev": "nodemon server.js"
+    "start": "node server.js"
   },
   "dependencies": {
     "cors": "^2.8.5",
