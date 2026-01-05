@@ -1,65 +1,51 @@
 /**
  * ELIMFILTERS® Engineering Core - Detection Service
- * v12.5 - Sincronización de Rutas y Auditoría HD/LD
+ * v12.6 - Sincronización de Rutas y Soporte HD/LD
  */
 
-// ✅ LÍNEA 6 CORREGIDA: Sube un nivel y entra en scrapers
+// RUTAS CORREGIDAS: Asegúrate que el archivo se llame donaldsonScraper.js (minúsculas)
 const donaldsonScraper = require('../scrapers/donaldsonScraper'); 
 const sheetsWriter = require('./sheetsWriter');
 
-// Listas de Auditoría Técnica para determinar el DUTY
-const HD_BRANDS = ['CATERPILLAR', 'CAT', 'JOHN DEERE', 'BOBCAT', 'KOMATSU', 'MACK', 'FREIGHTLINER', 'CUMMINS', 'PERKINS'];
-const LD_BRANDS = ['FORD', 'TOYOTA', 'BMW', 'MERCEDES BENZ', 'NISSAN', 'CHEVROLET', 'HONDA', 'HYUNDAI', 'MAZDA'];
+// Diccionarios para Auditoría de Duty
+const HD_BRANDS = ['CATERPILLAR', 'CAT', 'JOHN DEERE', 'BOBCAT', 'KOMATSU', 'MACK', 'FREIGHTLINER', 'CUMMINS'];
+const LD_BRANDS = ['FORD', 'TOYOTA', 'BMW', 'MERCEDES BENZ', 'NISSAN', 'CHEVROLET', 'MAZDA', 'HONDA'];
 
 const detectionService = {
-    /**
-     * findAndProcess: Orquestador principal de búsqueda
-     * Coincide exactamente con la llamada desde server.js
-     */
+    // Nombre exacto que busca tu server.js
     findAndProcess: async (searchTerm, brand, searchType) => {
         try {
-            console.log(`🚀 [ELIMFILTERS ENGINE]: Procesando ${searchTerm} para marca: ${brand}`);
-
+            console.log(`🔍 Iniciando protocolo para: ${searchTerm} (${brand})`);
             const brandUpper = brand ? brand.toUpperCase() : "";
-            const isHD = HD_BRANDS.includes(brandUpper);
-            const isLD = LD_BRANDS.includes(brandUpper);
+            
+            let results = [];
 
-            let trilogy = [];
-
-            // 1. DETERMINACIÓN DE PROTOCOLO (HD vs LD)
-            if (isHD) {
-                console.log("🚛 [AUDITORÍA HD]: Activando Donaldson Scraper...");
-                trilogy = await donaldsonScraper.getThreeOptions(searchTerm);
-            } 
-            else if (isLD) {
-                console.log("🚗 [AUDITORÍA LD]: Activando Protocolo FRAM (Simulado)...");
-                // Por ahora usamos Donaldson hasta que subamos el framScraper.js
-                trilogy = await donaldsonScraper.getThreeOptions(searchTerm);
-            } 
-            else {
-                // Si la marca no está en las listas, aplicamos HD por seguridad de ingeniería
-                console.log("⚠️ Marca no clasificada. Aplicando Protocolo HD por defecto.");
-                trilogy = await donaldsonScraper.getThreeOptions(searchTerm);
+            // 1. DETERMINACIÓN DE RUTA (HD vs LD)
+            if (HD_BRANDS.includes(brandUpper) || brandUpper === "") {
+                console.log("🚛 [DUTY: HD] Ejecutando Protocolo Donaldson...");
+                results = await donaldsonScraper.getThreeOptions(searchTerm);
+            } else if (LD_BRANDS.includes(brandUpper)) {
+                console.log("🚗 [DUTY: LD] Ejecutando Protocolo FRAM (Simulado)...");
+                // Mientras desarrollamos el framScraper, usamos Donaldson como respaldo técnico
+                results = await donaldsonScraper.getThreeOptions(searchTerm);
             }
 
-            // 2. REGISTRO INSTITUCIONAL (Google Sheets 56 Columnas)
-            if (trilogy && trilogy.length > 0) {
-                console.log(`📊 [WRITER]: Registrando ${trilogy.length} opciones en MASTER_UNIFIED_V5...`);
-                for (const item of trilogy) {
-                    // El sheetsWriter v11.0 ya usa la variable de entorno segura de Railway
+            // 2. REGISTRO EN MASTER SHEET (56 Columnas)
+            if (results && results.length > 0) {
+                for (const item of results) {
+                    // sheetsWriter v11.0 configurado con variables de entorno
                     await sheetsWriter.writeToMaster(item, searchTerm);
                 }
-                return { success: true, data: trilogy };
+                return { success: true, data: results };
             }
 
-            return { success: false, error: "No se encontraron resultados técnicos en el catálogo." };
+            return { success: false, error: "No se encontraron equivalentes técnicos." };
 
         } catch (error) {
             console.error("❌ [DETECTION SERVICE ERROR]:", error.message);
-            throw error; // Lanza el error para que el controlador lo capture
+            throw error;
         }
     }
 };
 
-// EXPORTACIÓN CRÍTICA PARA server.js
 module.exports = detectionService;
