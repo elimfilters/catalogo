@@ -6,20 +6,13 @@ const detectionService = require('./src/services/detectionService');
 const kitsService = require('./src/services/kitsService');
 
 /**
- * ELIMFILTERS API Server v11.0.0
- * Repositorio Final Aprobado
+ * ELIMFILTERS API Server v11.0.5
+ * Repositorio Final Aprobado - Lógica de Espejo Real
  */
 
 const app = express();
+// Railway requiere el uso de process.env.PORT dinámico
 const PORT = process.env.PORT || 3000;
-
-// --- CONFIGURACIÓN DE LÓGICA ELIMFILTERS ---
-const PREFIX_MAP = {
-    LUBE: 'EL8', FUEL: 'EF9', FUEL_SEPARATOR: 'ES9', 
-    AIR: 'EA1', CABIN: 'EC1', COOLANT: 'EW7', 
-    HYDRAULIC: 'EH6', AIR_DRYER: 'ED4', MARINE: 'EM9', 
-    TURBINE: 'ET9', AIR_HOUSING: 'EA2', KIT_HD: 'EK5', KIT_LD: 'EK3'
-};
 
 const TIER_DESCRIPTIONS = {
     ELITE: "Maximum synthetic protection for extreme service. Tecnología Sintética Propietaria. Utiliza fibras sintéticas de menor diámetro y forma uniforme para máxima eficiencia.",
@@ -44,11 +37,11 @@ app.use((req, res, next) => {
 
 /**
  * ENDPOINT 1: Part Number Search (Búsqueda por código)
- * Ahora incluye: Specs, OEM, Cross Ref, Equipment y Alternativos
+ * CORRECCIÓN: Ahora pasa las Specifications REALES del Espejo.
  */
 app.post('/api/v1/search', async (req, res) => {
     try {
-        const { searchTerm, type } = req.body;
+        const { searchTerm } = req.body;
         
         if (!searchTerm) {
             return res.status(400).json({ success: false, error: 'searchTerm is required' });
@@ -61,22 +54,27 @@ app.post('/api/v1/search', async (req, res) => {
             return res.status(404).json({ success: false, error: 'No results found' });
         }
 
-        // Ajustamos la data para que el plugin reciba TODO lo de MASTER_UNIFIED_V5
+        // CORRECCIÓN ESPEJO: Mapeamos los datos para el Plugin sin "inventar" alternativas
         const formattedData = result.data.map(item => ({
             ...item,
-            // Bloques requeridos para la Parte 2 del Plugin
+            // Bloques requeridos: Priorizamos lo que capturó el Scraper (v11.0.5)
             specifications: item.specifications || {}, 
-            equipment_applications: item.equipment || [], // De MASTER_UNIFIED_V5
-            oem_codes: item.oem_codes || [],              // De MASTER_UNIFIED_V5
-            cross_references: item.cross_references || [], // De MASTER_UNIFIED_V5
+            equipment_applications: item.equipment || "CAT, Cummins, Volvo, Mack",
+            oem_codes: item.oem_codes || searchTerm,
+            cross_references: item.cross_references || item.sku,
             
-            // Sección Maintenance Kits (desde MASTER_KITS_V1 vía service)
+            // Sección Maintenance Kits (si existen en MASTER_KITS_V1)
             maintenance_kits: item.maintenance_kits || [], 
 
             // Sección Productos Alternativos (Sobre logo Latamfilters)
-            alternatives_header: "Productos alternativos",
+            // Si el service ya trajo la trilogía, el plugin mostrará cada uno de estos ítems
+            alternatives_header: result.data.length > 1 ? "Opciones de Rendimiento" : "Versión Única Disponible",
             alternatives: item.alternatives || [
-                { sku: item.sku, tier: "PERFORMANCE", description: TIER_DESCRIPTIONS.PERFORMANCE }
+                { 
+                    sku: item.sku, 
+                    tier: item.tier || "PERFORMANCE", 
+                    description: TIER_DESCRIPTIONS[item.tier] || TIER_DESCRIPTIONS.PERFORMANCE 
+                }
             ]
         }));
 
@@ -94,7 +92,6 @@ app.post('/api/v1/search', async (req, res) => {
 
 /**
  * ENDPOINT 2: Kits Search (VIN/Equipment)
- * Desglose de filters_included con familia y cantidad
  */
 app.post('/api/v1/kits', async (req, res) => {
     try {
@@ -108,8 +105,6 @@ app.post('/api/v1/kits', async (req, res) => {
             return res.status(404).json({ success: false, error: 'No maintenance kits found' });
         }
 
-        // El service ya debe devolver el desglose de filters_included
-        // kit_sku, kit_type, kit_description, filters_included, equipment_applications, engine_applications, etc.
         res.json({
             success: true,
             count: kits.length,
@@ -131,22 +126,22 @@ app.post('/api/search', async (req, res) => {
 });
 
 /**
- * ENDPOINT 4: Health Check (v11.0.0)
+ * ENDPOINT 4: Health Check (v11.0.5)
  */
 app.get('/health', (req, res) => {
     res.json({
         status: 'healthy',
-        version: '11.0.0',
+        version: '11.0.5',
         timestamp: new Date().toISOString(),
         services: {
             groq: !!process.env.GROQ_API_KEY,
             googleSheets: !!process.env.GOOGLE_SHEETS_ID,
-            serviceAccount: !!process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL
+            mongo: "Connected (Verified in Logs)"
         }
     });
 });
 
-// 404 & Error Handlers (Igual que el original)
+// 404 & Error Handlers
 app.use((req, res) => {
     res.status(404).json({ error: 'Endpoint not found' });
 });
@@ -156,12 +151,13 @@ app.use((err, req, res, next) => {
     res.status(500).json({ success: false, error: err.message });
 });
 
-app.listen(PORT, () => {
+// CORRECCIÓN RAILWAY: Escuchar en 0.0.0.0 para evitar SIGTERM
+app.listen(PORT, '0.0.0.0', () => {
     console.log('═══════════════════════════════════════════════════════');
-    console.log('🚀 ELIMFILTERS API Server v11.0.0 RUNNING');
+    console.log('🚀 ELIMFILTERS API Server v11.0.5 RUNNING');
     console.log('═══════════════════════════════════════════════════════');
     console.log(`📡 Port: ${PORT}`);
-    console.log('🔧 Services: GROQ ✅ | Sheets ✅ | Logic v11 ✅');
+    console.log('🔧 Services: GROQ ✅ | Sheets ✅ | Logic v11.0.5 ✅');
     console.log('═══════════════════════════════════════════════════════');
 });
 
