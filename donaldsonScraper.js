@@ -5,6 +5,7 @@ class DonaldsonScraper {
     async search(searchTerm) {
         try {
             const cleanTerm = searchTerm.replace(/[^a-zA-Z0-9]/g, '');
+            // Buscamos en la sección de Cross Reference de Donaldson
             const url = `https://shop.donaldson.com/store/en-us/search?Ntt=${cleanTerm}`;
             
             const { data } = await axios.get(url, {
@@ -14,61 +15,55 @@ class DonaldsonScraper {
             const $ = cheerio.load(data);
             const products = [];
 
-            // 1. EXTRAER MÚLTIPLES PRODUCTOS (Caso Aceite HD con 3 niveles)
-            const productItems = $('.product-list-item, .search-result-item');
+            // REGLA: ¿Donaldson encontró un cruce directo?
+            const crossRefMatch = $('.competitive-cross-reference-item, .cross-reference-match').first();
+            let mainCode = crossRefMatch.find('.product-number').text().trim();
             
-            if (productItems.length > 0) {
-                productItems.each((i, el) => {
-                    const rawCode = $(el).find('.product-number').text().trim();
-                    const title = $(el).find('.product-name').text().trim();
-                    
-                    if (rawCode) {
-                        products.push({
-                            originalCode: rawCode,
-                            description: title,
-                            tier: this.identifyTier(rawCode, title),
-                            systemKey: 'LUBE_OIL', // Default para HD Oil
-                            specs: this.extractBasicSpecs($, el),
-                            source: 'Donaldson Mirror'
-                        });
-                    }
-                });
-            } else {
-                // 2. CASO PRODUCTO ÚNICO (Entra directo a la ficha)
-                const mainCode = $('.product-number').first().text().trim();
-                if (mainCode) {
-                    products.push({
-                        originalCode: mainCode,
-                        description: $('.product-name').first().text().trim(),
-                        tier: 'PERFORMANCE',
-                        systemKey: 'LUBE_OIL',
-                        specs: this.extractDeepSpecs($),
-                        source: 'Donaldson Mirror'
-                    });
-                }
+            if (!mainCode) {
+                // Si no hay mensaje de "Cross Reference", buscamos en los resultados normales
+                mainCode = $('.product-number').first().text().trim();
             }
-            return products;
+
+            if (mainCode) {
+                console.log(`✅ Cruce encontrado: ${searchTerm} -> ${mainCode}`);
+                
+                // Una vez que tenemos el código de Donaldson (P552100), 
+                // hacemos una SEGUNDA búsqueda para obtener sus ALTERNATIVOS reales
+                return await this.fetchProductAndAlternatives(mainCode);
+            }
+
+            return [];
         } catch (error) { return []; }
     }
 
-    identifyTier(code, name) {
-        if (code.startsWith('DBL')) return 'ELITE';
-        if (name.toLowerCase().includes('standard') || code.startsWith('P554')) return 'STANDARD';
-        return 'PERFORMANCE';
-    }
+    async fetchProductAndAlternatives(donaldsonCode) {
+        const url = `https://shop.donaldson.com/store/en-us/search?Ntt=${donaldsonCode}`;
+        const { data } = await axios.get(url);
+        const $ = cheerio.load(data);
+        const results = [];
 
-    extractDeepSpecs($) {
-        const specs = {};
-        $('.product-specification-table tr').each((i, el) => {
-            const key = $(el).find('td:first-child').text().trim().replace(':', '');
-            const value = $(el).find('td:last-child').text().trim();
-            if (key && value) specs[key] = value;
+        // Capturamos todos los alternativos que Donaldson liste (P552100, P551016, DBL3998)
+        $('.product-list-item, .search-result-item').each((i, el) => {
+            const code = $(el).find('.product-number').text().trim();
+            const name = $(el).find('.product-name').text().trim();
+            
+            if (code) {
+                results.push({
+                    originalCode: code,
+                    description: name,
+                    tier: code.startsWith('DBL') ? 'ELITE' : 
+                          (name.includes('Standard') || code.startsWith('P554')) ? 'STANDARD' : 'PERFORMANCE',
+                    systemKey: 'LUBE_OIL',
+                    specs: this.extractBasicSpecs($, el),
+                    source: 'Donaldson Mirror'
+                });
+            }
         });
-        return specs;
+
+        return results;
     }
 
     extractBasicSpecs($, el) {
-        // Captura rápida de hilos y OD desde la lista si están disponibles
         return {
             "Thread Size": $(el).find('.spec-thread').text().trim() || "See Detail",
             "Outer Diameter": $(el).find('.spec-od').text().trim() || "N/A"
