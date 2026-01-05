@@ -1,345 +1,366 @@
-const { GoogleSpreadsheet } = require('google-spreadsheet');
-const { JWT } = require('google-auth-library');
-const groqService = require('./groqService');
-const mongoService = require('./mongoService');
-const donaldsonScraper = require('../../donaldsonScraper');
-const framScraper = require('../../framScraper');
+const axios = require('axios');
+const cheerio = require('cheerio');
 
-/**
- * Detection Service v11.0.7 - ELIMFILTERS
- * LOGICA DE ESPEJO REAL - NO INVENTA TIERS
- * Actualizado para trabajar con nuevo formato de donaldsonScraper
- */
-
-const PREFIX_MAP = {
-    'LUBE_OIL': 'EL8', 'FUEL_SYSTEM': 'EF9', 'FUEL_SEPARATOR': 'ES9',
-    'AIR_SYSTEM': 'EA1', 'CABIN_FILTER': 'EC1', 'COOLANT_SYS': 'EW7',
-    'HYDRAULIC_SYS': 'EH6', 'AIR_DRYER': 'ED4', 'MARINE_FILTER': 'EM9',
-    'TURBINE_FUEL': 'ET9', 'AIR_HOUSING': 'EA2', 'KIT_HD': 'EK5', 'KIT_LD': 'EK3'
-};
-
-const TIER_DESCRIPTIONS = {
-    ELITE: "Maximum synthetic protection for extreme service. Tecnología Sintética Propietaria. Utiliza fibras sintéticas de menor diámetro y forma uniforme para máxima eficiencia.",
-    PERFORMANCE: "Enhanced efficiency and dirt-holding capacity. Servicio estándar. Utiliza fibras de papel tratadas con resinas para una filtración básica confiable.",
-    STANDARD: "Engineered for everyday operational demands. Flujo optimizado. Prioriza el paso del aceite (flujo) sobre la finura de filtrado, común en motores de generación anterior."
-};
-
-class DetectionService {
-    constructor() {
-        this.auth = new JWT({
-            email: process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL,
-            key: process.env.GOOGLE_PRIVATE_KEY?.replace(/\\n/g, '\n'),
-            scopes: ['https://www.googleapis.com/auth/spreadsheets'],
-        });
-        
-        this.doc = new GoogleSpreadsheet(process.env.GOOGLE_SHEETS_ID, this.auth);
-        this.sheetsInitialized = false;
-    }
-
-    async initSheets() {
-        if (this.sheetsInitialized) return;
+class DonaldsonScraper {
+    async search(searchTerm) {
         try {
-            await this.doc.loadInfo();
-            console.log(`📊 Google Sheets connected: ${this.doc.title}`);
-            this.sheetsInitialized = true;
+            const cleanTerm = searchTerm.replace(/[^a-zA-Z0-9]/g, '').toUpperCase();
+            
+            console.log(`🔍 Iniciando búsqueda: ${cleanTerm}`);
+            
+            // PASO 1: Búsqueda global para encontrar el equivalente Donaldson
+            const productUrl = await this.findDonaldsonProduct(cleanTerm);
+            
+            if (!productUrl) {
+                console.log(`❌ No se encontró equivalente Donaldson para "${cleanTerm}"`);
+                return null;
+            }
+            
+            console.log(`✅ Producto encontrado: ${productUrl}`);
+            
+            // PASO 2: Extraer datos completos de la página del producto
+            const result = await this.extractProductData(productUrl);
+            
+            return result;
+            
         } catch (error) {
-            console.error('❌ Error connecting to Google Sheets:', error.message);
-            throw error;
-        }
-    }
-
-    async searchInBothSources(searchTerm) {
-        try {
-            const mongoResults = await mongoService.searchFilters(searchTerm);
-            if (mongoResults && mongoResults.length > 0) return mongoResults;
-
-            const sheetsResults = await this.searchInSheets(searchTerm);
-            return sheetsResults;
-        } catch (error) {
-            console.error('❌ Error searching in both sources:', error.message);
+            console.error("❌ Error en scraper:", error.message);
             return null;
         }
     }
 
-    async searchInSheets(searchTerm) {
+    async findDonaldsonProduct(searchTerm) {
         try {
-            await this.initSheets();
-            const sheet = this.doc.sheetsByTitle['MASTER_UNIFIED_V5'] || this.doc.sheetsByIndex[0];
-            const rows = await sheet.getRows();
-            const term = searchTerm.toString().toLowerCase().trim();
+            // Búsqueda GLOBAL (sin restricción de catálogo)
+            const searchUrl = `https://shop.donaldson.com/store/es-us/search?Ntt=${searchTerm}`;
             
-            const matchingRows = rows.filter(row => {
-                const inputCode = row.get('Input Code')?.toString().toLowerCase() || '';
-                const sku = row.get('ELIMFILTERS SKU')?.toString().toLowerCase() || '';
-                const crossRef = row.get('Cross Reference Codes')?.toString().toLowerCase() || '';
-                const oemCodes = row.get('OEM Codes')?.toString().toLowerCase() || '';
-                return inputCode === term || sku === term || crossRef.includes(term) || oemCodes.includes(term);
+            console.log(`   🌐 Paso 1: Búsqueda global`);
+            console.log(`   URL: ${searchUrl}`);
+            
+            const { data } = await axios.get(searchUrl, {
+                headers: this.getHeaders(),
+                timeout: 10000
             });
+
+            const $ = cheerio.load(data);
             
-            if (matchingRows.length > 0) {
-                const finalResults = [];
-                for (const row of matchingRows) {
-                    const sku = row.get('ELIMFILTERS SKU');
-                    const maintenanceKits = await this.getKitsForSku(sku);
-                    
-                    finalResults.push({
-                        sku: sku,
-                        description: row.get('Description'),
-                        filterType: row.get('Filter Type'),
-                        tier: row.get('Tier System'),
-                        tier_description: TIER_DESCRIPTIONS[row.get('Tier System')] || '',
-                        duty: row.get('Duty'),
-                        microns: row.get('Micron Rating'),
-                        specifications: {
-                            thread_size: row.get('Thread Size'),
-                            gasket_od: row.get('Gasket OD (mm)'),
-                            media_type: row.get('Media Type')
-                        },
-                        equipment: row.get('Equipment Applications'),
-                        oem_codes: row.get('OEM Codes'),
-                        cross_references: row.get('Cross Reference Codes'),
-                        maintenance_kits: maintenanceKits,
-                        source: 'Google Sheets'
-                    });
+            // Buscar el link del producto Donaldson
+            // OPCIÓN 1: Link directo en resultados
+            const directLink = $('a[href*="/product/P"], a[href*="/product/DBL"]').first().attr('href');
+            
+            if (directLink) {
+                console.log(`   ✅ Link directo encontrado`);
+                return directLink.startsWith('http') 
+                    ? directLink 
+                    : `https://shop.donaldson.com${directLink}`;
+            }
+            
+            // OPCIÓN 2: Buscar en items de producto
+            let productLink = null;
+            
+            $('.product-list-item, .search-result-item, .product-item').each((i, el) => {
+                const link = $(el).find('a').first().attr('href');
+                const code = $(el).find('.product-number, .part-number').text().trim();
+                
+                // Verificar que sea código Donaldson (P, DBL, DBA)
+                if (code && code.match(/^(P|DBL|DBA)\d+/i) && link) {
+                    console.log(`   ✅ Código Donaldson encontrado: ${code}`);
+                    productLink = link;
+                    return false; // break
                 }
-                return finalResults;
+            });
+            
+            if (productLink) {
+                return productLink.startsWith('http') 
+                    ? productLink 
+                    : `https://shop.donaldson.com${productLink}`;
             }
+            
+            // OPCIÓN 3: Buscar CUALQUIER link a producto
+            const anyProductLink = $('a[href*="/product/"]').first().attr('href');
+            
+            if (anyProductLink) {
+                console.log(`   ⚠️ Link genérico encontrado`);
+                return anyProductLink.startsWith('http') 
+                    ? anyProductLink 
+                    : `https://shop.donaldson.com${anyProductLink}`;
+            }
+            
             return null;
+            
         } catch (error) {
-            console.error('❌ Error in searchInSheets:', error.message);
+            console.error(`   ❌ Error en búsqueda: ${error.message}`);
             return null;
         }
     }
 
-    async getKitsForSku(sku) {
+    async extractProductData(productUrl) {
         try {
-            const kitSheet = this.doc.sheetsByTitle['MASTER_KITS_V1'];
-            if (!kitSheet) return [];
-            const rows = await kitSheet.getRows();
+            console.log(`   📄 Paso 2: Extrayendo datos del producto`);
+            console.log(`   URL: ${productUrl}`);
             
-            return rows.filter(row => {
-                const included = row.get('filters_included')?.toString() || '';
-                return included.includes(sku);
-            }).map(row => ({
-                kit_sku: row.get('kit_sku'),
-                qty: this.extractQty(row.get('filters_included'), sku),
-                family: row.get('kit_sku')?.substring(0, 3)
-            }));
-        } catch (e) { return []; }
-    }
-
-    extractQty(text, sku) {
-        const regex = new RegExp(`${sku}\\((\\d+)\\)`);
-        const match = text.match(regex);
-        return match ? match[1] : "1";
-    }
-
-    async processSearch(searchTerm) {
-        try {
-            const existingData = await this.searchInBothSources(searchTerm);
-            if (existingData) return { success: true, source: 'cached', data: existingData };
-            
-            const dutyAnalysis = await groqService.detectDuty(searchTerm);
-            
-            // NUEVO: El scraper ahora devuelve un objeto estructurado, no un array
-            let donaldsonData = null;
-            
-            if (dutyAnalysis.duty === 'HD') {
-                donaldsonData = await donaldsonScraper.search(searchTerm);
-            } else {
-                donaldsonData = await framScraper.search(searchTerm);
-            }
-            
-            // VALIDACIÓN: Verificar que tenemos datos válidos
-            if (!donaldsonData || !donaldsonData.mainProduct || !donaldsonData.mainProduct.code) {
-                throw new Error('No cross-references found');
-            }
-
-            console.log(`✅ Datos obtenidos del scraper:`);
-            console.log(`   - Producto principal: ${donaldsonData.mainProduct.code}`);
-            console.log(`   - Alternativos: ${donaldsonData.alternatives.length}`);
-            console.log(`   - Cross-refs: ${donaldsonData.crossReferences.length}`);
-            console.log(`   - Especificaciones: ${Object.keys(donaldsonData.specifications).length}`);
-
-            // NUEVO: Construir array de productos (TRILOGY)
-            const products = [];
-            
-            // Agregar producto principal
-            products.push({
-                originalCode: donaldsonData.mainProduct.code,
-                tier: donaldsonData.mainProduct.tier,
-                description: donaldsonData.mainProduct.description,
-                systemKey: this.detectSystemKey(donaldsonData.mainProduct.description),
-                specs: donaldsonData.specifications,
-                source: 'Donaldson'
+            const { data } = await axios.get(productUrl, {
+                headers: this.getHeaders(),
+                timeout: 10000
             });
             
-            // Agregar alternativos (si existen)
-            donaldsonData.alternatives.forEach(alt => {
-                products.push({
-                    originalCode: alt.code,
-                    tier: alt.tier,
-                    description: alt.description,
-                    systemKey: this.detectSystemKey(alt.description),
-                    specs: donaldsonData.specifications, // Comparten las mismas specs
-                    source: 'Donaldson'
+            const $ = cheerio.load(data);
+            
+            const result = {
+                mainProduct: {},
+                alternatives: [],
+                crossReferences: [],
+                specifications: {},
+                equipment: []
+            };
+
+            // 1. CÓDIGO PRINCIPAL - EXTRACCIÓN AGRESIVA
+            let mainCode = null;
+            
+            // Estrategia 1: Selectores comunes
+            const codeSelectors = [
+                'h1',
+                '.product-id',
+                '.product-number',
+                '.part-number',
+                '[data-product-id]',
+                '[data-part-number]',
+                '.product-code'
+            ];
+            
+            for (const selector of codeSelectors) {
+                const code = $(selector).first().text().trim();
+                if (code && code.match(/^(P|DBL|DBA)\d+/i)) {
+                    mainCode = code;
+                    console.log(`   ✅ Código encontrado con selector: ${selector}`);
+                    break;
+                }
+            }
+            
+            // Estrategia 2: Extraer de la URL
+            if (!mainCode) {
+                const urlMatch = productUrl.match(/\/(P\d{6}|DBL\d{4}|DBA\d{4})/i);
+                if (urlMatch) {
+                    mainCode = urlMatch[1].toUpperCase();
+                    console.log(`   ✅ Código extraído de URL: ${mainCode}`);
+                }
+            }
+            
+            // Estrategia 3: Buscar en el texto de la página
+            if (!mainCode) {
+                const pageText = $('body').text();
+                const match = pageText.match(/(P\d{6}|DBL\d{4}|DBA\d{4})/i);
+                if (match) {
+                    mainCode = match[1].toUpperCase();
+                    console.log(`   ✅ Código extraído del texto: ${mainCode}`);
+                }
+            }
+            
+            if (!mainCode) {
+                console.log('   ❌ No se pudo extraer código principal');
+                return null;
+            }
+            
+            // Descripción
+            let description = '';
+            const descSelectors = [
+                '.product-description',
+                '.product-name',
+                'h2',
+                '.description',
+                '.product-title'
+            ];
+            
+            for (const selector of descSelectors) {
+                const desc = $(selector).first().text().trim();
+                if (desc && desc.length > 5) {
+                    description = desc;
+                    break;
+                }
+            }
+            
+            result.mainProduct = {
+                code: mainCode,
+                description: description,
+                tier: this.identifyTier(mainCode),
+                url: productUrl
+            };
+
+            console.log(`   📦 Producto: ${mainCode}`);
+
+            // 2. ESPECIFICACIONES - CON FILTRO DE HEADERS
+            const invalidKeys = [
+                'nombre', 'dirección', 'impresión', 'especificaciones',
+                'cantidad', 'su precio', 'fecha', 'nombre del fabricante',
+                'n° de pieza del fabricante', 'equipo', 'año',
+                'name', 'address', 'print', 'specifications',
+                'quantity', 'your price', 'date', 'manufacturer name',
+                'manufacturer part number', 'equipment', 'year'
+            ];
+            
+            $('table').each((i, table) => {
+                // Ignorar tablas que parecen ser de navegación o formularios
+                const tableText = $(table).text().toLowerCase();
+                if (tableText.includes('cotización') || 
+                    tableText.includes('su precio') ||
+                    tableText.includes('cantidad')) {
+                    return; // Skip esta tabla
+                }
+                
+                $(table).find('tr').each((j, el) => {
+                    const cells = $(el).find('td, th');
+                    if (cells.length >= 2) {
+                        let key = $(cells[0]).text().trim().replace(':', '');
+                        let value = $(cells[1]).text().trim();
+                        
+                        // Normalizar key para comparación
+                        const keyLower = key.toLowerCase();
+                        
+                        // Filtrar headers y valores inválidos
+                        if (key && value && 
+                            key !== value && 
+                            key.length > 1 && 
+                            value.length > 0 &&
+                            !invalidKeys.includes(keyLower) &&
+                            !value.toLowerCase().includes('dirección') &&
+                            !value.toLowerCase().includes('especificaciones')) {
+                            
+                            result.specifications[key] = value;
+                        }
+                    }
                 });
             });
 
-            // Generar SKUs para cada producto
-            const skuData = products.map(product => {
-                const prefix = PREFIX_MAP[product.systemKey] || 'EL8';
-                const last4Digits = product.originalCode.replace(/[^0-9]/g, '').slice(-4).padStart(4, '0');
+            console.log(`   📊 Especificaciones: ${Object.keys(result.specifications).length}`);
+
+            // 3. PRODUCTOS ALTERNATIVOS (TRILOGY)
+            $('.alternative-product, .variant-item, .related-product').each((i, el) => {
+                const code = $(el).find('.product-number, .part-number').text().trim();
+                const desc = $(el).find('.product-name, .description').text().trim();
                 
-                let sku = `${prefix}${last4Digits}`;
-                
-                // Manejo especial para ET9
-                if (prefix === 'ET9') {
-                    const microns = product.microns || this.extractMicronsFromCode(product.originalCode);
-                    if (microns == 2) sku += 'S';
-                    else if (microns == 10) sku += 'T';
-                    else if (microns == 30) sku += 'P';
+                if (code && code !== mainCode && code.match(/^(P|DBL|DBA)/i)) {
+                    if (!result.alternatives.find(a => a.code === code)) {
+                        result.alternatives.push({
+                            code: code,
+                            description: desc,
+                            tier: this.identifyTier(code)
+                        });
+                    }
                 }
+            });
+
+            console.log(`   🔄 Alternativos: ${result.alternatives.length}`);
+
+            // 4. CROSS-REFERENCES - CON FILTRO
+            $('table').each((i, table) => {
+                const tableText = $(table).text().toLowerCase();
                 
-                return {
-                    sku: sku,
-                    tier: product.tier,
-                    tier_description: TIER_DESCRIPTIONS[product.tier] || '',
-                    crossRefCode: product.originalCode,
-                    prefix: prefix,
-                    microns: product.microns || (product.tier === 'ELITE' ? 15 : 21),
-                    specs: product.specs,
-                    description: product.description || `${product.tier} Filter`,
-                    systemKey: product.systemKey,
-                    // NUEVO: Agregar cross-references y OEM codes
-                    crossReferences: donaldsonData.crossReferences,
-                    equipment: donaldsonData.equipment
-                };
+                // Solo procesar tablas que mencionen cross-reference
+                if (tableText.includes('cross') || 
+                    tableText.includes('reference') || 
+                    tableText.includes('competitor') ||
+                    tableText.includes('equivalente')) {
+                    
+                    $(table).find('tr').each((j, el) => {
+                        const cells = $(el).find('td');
+                        if (cells.length >= 2) {
+                            const brand = $(cells[0]).text().trim();
+                            const code = $(cells[1]).text().trim();
+                            
+                            // Filtrar headers
+                            if (brand && code && 
+                                brand.length > 1 && 
+                                code.length > 2 &&
+                                !brand.toLowerCase().includes('fabricante') &&
+                                !code.toLowerCase().includes('pieza') &&
+                                brand !== 'Nombre del fabricante') {
+                                
+                                if (!result.crossReferences.find(r => r.code === code)) {
+                                    result.crossReferences.push({
+                                        brand: brand,
+                                        code: code,
+                                        type: this.isOEMBrand(brand) ? 'OEM' : 'Aftermarket'
+                                    });
+                                }
+                            }
+                        }
+                    });
+                }
             });
 
-            console.log(`✅ SKUs generados: ${skuData.length}`);
-            skuData.forEach(sku => {
-                console.log(`   - ${sku.sku} (${sku.tier}) - ${sku.crossRefCode}`);
+            console.log(`   🔗 Cross-references: ${result.crossReferences.length}`);
+
+            // 5. APLICACIONES DE EQUIPOS - CON FILTRO
+            $('table').each((i, table) => {
+                const tableText = $(table).text().toLowerCase();
+                
+                // Solo procesar tablas que mencionen equipment
+                if (tableText.includes('equipment') || 
+                    tableText.includes('application') || 
+                    tableText.includes('vehicle') ||
+                    tableText.includes('equipo')) {
+                    
+                    $(table).find('tr').each((j, el) => {
+                        const cells = $(el).find('td');
+                        if (cells.length >= 2) {
+                            const equipment = $(cells[0]).text().trim();
+                            const engine = $(cells[1]).text().trim();
+                            const year = cells.length >= 3 ? $(cells[2]).text().trim() : '';
+                            
+                            // Filtrar headers
+                            if (equipment && engine && 
+                                equipment.length > 2 &&
+                                equipment.toLowerCase() !== 'equipo' &&
+                                engine.toLowerCase() !== 'año') {
+                                
+                                result.equipment.push({ equipment, engine, year });
+                            }
+                        }
+                    });
+                }
             });
 
-            // Guardar en MongoDB y Sheets
-            await Promise.all([
-                mongoService.saveFilters(searchTerm, skuData, dutyAnalysis, 'Donaldson'),
-                this.writeToSheets(searchTerm, skuData, dutyAnalysis, donaldsonData)
-            ]);
+            console.log(`   🚛 Equipos: ${result.equipment.length}`);
 
-            // Preparar respuesta para el frontend
-            const responseData = skuData.map(sku => ({
-                sku: sku.sku,
-                tier: sku.tier,
-                tier_description: sku.tier_description,
-                description: sku.description,
-                filterType: sku.systemKey?.replace(/_/g, ' '),
-                duty: dutyAnalysis.duty,
-                microns: sku.microns,
-                specifications: sku.specs,
-                equipment: donaldsonData.equipment,
-                oem_codes: this.formatOEMCodes(donaldsonData.crossReferences),
-                cross_references: this.formatCrossReferences(donaldsonData.crossReferences),
-                maintenance_kits: [],
-                source: 'AI Generated'
-            }));
-
-            return { success: true, source: 'generated', data: responseData };
+            return result;
             
         } catch (error) {
-            console.error(`❌ Error processing search:`, error.message);
-            return { success: false, error: error.message };
+            console.error(`   ❌ Error extrayendo datos: ${error.message}`);
+            return null;
         }
     }
 
-    detectSystemKey(description) {
-        const desc = description.toLowerCase();
+    identifyTier(code) {
+        const upper = code.toUpperCase();
+        if (upper.startsWith('DBL') || upper.startsWith('DBA')) return 'ELITE';
+        if (upper.includes('P550') || upper.includes('P551016')) return 'STANDARD';
+        return 'PERFORMANCE';
+    }
+
+    isOEMBrand(brand) {
+        const oemBrands = [
+            'Caterpillar', 'CAT', 'Komatsu', 'Volvo', 'Mack',
+            'John Deere', 'Cummins', 'Detroit Diesel', 'Detroit',
+            'Ford', 'Toyota', 'Nissan', 'BMW', 'Mercedes', 'Mercedes-Benz',
+            'Isuzu', 'Hino', 'Mitsubishi', 'Case', 'New Holland',
+            'Kubota', 'Yanmar', 'Perkins', 'Deutz', 'MAN',
+            'Scania', 'Iveco', 'Renault', 'DAF', 'Paccar'
+        ];
         
-        if (desc.includes('lubric') || desc.includes('aceite') || desc.includes('oil')) {
-            return 'LUBE_OIL';
-        }
-        if (desc.includes('air') || desc.includes('aire')) {
-            return 'AIR_SYSTEM';
-        }
-        if (desc.includes('fuel') || desc.includes('combust')) {
-            return 'FUEL_SYSTEM';
-        }
-        if (desc.includes('hydraulic') || desc.includes('hidráulico')) {
-            return 'HYDRAULIC_SYS';
-        }
-        if (desc.includes('coolant') || desc.includes('refriger')) {
-            return 'COOLANT_SYS';
-        }
-        
-        return 'LUBE_OIL'; // Default
+        return oemBrands.some(oem => brand.toLowerCase().includes(oem.toLowerCase()));
     }
 
-    extractMicronsFromCode(code) {
-        if (code.includes('PM')) return 30;
-        if (code.includes('TM')) return 10;
-        if (code.includes('SM')) return 2;
-        return null;
-    }
-
-    formatOEMCodes(crossReferences) {
-        return crossReferences
-            .filter(ref => ref.type === 'OEM')
-            .map(ref => `${ref.brand}: ${ref.code}`)
-            .join(', ');
-    }
-
-    formatCrossReferences(crossReferences) {
-        return crossReferences
-            .filter(ref => ref.type === 'Aftermarket')
-            .map(ref => `${ref.brand}: ${ref.code}`)
-            .join(', ');
-    }
-
-    async writeToSheets(originalCode, skuData, duty, donaldsonData) {
-        try {
-            await this.initSheets();
-            const sheet = this.doc.sheetsByTitle['MASTER_UNIFIED_V5'] || this.doc.sheetsByIndex[0];
-            const timestamp = new Date().toISOString();
-            
-            const rows = skuData.map(sku => this.buildRow(
-                originalCode, 
-                sku, 
-                duty, 
-                donaldsonData,
-                timestamp
-            ));
-            
-            await sheet.addRows(rows);
-            console.log(`✅ ${rows.length} filas agregadas a Google Sheets`);
-            return { success: true };
-        } catch (error) { 
-            console.error('❌ Error writing to sheets:', error.message);
-            return { success: false }; 
-        }
-    }
-
-    buildRow(originalCode, skuData, duty, donaldsonData, timestamp) {
-        const { sku, tier, crossRefCode, prefix, microns, specs } = skuData;
-        
+    getHeaders() {
         return {
-            'Input Code': originalCode,
-            'ELIMFILTERS SKU': sku,
-            'Description': `${tier} Filter | Replaces ${crossRefCode}`,
-            'Filter Type': skuData.systemKey?.replace(/_/g, ' '),
-            'Prefix': prefix,
-            'Duty': duty.duty,
-            'Tier System': tier,
-            'Thread Size': specs ? specs['Rosca'] || specs['Thread Size'] || '' : '',
-            'Micron Rating': microns,
-            'Media Type': tier === 'ELITE' ? 'Full Synthetic' : tier === 'STANDARD' ? 'Cellulose' : 'Synthetic Blend',
-            'OEM Codes': this.formatOEMCodes(donaldsonData.crossReferences),
-            'Cross Reference Codes': this.formatCrossReferences(donaldsonData.crossReferences),
-            'Equipment Applications': donaldsonData.equipment.map(e => e.equipment).join(', '),
-            'audit_status': 'AI_GENERATED',
-            'audit_status_38_0': timestamp
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+            'Accept-Language': 'es-US,es;q=0.9,en;q=0.8',
+            'Accept-Encoding': 'gzip, deflate, br',
+            'Connection': 'keep-alive',
+            'Upgrade-Insecure-Requests': '1',
+            'Cache-Control': 'max-age=0'
         };
     }
 }
 
-module.exports = new DetectionService();
+module.exports = new DonaldsonScraper();
