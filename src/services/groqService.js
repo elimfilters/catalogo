@@ -1,8 +1,8 @@
 const Groq = require('groq-sdk');
 
-// SEGURIDAD: Usamos process.env para proteger tu llave técnica
+// ELIMFILTERS® - Configuración Segura
 const groq = new Groq({ 
-    apiKey: process.env.GROQ_API_KEY 
+    apiKey: process.env.GROQ_API_KEY // <-- GitHub permite esto porque es una referencia, no la llave real.
 });
 
 async function analyzeTechnicalContext(manufacturer, engineType, technicalData) {
@@ -16,10 +16,7 @@ async function analyzeTechnicalContext(manufacturer, engineType, technicalData) 
                     2. Clasifica TIER: ELITE (≤15μm), PERFORMANCE (~21μm), STANDARD (≥40μm).
                     Responde JSON: {"duty": "HD"|"LD", "tier": "ELITE"|"PERFORMANCE"|"STANDARD"}` 
                 },
-                { 
-                    role: "user", 
-                    content: `Fabricante: ${manufacturer}, Motor: ${engineType}, Datos: ${technicalData}` 
-                }
+                { role: "user", content: `Fabricante: ${manufacturer}, Motor: ${engineType}, Datos: ${technicalData}` }
             ],
             model: "llama-3.1-8b-instant",
             response_format: { type: "json_object" }
