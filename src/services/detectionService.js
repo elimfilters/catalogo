@@ -6,8 +6,9 @@ const donaldsonScraper = require('../../donaldsonScraper');
 const framScraper = require('../../framScraper');
 
 /**
- * Detection Service v11.0.2 - ELIMFILTERS
+ * Detection Service v11.0.7 - ELIMFILTERS
  * LOGICA DE ESPEJO REAL - NO INVENTA TIERS
+ * Actualizado para trabajar con nuevo formato de donaldsonScraper
  */
 
 const PREFIX_MAP = {
@@ -139,45 +140,95 @@ class DetectionService {
             if (existingData) return { success: true, source: 'cached', data: existingData };
             
             const dutyAnalysis = await groqService.detectDuty(searchTerm);
-            let scraperResults = (dutyAnalysis.duty === 'HD') 
-                ? await donaldsonScraper.search(searchTerm) 
-                : await framScraper.search(searchTerm);
             
-            if (!scraperResults || scraperResults.length === 0) throw new Error('No cross-references found');
+            // NUEVO: El scraper ahora devuelve un objeto estructurado, no un array
+            let donaldsonData = null;
+            
+            if (dutyAnalysis.duty === 'HD') {
+                donaldsonData = await donaldsonScraper.search(searchTerm);
+            } else {
+                donaldsonData = await framScraper.search(searchTerm);
+            }
+            
+            // VALIDACIÓN: Verificar que tenemos datos válidos
+            if (!donaldsonData || !donaldsonData.mainProduct || !donaldsonData.mainProduct.code) {
+                throw new Error('No cross-references found');
+            }
 
-            // CORRECCIÓN ESPEJO: Mapeamos los productos reales encontrados (1, 2 o 3)
-            const skuData = scraperResults.map(result => {
-                const prefix = PREFIX_MAP[result.systemKey] || 'EL8';
-                
-                // CORRECCIÓN: Usamos result.originalCode (ej. P554105) en lugar del término buscado
-                const codeToUse = result.originalCode || searchTerm;
-                const last4Digits = codeToUse.replace(/[^0-9]/g, '').slice(-4).padStart(4, '0');
+            console.log(`✅ Datos obtenidos del scraper:`);
+            console.log(`   - Producto principal: ${donaldsonData.mainProduct.code}`);
+            console.log(`   - Alternativos: ${donaldsonData.alternatives.length}`);
+            console.log(`   - Cross-refs: ${donaldsonData.crossReferences.length}`);
+            console.log(`   - Especificaciones: ${Object.keys(donaldsonData.specifications).length}`);
+
+            // NUEVO: Construir array de productos (TRILOGY)
+            const products = [];
+            
+            // Agregar producto principal
+            products.push({
+                originalCode: donaldsonData.mainProduct.code,
+                tier: donaldsonData.mainProduct.tier,
+                description: donaldsonData.mainProduct.description,
+                systemKey: this.detectSystemKey(donaldsonData.mainProduct.description),
+                specs: donaldsonData.specifications,
+                source: 'Donaldson'
+            });
+            
+            // Agregar alternativos (si existen)
+            donaldsonData.alternatives.forEach(alt => {
+                products.push({
+                    originalCode: alt.code,
+                    tier: alt.tier,
+                    description: alt.description,
+                    systemKey: this.detectSystemKey(alt.description),
+                    specs: donaldsonData.specifications, // Comparten las mismas specs
+                    source: 'Donaldson'
+                });
+            });
+
+            // Generar SKUs para cada producto
+            const skuData = products.map(product => {
+                const prefix = PREFIX_MAP[product.systemKey] || 'EL8';
+                const last4Digits = product.originalCode.replace(/[^0-9]/g, '').slice(-4).padStart(4, '0');
                 
                 let sku = `${prefix}${last4Digits}`;
+                
+                // Manejo especial para ET9
                 if (prefix === 'ET9') {
-                    if (result.microns == 2) sku += 'S';
-                    else if (result.microns == 10) sku += 'T';
-                    else if (result.microns == 30) sku += 'P';
+                    const microns = product.microns || this.extractMicronsFromCode(product.originalCode);
+                    if (microns == 2) sku += 'S';
+                    else if (microns == 10) sku += 'T';
+                    else if (microns == 30) sku += 'P';
                 }
                 
                 return {
                     sku: sku,
-                    tier: result.tier,
-                    tier_description: TIER_DESCRIPTIONS[result.tier] || '',
-                    crossRefCode: codeToUse, // El código real del espejo
+                    tier: product.tier,
+                    tier_description: TIER_DESCRIPTIONS[product.tier] || '',
+                    crossRefCode: product.originalCode,
                     prefix: prefix,
-                    microns: result.microns || (result.tier === 'ELITE' ? 15 : 21),
-                    specs: result.specs, // Mantiene la tabla técnica del espejo
-                    description: result.description || `${result.tier} Filter`,
-                    systemKey: result.systemKey
+                    microns: product.microns || (product.tier === 'ELITE' ? 15 : 21),
+                    specs: product.specs,
+                    description: product.description || `${product.tier} Filter`,
+                    systemKey: product.systemKey,
+                    // NUEVO: Agregar cross-references y OEM codes
+                    crossReferences: donaldsonData.crossReferences,
+                    equipment: donaldsonData.equipment
                 };
             });
 
+            console.log(`✅ SKUs generados: ${skuData.length}`);
+            skuData.forEach(sku => {
+                console.log(`   - ${sku.sku} (${sku.tier}) - ${sku.crossRefCode}`);
+            });
+
+            // Guardar en MongoDB y Sheets
             await Promise.all([
-                mongoService.saveFilters(searchTerm, skuData, dutyAnalysis, scraperResults[0].source),
-                this.writeToSheets(searchTerm, skuData, dutyAnalysis, scraperResults[0].source)
+                mongoService.saveFilters(searchTerm, skuData, dutyAnalysis, 'Donaldson'),
+                this.writeToSheets(searchTerm, skuData, dutyAnalysis, donaldsonData)
             ]);
 
+            // Preparar respuesta para el frontend
             const responseData = skuData.map(sku => ({
                 sku: sku.sku,
                 tier: sku.tier,
@@ -186,10 +237,10 @@ class DetectionService {
                 filterType: sku.systemKey?.replace(/_/g, ' '),
                 duty: dutyAnalysis.duty,
                 microns: sku.microns,
-                specifications: sku.specs, // Ya no vendrá "N/A" si el scraper lo capturó
-                equipment: dutyAnalysis.duty === 'HD' ? 'Heavy Duty Equipment (CAT, Cummins)' : 'Light Duty Vehicles',
-                oem_codes: searchTerm,
-                cross_references: sku.crossRefCode,
+                specifications: sku.specs,
+                equipment: donaldsonData.equipment,
+                oem_codes: this.formatOEMCodes(donaldsonData.crossReferences),
+                cross_references: this.formatCrossReferences(donaldsonData.crossReferences),
                 maintenance_kits: [],
                 source: 'AI Generated'
             }));
@@ -202,33 +253,89 @@ class DetectionService {
         }
     }
 
-    async writeToSheets(originalCode, skuData, duty, scraperSource) {
+    detectSystemKey(description) {
+        const desc = description.toLowerCase();
+        
+        if (desc.includes('lubric') || desc.includes('aceite') || desc.includes('oil')) {
+            return 'LUBE_OIL';
+        }
+        if (desc.includes('air') || desc.includes('aire')) {
+            return 'AIR_SYSTEM';
+        }
+        if (desc.includes('fuel') || desc.includes('combust')) {
+            return 'FUEL_SYSTEM';
+        }
+        if (desc.includes('hydraulic') || desc.includes('hidráulico')) {
+            return 'HYDRAULIC_SYS';
+        }
+        if (desc.includes('coolant') || desc.includes('refriger')) {
+            return 'COOLANT_SYS';
+        }
+        
+        return 'LUBE_OIL'; // Default
+    }
+
+    extractMicronsFromCode(code) {
+        if (code.includes('PM')) return 30;
+        if (code.includes('TM')) return 10;
+        if (code.includes('SM')) return 2;
+        return null;
+    }
+
+    formatOEMCodes(crossReferences) {
+        return crossReferences
+            .filter(ref => ref.type === 'OEM')
+            .map(ref => `${ref.brand}: ${ref.code}`)
+            .join(', ');
+    }
+
+    formatCrossReferences(crossReferences) {
+        return crossReferences
+            .filter(ref => ref.type === 'Aftermarket')
+            .map(ref => `${ref.brand}: ${ref.code}`)
+            .join(', ');
+    }
+
+    async writeToSheets(originalCode, skuData, duty, donaldsonData) {
         try {
             await this.initSheets();
             const sheet = this.doc.sheetsByTitle['MASTER_UNIFIED_V5'] || this.doc.sheetsByIndex[0];
             const timestamp = new Date().toISOString();
-            const rows = skuData.map(sku => this.buildRow(originalCode, sku, duty, scraperSource, timestamp));
+            
+            const rows = skuData.map(sku => this.buildRow(
+                originalCode, 
+                sku, 
+                duty, 
+                donaldsonData,
+                timestamp
+            ));
+            
             await sheet.addRows(rows);
+            console.log(`✅ ${rows.length} filas agregadas a Google Sheets`);
             return { success: true };
-        } catch (error) { return { success: false }; }
+        } catch (error) { 
+            console.error('❌ Error writing to sheets:', error.message);
+            return { success: false }; 
+        }
     }
 
-    buildRow(originalCode, skuData, duty, scraperSource, timestamp) {
+    buildRow(originalCode, skuData, duty, donaldsonData, timestamp) {
         const { sku, tier, crossRefCode, prefix, microns, specs } = skuData;
+        
         return {
             'Input Code': originalCode,
             'ELIMFILTERS SKU': sku,
-            'Description': `${tier} Filter | Replaces ${originalCode}`,
+            'Description': `${tier} Filter | Replaces ${crossRefCode}`,
             'Filter Type': skuData.systemKey?.replace(/_/g, ' '),
             'Prefix': prefix,
             'Duty': duty.duty,
             'Tier System': tier,
-            'Thread Size': specs ? specs['Thread Size'] || '' : '',
+            'Thread Size': specs ? specs['Rosca'] || specs['Thread Size'] || '' : '',
             'Micron Rating': microns,
-            'Media Type': skuData.mediaType || 'Cellulose',
-            'OEM Codes': originalCode,
-            'Cross Reference Codes': crossRefCode,
-            'Equipment Applications': duty.duty === 'HD' ? 'CAT, Cummins, Volvo, Mack' : 'Ford, Toyota, Honda',
+            'Media Type': tier === 'ELITE' ? 'Full Synthetic' : tier === 'STANDARD' ? 'Cellulose' : 'Synthetic Blend',
+            'OEM Codes': this.formatOEMCodes(donaldsonData.crossReferences),
+            'Cross Reference Codes': this.formatCrossReferences(donaldsonData.crossReferences),
+            'Equipment Applications': donaldsonData.equipment.map(e => e.equipment).join(', '),
             'audit_status': 'AI_GENERATED',
             'audit_status_38_0': timestamp
         };
