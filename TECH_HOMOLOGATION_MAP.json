@@ -16,7 +16,30 @@
       "FUEL_SYSTEM": {
         "pref": "EF9",
         "tech": "SYNTEPORE™",
-        "iso": "ISO 19438"
+        "iso": "ISO 19438",
+        "duty_pivots": { "HD": "Donaldson Specs", "LD": "Fram Specs" }
+      },
+      "FUEL_SEPARATOR": {
+        "pref": "ES9",
+        "tech": "AQUAGUARD®",
+        "iso": "ISO 4020",
+        "duty_pivots": { "HD": "Donaldson FS Series", "LD": "Fram PS Series" },
+        "water_removal": "99.5%"
+      },
+      "AIR_DRYER": {
+        "pref": "ED4",
+        "tech": "DRYTECH™",
+        "iso": "ISO 12500",
+        "primary_duty": "HD",
+        "applications": ["Air brake systems", "Pneumatic controls"]
+      },
+      "MARINE_FILTER": {
+        "pref": "EM9",
+        "tech": "MARINEGUARD™",
+        "iso": "ISO 10088",
+        "variants": ["P", "S", "T"],
+        "environment": "Saltwater resistant",
+        "duty_pivots": { "HD": "Racor Marine", "LD": "Sierra Marine" }
       },
       "TURBINE_FUEL": {
         "pref": "ET9",
