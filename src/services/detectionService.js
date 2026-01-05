@@ -1,37 +1,43 @@
 /**
  * ELIMFILTERS® Engineering Core - Detection Service
- * v12.1 - Sincronización Final de Funciones
+ * v12.2 - Integración Dual HD/LD
  */
 
-const donaldsonScraper = require('../../donaldsonScraper'); // Ajusta la ruta si es necesario
+const donaldsonScraper = require('../../donaldsonScraper');
+const framScraper = require('../scrapers/framScraper'); // Nuevo Scraper
 const sheetsWriter = require('./sheetsWriter');
 
-const HD_BRANDS = ['CATERPILLAR', 'CAT', 'JOHN DEERE', 'BOBCAT', 'KOMATSU', 'MACK', 'FREIGHTLINER'];
+const HD_BRANDS = ['CATERPILLAR', 'CAT', 'JOHN DEERE', 'BOBCAT', 'KOMATSU', 'MACK', 'FREIGHTLINER', 'CUMMINS'];
+const LD_BRANDS = ['FORD', 'TOYOTA', 'BMW', 'MERCEDES BENZ', 'MERCEDES', 'NISSAN', 'CHEVROLET', 'HONDA', 'HYUNDAI'];
 
 const detectionService = {
-    // CAMBIO CRÍTICO: El nombre debe ser findAndProcess para coincidir con tu controlador
     findAndProcess: async (searchTerm, brand, searchType) => {
         try {
-            console.log(`🚀 Iniciando protocolo para: ${searchTerm} (${brand})`);
+            const brandUpper = brand.toUpperCase();
+            const isHD = HD_BRANDS.includes(brandUpper);
+            const isLD = LD_BRANDS.includes(brandUpper);
 
-            // 1. Determinar DUTY (HD vs LD)
-            const isHD = HD_BRANDS.includes(brand.toUpperCase());
-            
+            let trilogy = [];
+
             if (isHD) {
-                console.log("🛠️ Ejecutando Protocolo HD (Donaldson)...");
-                // Llamamos al scraper v17.0
-                const trilogy = await donaldsonScraper.getThreeOptions(searchTerm);
-                
-                if (trilogy && trilogy.length > 0) {
-                    // 2. Escribir en Sheets vía el Writer v11.0 (Variable de Entorno)
-                    for (const item of trilogy) {
-                        await sheetsWriter.writeToMaster(item, searchTerm);
-                    }
-                    return { success: true, data: trilogy };
-                }
+                console.log(`🚛 Protocolo HD Activado: Buscando ${searchTerm} en Donaldson...`);
+                trilogy = await donaldsonScraper.getThreeOptions(searchTerm);
+            } else if (isLD) {
+                console.log(`🚗 Protocolo LD Activado: Buscando ${searchTerm} en FRAM...`);
+                trilogy = await framScraper.getThreeOptions(searchTerm);
+            } else {
+                // Si la marca no está en las listas, por defecto buscamos en Donaldson por seguridad HD
+                trilogy = await donaldsonScraper.getThreeOptions(searchTerm);
             }
-            
-            return { success: false, error: "No se encontraron equivalentes técnicos." };
+
+            if (trilogy && trilogy.length > 0) {
+                for (const item of trilogy) {
+                    await sheetsWriter.writeToMaster(item, searchTerm);
+                }
+                return { success: true, data: trilogy };
+            }
+
+            return { success: false, error: "No se encontraron equivalentes para esta marca." };
 
         } catch (error) {
             console.error("❌ Error en detectionService:", error.message);
@@ -40,5 +46,4 @@ const detectionService = {
     }
 };
 
-// Asegúrate de exportarlo así para que el controlador lo encuentre
 module.exports = detectionService;
