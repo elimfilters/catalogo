@@ -1,50 +1,65 @@
 /**
  * ELIMFILTERS® Engineering Core - Detection Service
- * v12.4 - Corrección de Rutas y Soporte HD/LD
+ * v12.5 - Sincronización de Rutas y Auditoría HD/LD
  */
 
-// RUTAS CORREGIDAS PARA RAILWAY
+// ✅ LÍNEA 6 CORREGIDA: Sube un nivel y entra en scrapers
 const donaldsonScraper = require('../scrapers/donaldsonScraper'); 
 const sheetsWriter = require('./sheetsWriter');
-// const framScraper = require('../scrapers/framScraper'); // Descomentar cuando crees el archivo
 
-const HD_BRANDS = ['CATERPILLAR', 'CAT', 'JOHN DEERE', 'BOBCAT', 'KOMATSU', 'MACK', 'FREIGHTLINER', 'CUMMINS'];
-const LD_BRANDS = ['FORD', 'TOYOTA', 'BMW', 'MERCEDES BENZ', 'NISSAN', 'CHEVROLET'];
+// Listas de Auditoría Técnica para determinar el DUTY
+const HD_BRANDS = ['CATERPILLAR', 'CAT', 'JOHN DEERE', 'BOBCAT', 'KOMATSU', 'MACK', 'FREIGHTLINER', 'CUMMINS', 'PERKINS'];
+const LD_BRANDS = ['FORD', 'TOYOTA', 'BMW', 'MERCEDES BENZ', 'NISSAN', 'CHEVROLET', 'HONDA', 'HYUNDAI', 'MAZDA'];
 
 const detectionService = {
+    /**
+     * findAndProcess: Orquestador principal de búsqueda
+     * Coincide exactamente con la llamada desde server.js
+     */
     findAndProcess: async (searchTerm, brand, searchType) => {
         try {
-            console.log(`🚀 Procesando: ${searchTerm} para ${brand}`);
-            const brandUpper = brand ? brand.toUpperCase() : "";
-            
-            let results = [];
+            console.log(`🚀 [ELIMFILTERS ENGINE]: Procesando ${searchTerm} para marca: ${brand}`);
 
-            // Lógica de Auditoría: ¿Es Heavy Duty o Light Duty?
-            if (HD_BRANDS.includes(brandUpper)) {
-                console.log("🚛 [DUTY: HD] Iniciando Donaldson Scraper...");
-                results = await donaldsonScraper.getThreeOptions(searchTerm);
-            } else if (LD_BRANDS.includes(brandUpper)) {
-                console.log("🚗 [DUTY: LD] Iniciando Protocolo LD (FRAM)...");
-                // Por ahora usamos Donaldson hasta que el scraper de FRAM esté listo
-                results = await donaldsonScraper.getThreeOptions(searchTerm);
-            } else {
-                results = await donaldsonScraper.getThreeOptions(searchTerm);
+            const brandUpper = brand ? brand.toUpperCase() : "";
+            const isHD = HD_BRANDS.includes(brandUpper);
+            const isLD = LD_BRANDS.includes(brandUpper);
+
+            let trilogy = [];
+
+            // 1. DETERMINACIÓN DE PROTOCOLO (HD vs LD)
+            if (isHD) {
+                console.log("🚛 [AUDITORÍA HD]: Activando Donaldson Scraper...");
+                trilogy = await donaldsonScraper.getThreeOptions(searchTerm);
+            } 
+            else if (isLD) {
+                console.log("🚗 [AUDITORÍA LD]: Activando Protocolo FRAM (Simulado)...");
+                // Por ahora usamos Donaldson hasta que subamos el framScraper.js
+                trilogy = await donaldsonScraper.getThreeOptions(searchTerm);
+            } 
+            else {
+                // Si la marca no está en las listas, aplicamos HD por seguridad de ingeniería
+                console.log("⚠️ Marca no clasificada. Aplicando Protocolo HD por defecto.");
+                trilogy = await donaldsonScraper.getThreeOptions(searchTerm);
             }
 
-            if (results && results.length > 0) {
-                for (const item of results) {
+            // 2. REGISTRO INSTITUCIONAL (Google Sheets 56 Columnas)
+            if (trilogy && trilogy.length > 0) {
+                console.log(`📊 [WRITER]: Registrando ${trilogy.length} opciones en MASTER_UNIFIED_V5...`);
+                for (const item of trilogy) {
+                    // El sheetsWriter v11.0 ya usa la variable de entorno segura de Railway
                     await sheetsWriter.writeToMaster(item, searchTerm);
                 }
-                return { success: true, data: results };
+                return { success: true, data: trilogy };
             }
 
-            return { success: false, error: "No se encontraron resultados." };
+            return { success: false, error: "No se encontraron resultados técnicos en el catálogo." };
 
         } catch (error) {
-            console.error("❌ Error en detectionService:", error.message);
-            throw error;
+            console.error("❌ [DETECTION SERVICE ERROR]:", error.message);
+            throw error; // Lanza el error para que el controlador lo capture
         }
     }
 };
 
+// EXPORTACIÓN CRÍTICA PARA server.js
 module.exports = detectionService;
