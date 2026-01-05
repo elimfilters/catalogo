@@ -3,43 +3,50 @@ const groqService = require('./groqService');
 const skuBuilder = require('./skuBuilder');
 const sheetsWriter = require('./sheetsWriter');
 const donaldson = require('../../donaldsonScraper');
+const fram = require('../../framScraper');
 
 async function findAndProcess(searchTerm, manufacturer, engineType) {
-    // 1. Memoria técnica (MongoDB)
+    // 1. Verificar si ya lo tenemos en MongoDB (Catálogo inteligente)
     const cached = await Part.find({ cross_reference: searchTerm });
     if (cached.length > 0) return cached;
 
-    // 2. Extracción de datos crudos (Scrapers)
-    const externalSpecs = await donaldson.getThreeOptions(searchTerm);
+    // 2. Si no está, usamos Groq para determinar el contexto del motor (HD/LD)
+    const context = await groqService.analyzeTechnicalContext(manufacturer, engineType, { microns: 0 }); // Análisis preliminar
 
-    // 3. Procesamiento de la Trilogía basado en Especificaciones
-    const finalResults = await Promise.all(externalSpecs.map(async (spec) => {
-        const analysis = await groqService.analyzeTechnicalContext(manufacturer, engineType, spec);
+    // 3. Activar Scraper según Duty
+    const scraper = (context.duty === 'HD') ? donaldson : fram;
+    const technicalOptions = await scraper.getThreeOptions(searchTerm);
+
+    // 4. Generar la Trilogía ElimFilters basada en Especificaciones Físicas
+    const results = await Promise.all(technicalOptions.map(async (opt) => {
+        // Re-confirmar Tier con Groq basándose en los micrones reales del scraper
+        const analysis = await groqService.analyzeTechnicalContext(manufacturer, engineType, opt);
         
-        // Bloqueo de seguridad: No aplicar filtros HD en motores LD
-        if (analysis.duty === 'LD' && skuBuilder.HD_ONLY.includes(skuBuilder.PREFIX_MAP[spec.application])) {
+        // Bloqueo de seguridad HD_ONLY
+        if (analysis.duty === 'LD' && skuBuilder.HD_ONLY.includes(skuBuilder.PREFIX_MAP[opt.application])) {
             return null;
         }
 
         return {
-            sku: skuBuilder.buildDynamicSKU(spec.application, spec.code, spec.microns),
+            sku: skuBuilder.buildDynamicSKU(opt.application, opt.code, opt.microns),
             tier: analysis.tier,
             duty: analysis.duty,
-            microns: spec.microns,
-            application: spec.application,
-            cross_reference: searchTerm
+            microns: opt.microns,
+            performance_claim: opt.claim,
+            cross_reference: searchTerm,
+            original_competitor: opt.code
         };
     }));
 
-    const validResults = finalResults.filter(r => r !== null);
+    const finalResults = results.filter(r => r !== null);
 
-    // 4. Registro doble para el catálogo
-    if (validResults.length > 0) {
-        await Part.insertMany(validResults);
-        await sheetsWriter.saveThreeRows(validResults);
+    // 5. Persistencia: Llenar el catálogo automáticamente
+    if (finalResults.length > 0) {
+        await Part.insertMany(finalResults);
+        await sheetsWriter.saveThreeRows(finalResults);
     }
 
-    return validResults;
+    return finalResults;
 }
 
 module.exports = { findAndProcess };
