@@ -45,8 +45,6 @@ class DonaldsonScraper {
             const $ = cheerio.load(data);
             
             // Buscar el link del producto Donaldson
-            // Puede estar en diferentes lugares según el tipo de resultado
-            
             // OPCIÓN 1: Link directo en resultados
             const directLink = $('a[href*="/product/P"], a[href*="/product/DBL"]').first().attr('href');
             
@@ -257,4 +255,24 @@ class DonaldsonScraper {
             'John Deere', 'Cummins', 'Detroit Diesel', 'Detroit',
             'Ford', 'Toyota', 'Nissan', 'BMW', 'Mercedes', 'Mercedes-Benz',
             'Isuzu', 'Hino', 'Mitsubishi', 'Case', 'New Holland',
-            'Kub
+            'Kubota', 'Yanmar', 'Perkins', 'Deutz', 'MAN',
+            'Scania', 'Iveco', 'Renault', 'DAF', 'Paccar'
+        ];
+        
+        return oemBrands.some(oem => brand.toLowerCase().includes(oem.toLowerCase()));
+    }
+
+    getHeaders() {
+        return {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+            'Accept-Language': 'es-US,es;q=0.9,en;q=0.8',
+            'Accept-Encoding': 'gzip, deflate, br',
+            'Connection': 'keep-alive',
+            'Upgrade-Insecure-Requests': '1',
+            'Cache-Control': 'max-age=0'
+        };
+    }
+}
+
+module.exports = new DonaldsonScraper();
