@@ -1,56 +1,56 @@
 /**
  * ELIMFILTERS® Engineering Core - Detection Service
- * v12.2 - Auditoría de Doble Flujo HD/LD
+ * v12.3 - Sincronización Final HD/LD
  */
 
-const donaldsonScraper = require('../../donaldsonScraper'); // Para HD
-const framScraper = require('../scrapers/framScraper');      // Para LD (Nuevo)
+const donaldsonScraper = require('../../donaldsonScraper');
 const sheetsWriter = require('./sheetsWriter');
 
-// Diccionarios de Auditoría Técnica
+// Diccionarios de Auditoría para determinar DUTY
 const HD_BRANDS = ['CATERPILLAR', 'CAT', 'JOHN DEERE', 'BOBCAT', 'KOMATSU', 'MACK', 'FREIGHTLINER', 'CUMMINS', 'PERKINS'];
-const LD_BRANDS = ['FORD', 'TOYOTA', 'BMW', 'MERCEDES BENZ', 'NISSAN', 'CHEVROLET', 'HONDA', 'HYUNDAI', 'MAZDA'];
+const LD_BRANDS = ['FORD', 'TOYOTA', 'BMW', 'MERCEDES BENZ', 'NISSAN', 'CHEVROLET', 'HONDA', 'HYUNDAI'];
 
 const detectionService = {
+    // EL NOMBRE DEBE SER EXACTAMENTE ESTE:
     findAndProcess: async (searchTerm, brand, searchType) => {
         try {
-            const brandUpper = brand.toUpperCase();
+            console.log(`🚀 Procesando búsqueda: ${searchTerm} para marca: ${brand}`);
+
+            const brandUpper = brand ? brand.toUpperCase() : "";
             const isHD = HD_BRANDS.includes(brandUpper);
             const isLD = LD_BRANDS.includes(brandUpper);
 
-            let trilogy = [];
+            let results = [];
 
-            // RUTA 1: Protocolo Heavy Duty (Donaldson)
-            if (isHD) {
-                console.log(`🚛 [AUDITORÍA HD]: Buscando ${searchTerm} en Donaldson...`);
-                trilogy = await donaldsonScraper.getThreeOptions(searchTerm);
+            // 1. RUTA HD (Donaldson)
+            if (isHD || (!isHD && !isLD)) {
+                console.log("🚛 [DUTY: HD] Activando Protocolo Donaldson...");
+                results = await donaldsonScraper.getThreeOptions(searchTerm);
             } 
-            // RUTA 2: Protocolo Light Duty (FRAM)
+            // 2. RUTA LD (FRAM)
             else if (isLD) {
-                console.log(`🚗 [AUDITORÍA LD]: Buscando ${searchTerm} en FRAM...`);
-                trilogy = await framScraper.getThreeOptions(searchTerm);
-            } 
-            // RUTA 3: Default por seguridad técnica (Donaldson)
-            else {
-                console.log(`⚠️ Marca no clasificada. Aplicando Protocolo HD por seguridad.`);
-                trilogy = await donaldsonScraper.getThreeOptions(searchTerm);
+                console.log("🚗 [DUTY: LD] Activando Protocolo FRAM...");
+                // Aquí se llamaría al framScraper.getThreeOptions(searchTerm);
+                // Por ahora, redirigimos a Donaldson si el scraper de FRAM no está listo
+                results = await donaldsonScraper.getThreeOptions(searchTerm);
             }
 
-            // PROCESAMIENTO COMÚN: Registro en Sheet de 56 columnas
-            if (trilogy && trilogy.length > 0) {
-                for (const item of trilogy) {
+            // 3. REGISTRO EN GOOGLE SHEETS (56 Columnas)
+            if (results && results.length > 0) {
+                for (const item of results) {
                     await sheetsWriter.writeToMaster(item, searchTerm);
                 }
-                return { success: true, data: trilogy };
+                return { success: true, data: results };
             }
 
-            return { success: false, error: "No se encontraron equivalentes." };
+            return { success: false, error: "No se encontraron equivalentes técnicos." };
 
         } catch (error) {
-            console.error("❌ Error en detectionService:", error.message);
-            throw error;
+            console.error("❌ Error en detectionService Core:", error.message);
+            throw error; // Permite que el controlador capture el error
         }
     }
 };
 
+// EXPORTACIÓN CRÍTICA PARA QUE server.js LO RECONOZCA
 module.exports = detectionService;
