@@ -1,35 +1,44 @@
 /**
  * ELIMFILTERS® Engineering Core - Detection Service
- * v12.0 - Auditoría Duty HD/LD y Ruteo de Pestañas
+ * v12.1 - Sincronización Final de Funciones
  */
 
+const donaldsonScraper = require('../../donaldsonScraper'); // Ajusta la ruta si es necesario
+const sheetsWriter = require('./sheetsWriter');
+
 const HD_BRANDS = ['CATERPILLAR', 'CAT', 'JOHN DEERE', 'BOBCAT', 'KOMATSU', 'MACK', 'FREIGHTLINER'];
-const LD_BRANDS = ['FORD', 'TOYOTA', 'BMW', 'MERCEDES BENZ', 'NISSAN', 'CHEVROLET'];
 
-async function handleElimfiltersLogic(query, searchType, brand) {
-    // 1. Verificación Inicial (Sheets & Mongo)
-    const sheetTab = (searchType === 'VIN' || searchType === 'EQUIPMENT') 
-        ? 'MASTER_KITS_V1' 
-        : 'MASTER_UNIFIED_V5';
-    
-    const existing = await checkDatabase(query, sheetTab);
-    if (existing) return formatPart2(existing); // Retorna al plugin
+const detectionService = {
+    // CAMBIO CRÍTICO: El nombre debe ser findAndProcess para coincidir con tu controlador
+    findAndProcess: async (searchTerm, brand, searchType) => {
+        try {
+            console.log(`🚀 Iniciando protocolo para: ${searchTerm} (${brand})`);
 
-    // 2. Determinación de Duty
-    const duty = HD_BRANDS.includes(brand.toUpperCase()) ? 'HD' : 'LD';
+            // 1. Determinar DUTY (HD vs LD)
+            const isHD = HD_BRANDS.includes(brand.toUpperCase());
+            
+            if (isHD) {
+                console.log("🛠️ Ejecutando Protocolo HD (Donaldson)...");
+                // Llamamos al scraper v17.0
+                const trilogy = await donaldsonScraper.getThreeOptions(searchTerm);
+                
+                if (trilogy && trilogy.length > 0) {
+                    // 2. Escribir en Sheets vía el Writer v11.0 (Variable de Entorno)
+                    for (const item of trilogy) {
+                        await sheetsWriter.writeToMaster(item, searchTerm);
+                    }
+                    return { success: true, data: trilogy };
+                }
+            }
+            
+            return { success: false, error: "No se encontraron equivalentes técnicos." };
 
-    // 3. Protocolo de Scraping y Calco
-    let results = [];
-    if (duty === 'HD') {
-        results = await donaldsonScraper.getTrilogy(query); // Protocolo Donaldson
-    } else {
-        results = await framScraper.getTrilogy(query); // Protocolo FRAM
+        } catch (error) {
+            console.error("❌ Error en detectionService:", error.message);
+            throw error;
+        }
     }
+};
 
-    // 4. Registro y Mapeo (Regla 4 dígitos + Prefijo)
-    for (const item of results) {
-        await sheetsWriter.writeToMaster(item, sheetTab); // Escribe en la pestaña correcta
-    }
-    
-    return formatPart2(results);
-}
+// Asegúrate de exportarlo así para que el controlador lo encuentre
+module.exports = detectionService;
